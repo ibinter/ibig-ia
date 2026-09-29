@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     spike_factor: float = 3.0
     # Clé de l'API SARA (appelée par le serveur des solutions, jamais depuis le navigateur)
     sara_api_key: str = ""
+    # WhatsApp (API Cloud de Meta) : secrets de l'application et version de l'API,
+    # à revérifier au démarrage de l'intégration (les règles changent souvent).
+    whatsapp_app_secret: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_api_version: str = "v23.0"
     # Conservation des données personnelles (section 13)
     retention_months: int = 12
 
@@ -106,6 +111,21 @@ class Site:
 
 
 @dataclass(frozen=True)
+class WhatsAppNumber:
+    nom: str
+    numero: str
+    phone_number_id: str
+    pole: str
+    token_env: str
+
+    def token(self) -> str:
+        value = os.environ.get(self.token_env, "") if self.token_env else ""
+        if not value:
+            raise RuntimeError(f"Jeton manquant pour {self.numero} (variable {self.token_env})")
+        return value
+
+
+@dataclass(frozen=True)
 class SocialAccount:
     reseau: str
     compte: str
@@ -120,6 +140,7 @@ class OrgConfig:
     social_accounts: list[SocialAccount] = field(default_factory=list)
     declinaison: dict[str, str] = field(default_factory=dict)
     sites: list[Site] = field(default_factory=list)
+    whatsapp: list[WhatsAppNumber] = field(default_factory=list)
 
     @property
     def pole_codes(self) -> list[str]:
@@ -159,4 +180,6 @@ def load_org_config(config_dir: Path | None = None) -> OrgConfig:
         social_accounts=accounts,
         declinaison=canaux.get("declinaison", {}),
         sites=[Site(**s) for s in _read_yaml(config_dir / "sites.yaml").get("sites", [])],
+        whatsapp=[WhatsAppNumber(**n) for n in
+                  (_read_yaml(config_dir / "whatsapp.yaml").get("numeros") or [])],
     )

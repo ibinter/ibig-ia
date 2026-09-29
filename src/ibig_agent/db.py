@@ -163,6 +163,24 @@ class Ticket(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class WhatsAppContact(Base):
+    """Contact WhatsApp : fenêtre de 24 h et désinscription (section 10)."""
+
+    __tablename__ = "whatsapp_contacts"
+
+    wa_id: Mapped[str] = mapped_column(String(32), primary_key=True)  # numéro international
+    name: Mapped[str] = mapped_column(String(200), default="")
+    phone_number_id: Mapped[str] = mapped_column(String(40), default="")
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                             nullable=True)
+    last_ack_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    opted_out: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Consentement explicite aux messages promotionnels (jamais déduit d'un simple message)
+    marketing_opt_in: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class User(Base):
     """Compte nominatif du tableau de bord.
 

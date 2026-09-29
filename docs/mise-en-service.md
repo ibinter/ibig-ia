@@ -99,6 +99,33 @@ passe par la validation. Ouvrir ensuite FAQ et guides au fil de la relecture.
   `IBIG_SARA_API_KEY` (exemple : `integrations/php/sara-client.example.php`). La clé ne
   doit jamais être dans le JavaScript du navigateur.
 
+## 5 bis. WhatsApp Business (API Cloud de Meta)
+
+Commencer par 1 ou 2 numéros commerciaux à fort volume ; les autres restent sur
+l'application. **Jamais d'outil non officiel** (simulation de WhatsApp Web) : le numéro
+peut être banni définitivement.
+
+1. Dans le gestionnaire d'entreprise Meta : une application de type « Business » avec le
+   produit WhatsApp, puis ajouter le numéro. Vérifier au moment de la migration si
+   l'option qui garde l'application sur le téléphone en parallèle de l'API est
+   disponible pour ce numéro ; sinon l'équipe répond depuis le tableau de bord.
+2. Un **utilisateur système** avec la permission `whatsapp_business_messaging` : son
+   jeton va dans la variable indiquée par `token_env` (`config/whatsapp.yaml`, avec le
+   `phone_number_id` du numéro).
+3. Le **secret de l'application** → `IBIG_WHATSAPP_APP_SECRET` ; choisir un jeton de
+   vérification → `IBIG_WHATSAPP_VERIFY_TOKEN`.
+4. Webhook : adresse `https://<domaine>/webhooks/whatsapp`, même jeton de vérification,
+   abonnement au champ **messages**.
+5. `ibig-agent diagnostic` (jeton, état et qualité du numéro), puis un message de test.
+
+Règles appliquées par l'agent : réponse libre seulement dans les **24 h** qui suivent le
+dernier message du client (vérifié au moment de l'envoi ; au-delà, répondre par un
+modèle validé par Meta ou par téléphone) ; « STOP » arrête tout envoi à ce contact ;
+aucune promotion sans consentement explicite. Les messages envoyés à l'initiative
+d'IBIG sont facturés par Meta (section 16). Les **chaînes WhatsApp** n'ont pas d'API :
+les déclarer dans `config/canaux.yaml` (`reseau: whatsapp_chaine`, `publication_auto:
+false`) ; l'agent Communication prépare leurs messages chaque semaine.
+
 ## 6. Sauvegardes
 
 ```bash

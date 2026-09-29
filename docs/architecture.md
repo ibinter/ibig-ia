@@ -214,3 +214,18 @@ partir des passages trouvés et cite chacun **mot pour mot**. Le code vérifie :
   serveur du site, jamais depuis le navigateur : `integrations/php/sara-client.example.php`.
 * **Tickets** : page « Tickets » (chacun voit ses pôles), alerte au `support` du pôle
   (`poles.yaml`, à défaut le valideur).
+
+## WhatsApp Business (API Cloud de Meta)
+
+* **Réception** : `POST /webhooks/whatsapp`, signature `X-Hub-Signature-256` vérifiée
+  (sinon 401), réponse immédiate à Meta, traitement en arrière-plan, messages en double
+  ignorés (identifiant `wamid`). Vérification de l'abonnement : `GET` avec `hub.challenge`.
+* **Traitement** : même tri que les mails (pôle du numéro) ; suspect → niveau 3 sans
+  réponse ; « STOP » → désinscription ; FAQ ou réponse documentée du Support → réponse
+  automatique ; sinon court accusé de réception (au plus un par 12 h) et brouillon à
+  valider ; juridique / réclamation grave → direction ; image, audio… → un humain.
+* **Envoi** : `whatsapp.*` passe par le Governor ; l'exécuteur revérifie au moment de
+  l'envoi la **fenêtre de 24 h** et la **désinscription**, car une validation peut
+  arriver trop tard.
+* **Contacts** (`whatsapp_contacts`) : dernier message reçu, dernier accusé, désinscription,
+  consentement promotionnel (jamais déduit d'un simple message).

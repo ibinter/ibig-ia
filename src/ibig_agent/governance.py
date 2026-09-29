@@ -39,6 +39,9 @@ ACTION_LEVELS: dict[str, Level] = {
     # Réponses du Support dont chaque citation est vérifiée dans un guide validé
     "support.answer": Level.AUTOMATIQUE,
     "sara.answer": Level.AUTOMATIQUE,
+    "whatsapp.ack": Level.AUTOMATIQUE,
+    "whatsapp.faq_reply": Level.AUTOMATIQUE,
+    "whatsapp.support_answer": Level.AUTOMATIQUE,
     "mail.forward_internal": Level.AUTOMATIQUE,
     "report.publish": Level.AUTOMATIQUE,
     "notify.internal": Level.AUTOMATIQUE,
@@ -64,6 +67,7 @@ ACTION_LEVELS: dict[str, Level] = {
     "media.reply": Level.HUMAIN,
     "crisis": Level.HUMAIN,
     "security.suspicious_message": Level.HUMAIN,
+    "whatsapp.manual": Level.HUMAIN,
 }
 
 # Autonomie maximale de chaque agent (section 6). Aucun agent ne la dépasse,

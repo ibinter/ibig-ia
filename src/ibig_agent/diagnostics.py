@@ -51,6 +51,7 @@ class Diagnostic:
             self.ai()
             self.mailboxes()
             self.sites()
+            self.whatsapp()
         return self.checks
 
     @property
@@ -147,6 +148,20 @@ class Diagnostic:
             self.add("Mails", "boîtes", FAIL, "aucune boîte dans config/mailboxes.yaml")
         for addr, conn in self.rt.connectors.items():
             self.probe("Mails", addr, conn.check)
+
+    def whatsapp(self) -> None:
+        if not self.rt.org.whatsapp:
+            self.add("WhatsApp", "numéros", OK, "aucun numéro raccordé (config/whatsapp.yaml)")
+            return
+        s = self.rt.settings
+        for label, value in (("secret de l'application", s.whatsapp_app_secret),
+                             ("jeton de vérification", s.whatsapp_verify_token)):
+            self.add("WhatsApp", label, OK if len(value) >= 16 else FAIL,
+                     "" if len(value) >= 16 else "IBIG_WHATSAPP_… manquant : webhook refusé")
+        self.add("WhatsApp", "adresse du webhook", OK,
+                 f"{s.dashboard_url.rstrip('/')}/webhooks/whatsapp (à déclarer chez Meta)")
+        for client in self.rt.whatsapp_clients.values():
+            self.probe("WhatsApp", client.number.nom, client.check)
 
     def sites(self) -> None:
         for site in self.rt.org.sites:

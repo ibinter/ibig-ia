@@ -34,7 +34,8 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("purger", help="Supprimer les données au-delà de la durée de conservation")
     contact = sub.add_parser("contact", help="Droits d'une personne sur ses données")
     contact.add_argument("action", choices=["exporter", "supprimer"])
-    contact.add_argument("--email", required=True)
+    contact.add_argument("--email", required=True,
+                         help="Adresse mail, ou numéro WhatsApp (ex. +225 07 00 00 00 00)")
     contact.add_argument("--par", default="", help="Personne qui traite la demande (journal)")
     tok = sub.add_parser("gmail-jeton", help="Créer le jeton OAuth d'une boîte Gmail de l'agent")
     tok.add_argument("--client", required=True,

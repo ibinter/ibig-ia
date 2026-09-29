@@ -16,11 +16,13 @@ from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
 from .agents.support import SupportAgent
 from .agents.veille import VeilleAgent
+from .agents.whatsapp import WhatsAppAgent
 from .channels.mail import MailConnector, connector_for
 from .channels.web import WebConnector, sanitize_html, web_connector_for
+from .channels.whatsapp import WINDOW_HOURS, WhatsAppClient
 from .config import OrgConfig, Settings, get_settings, load_org_config
-from .db import make_engine, open_db
-from .governance import Executor, Governor
+from .db import WhatsAppContact, make_engine, open_db, utcnow
+from .governance import Executor, Governor, as_utc
 from .knowledge import KnowledgeBase
 from .llm import LLM, ClaudeClient
 
@@ -73,6 +75,27 @@ def web_executors(connectors: dict[str, WebConnector]) -> dict[str, Executor]:
     return {"web.article_draft": draft}
 
 
+def whatsapp_executors(clients: dict[str, WhatsAppClient],
+                       sessions: sessionmaker[Session]) -> dict[str, Executor]:
+    def send(payload: dict) -> dict:
+        client = clients.get(payload["phone_number_id"])
+        if client is None:
+            raise RuntimeError(f"Numéro WhatsApp non raccordé : {payload['phone_number_id']}")
+        with sessions() as s:
+            contact = s.get(WhatsAppContact, payload["to"])
+        if contact is not None and contact.opted_out:
+            raise RuntimeError("contact désinscrit (STOP) : aucun envoi")
+        # Règle de Meta, vérifiée au moment de l'envoi : la validation a pu prendre du temps.
+        if (contact is None or contact.last_inbound_at is None or utcnow()
+                - as_utc(contact.last_inbound_at) > timedelta(hours=WINDOW_HOURS)):
+            raise RuntimeError("fenêtre de 24 h dépassée : répondre avec un modèle validé "
+                               "par Meta ou par téléphone")
+        return client.send_text(payload["to"], payload["texte"])
+
+    return {"whatsapp.reply": send, "whatsapp.ack": send, "whatsapp.faq_reply": send,
+            "whatsapp.support_answer": send}
+
+
 def manual_social_executors() -> dict[str, Executor]:
     """Tant que l'outil multi-comptes (Metricool, Buffer…) n'est pas raccordé (phase 2),
     une publication validée est remise à l'équipe pour publication manuelle."""
@@ -97,11 +120,17 @@ class Runtime:
     llm: LLM | None
     connectors: dict[str, MailConnector] = field(default_factory=dict)
     web_connectors: dict[str, WebConnector] = field(default_factory=dict)
+    whatsapp_clients: dict[str, WhatsAppClient] = field(default_factory=dict)
 
     @property
     def messagerie(self) -> MessagerieAgent:
         return MessagerieAgent(self.org, self.kb, self.llm, self.governor, self.sessions,
                                self.connectors, support=self.support)
+
+    @property
+    def whatsapp(self) -> WhatsAppAgent:
+        return WhatsAppAgent(self.org, self.kb, self.llm, self.governor, self.sessions,
+                             self.messagerie, support=self.support)
 
     @property
     def support(self) -> SupportAgent:
@@ -144,7 +173,8 @@ class Runtime:
 def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                   connectors: dict[str, MailConnector] | None = None,
                   with_llm: bool = True,
-                  web_connectors: dict[str, WebConnector] | None = None) -> Runtime:
+                  web_connectors: dict[str, WebConnector] | None = None,
+                  whatsapp_clients: dict[str, WhatsAppClient] | None = None) -> Runtime:
     settings = settings or get_settings()
     org = load_org_config(settings.config_dir)
     sessions = open_db(make_engine(settings.database_url))
@@ -153,10 +183,14 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}
     if web_connectors is None:
         web_connectors = {s.url: c for s in org.sites if (c := web_connector_for(s))}
+    if whatsapp_clients is None:
+        whatsapp_clients = {n.phone_number_id: WhatsAppClient(n, settings.whatsapp_api_version)
+                            for n in org.whatsapp}
     executors = {**mail_executors(connectors), **web_executors(web_connectors),
-                 **manual_social_executors()}
+                 **whatsapp_executors(whatsapp_clients, sessions), **manual_social_executors()}
     governor = Governor(sessions, executors,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
-    return Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors)
+    return Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
+                   whatsapp_clients)

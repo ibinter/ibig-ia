@@ -21,7 +21,15 @@ from datetime import datetime, timedelta
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from .db import JournalEntry, PendingAction, ProcessedMessage, Prospect, Ticket, utcnow
+from .db import (
+    JournalEntry,
+    PendingAction,
+    ProcessedMessage,
+    Prospect,
+    Ticket,
+    WhatsAppContact,
+    utcnow,
+)
 
 CLOSED_PROSPECTS = ("perdu", "sans_suite")
 
@@ -70,10 +78,20 @@ class ContactData:
     mails: list[dict] = field(default_factory=list)
     tickets: list[dict] = field(default_factory=list)
     validations: list[dict] = field(default_factory=list)
+    whatsapp: dict | None = None
 
     @property
     def empty(self) -> bool:
-        return not (self.prospect or self.mails or self.tickets or self.validations)
+        return not (self.prospect or self.mails or self.tickets or self.validations
+                    or self.whatsapp)
+
+
+def normalize_identifier(value: str) -> str:
+    """Adresse mail en minuscules, ou numéro WhatsApp au format international sans « + »."""
+    value = value.strip().lower()
+    if "@" not in value:
+        value = "".join(ch for ch in value if ch.isdigit())
+    return value
 
 
 def _row(obj, fields: tuple[str, ...]) -> dict:
@@ -85,13 +103,14 @@ def _row(obj, fields: tuple[str, ...]) -> dict:
 
 
 def _pending_for(s: Session, email: str) -> list[PendingAction]:
-    rows = s.scalars(select(PendingAction).where(PendingAction.channel == "mail")).all()
+    rows = s.scalars(select(PendingAction).where(
+        PendingAction.channel.in_(("mail", "whatsapp")))).all()
     return [pa for pa in rows if (pa.payload.get("to") or "").lower() == email
             or (pa.payload.get("from") or "").lower() == email]
 
 
 def export_contact(sessions: sessionmaker[Session], email: str) -> ContactData:
-    email = email.strip().lower()
+    email = normalize_identifier(email)
     data = ContactData(email)
     with sessions() as s:
         p = s.scalar(select(Prospect).where(Prospect.email == email))
@@ -105,6 +124,10 @@ def export_contact(sessions: sessionmaker[Session], email: str) -> ContactData:
                           ProcessedMessage.sender == email)).all()]
         data.tickets = [_row(t, ("id", "channel", "pole", "question", "status", "created_at"))
                         for t in s.scalars(select(Ticket).where(Ticket.contact == email)).all()]
+        wa = s.get(WhatsAppContact, email)
+        if wa:
+            data.whatsapp = _row(wa, ("wa_id", "name", "pole", "last_inbound_at", "opted_out",
+                                      "marketing_opt_in"))
         data.validations = [
             {"titre": pa.title, "statut": pa.status, "cree_le": pa.created_at.isoformat(),
              "texte": pa.payload.get("body", "")} for pa in _pending_for(s, email)]
@@ -114,7 +137,7 @@ def export_contact(sessions: sessionmaker[Session], email: str) -> ContactData:
 def erase_contact(sessions: sessionmaker[Session], email: str, by: str) -> ContactData:
     """Efface les données d'une personne. Une validation en attente la concernant est
     rejetée : aucun message ne lui sera plus envoyé par ce biais."""
-    email = email.strip().lower()
+    email = normalize_identifier(email)
     found = export_contact(sessions, email)
     digest = hashlib.sha256(email.encode()).hexdigest()[:12]
     with sessions() as s:
@@ -123,6 +146,7 @@ def erase_contact(sessions: sessionmaker[Session], email: str, by: str) -> Conta
         s.execute(delete(Prospect).where(Prospect.email == email))
         s.execute(delete(ProcessedMessage).where(ProcessedMessage.sender == email))
         s.execute(delete(Ticket).where(Ticket.contact == email))
+        s.execute(delete(WhatsAppContact).where(WhatsAppContact.wa_id == email))
         for pa in _pending_for(s, email):
             if pa.status in ("pending", "prepared"):
                 pa.status, pa.decided_by, pa.decided_at = "rejected", by, utcnow()

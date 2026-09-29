@@ -35,7 +35,6 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [ ] Raccorder les vraies boîtes et mesurer le point de départ pendant un mois (section 3)
 - [x] Comptes nominatifs pour le tableau de bord, droits par pôle et par rôle
 - [x] Alertes mail aux valideurs, relance du suppléant après 24 h, niveau 3 à la direction
-- [ ] Validation depuis WhatsApp (après la migration vers l'API Cloud, phase 3)
 - [x] Migrations de schéma de base (Alembic), testées sur SQLite et PostgreSQL
 - [ ] Recette sur 2 semaines d'essai réel (voir ci-dessous)
 
@@ -48,12 +47,16 @@ Actions de la section 19, qui débloquent la phase 1 :
       sécurisé réutilisable pour les sites PHP maison, export HTML pour les sites sans back-office
 - [ ] Installer le module PHP sur ibigsoft.com et renseigner la technologie des autres sites
       (`config/sites.yaml`)
-- [ ] Préparation hebdomadaire des messages des chaînes WhatsApp (publication manuelle)
+- [x] Préparation hebdomadaire des messages des chaînes WhatsApp (publication manuelle) :
+      déclarer les chaînes dans `config/canaux.yaml` (`reseau: whatsapp_chaine`)
 
 ## Phase 3 — Commercial, Support, WhatsApp, Veille (mois 3)
 
-- [ ] Migration d'1 ou 2 numéros vers la plateforme WhatsApp Business (API Cloud Meta),
-      modèles de messages validés par Meta, gestion du consentement
+- [x] Intégration WhatsApp Business (API Cloud Meta) : webhook signé, tri, réponses
+      automatiques documentées, brouillons à valider, fenêtre de 24 h, désinscription
+- [ ] Migrer 1 ou 2 numéros vers la plateforme officielle et déclarer le webhook chez Meta
+- [ ] Modèles de messages validés par Meta (relances hors fenêtre de 24 h, campagnes
+      avec consentement) et validation des brouillons depuis WhatsApp
 - [x] Agent Commercial : qualification, séquences de relance, suivi des démos et essais,
       désinscription
 - [ ] Raccorder le moteur de licences IBIG SOFT (dates d'essai automatiques, au lieu de l'import CSV)

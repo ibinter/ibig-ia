@@ -12,7 +12,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
@@ -276,6 +276,39 @@ def create_app(rt: Runtime) -> FastAPI:
             "transmis": not answered,
             "ticket": result.ticket_id,
         })
+
+    # ---------------------------------------------------------------- WhatsApp (Meta)
+    @app.get("/webhooks/whatsapp", response_class=PlainTextResponse)
+    def whatsapp_verify(request: Request):
+        """Vérification de l'abonnement par Meta (hub.challenge)."""
+        q = request.query_params
+        token = rt.settings.whatsapp_verify_token
+        if (q.get("hub.mode") == "subscribe" and token
+                and secrets.compare_digest(q.get("hub.verify_token", ""), token)):
+            return q.get("hub.challenge", "")
+        raise HTTPException(403)
+
+    @app.post("/webhooks/whatsapp")
+    async def whatsapp_webhook(request: Request, tasks: BackgroundTasks):
+        from ..channels.whatsapp import parse_webhook, verify_signature
+
+        body = await request.body()
+        if not rt.settings.whatsapp_app_secret:
+            return JSONResponse({"erreur": "WhatsApp non configuré"}, status_code=503)
+        if not verify_signature(rt.settings.whatsapp_app_secret, body,
+                                request.headers.get("x-hub-signature-256", "")):
+            return JSONResponse({"erreur": "signature invalide"}, status_code=401)
+        try:
+            import json
+
+            messages = parse_webhook(json.loads(body))
+        except ValueError:
+            return JSONResponse({"erreur": "JSON invalide"}, status_code=400)
+        # Réponse immédiate à Meta ; le traitement (tri, IA) se fait ensuite.
+        agent = rt.whatsapp
+        for m in messages:
+            tasks.add_task(agent.handle, m)
+        return {"recus": len(messages)}
 
     @app.post("/prospects/{pid}/statut")
     def prospect_status(pid: int, statut: str = Form(...), who: Principal = Depends(user)):
