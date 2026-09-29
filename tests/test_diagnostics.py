@@ -63,3 +63,15 @@ def test_stopped_channel_and_missing_alert_mailbox(rt):
     diag.run()
     assert status(diag, "Gouvernance", "bouton d'arrêt").status == WARN
     assert status(diag, "Réglages", "boîte des alertes").status == FAIL
+
+
+def test_missing_api_key_is_explained(rt, monkeypatch):
+    from ibig_agent.llm import ClaudeClient
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    rt.llm = ClaudeClient.__new__(ClaudeClient)
+    rt.llm.client = SimpleNamespace(models=FakeModels(set()))
+    diag = Diagnostic(rt)
+    diag.run()
+    check = status(diag, "IA", "clé API Anthropic")
+    assert check.status == FAIL and ".env" in check.detail

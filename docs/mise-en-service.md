@@ -25,6 +25,25 @@ traiter un dossier de niveau 3, actionner le bouton d'arrêt.
 | Nom de domaine pour le tableau de bord (ex. `agent.ibigsoft.com`) | `.env` |
 | Clé API Anthropic (offre professionnelle, sans entraînement sur les données) | coffre à secrets |
 
+## Installation rapide (une commande)
+
+Sur un serveur Ubuntu ou Debian neuf, connecté en administrateur :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ibinter/ibig-ia/claude/construire-github-9ct4l2/deploy/installer.sh -o installer.sh
+sudo bash installer.sh
+```
+
+Le script fait les sections 1, 2 et 4 ci-dessous : pare-feu (22, 80, 443), mises à jour
+de sécurité automatiques, Docker, téléchargement dans `/opt/ibig-ia`, `.env` avec des
+secrets générés, démarrage en HTTPS, premier compte de direction et diagnostic. Il ne
+demande que le domaine (facultatif : sans domaine, adresse temporaire `<ip>.sslip.io`),
+la clé API Anthropic (facultative à ce stade) et le compte de direction. Il peut être
+relancé sans risque (il ne remplace jamais un `.env` existant). Il ne modifie pas la
+configuration SSH : passer ensuite à une connexion par clé (section 1).
+
+Les sections suivantes détaillent l'installation manuelle.
+
 ## 1. Le serveur
 
 1. VPS Linux (Ubuntu 24.04 LTS conseillé), **4 Go de RAM minimum**, 40 Go de disque.

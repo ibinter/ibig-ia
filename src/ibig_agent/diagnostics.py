@@ -6,6 +6,7 @@ sortie non nul en cas d'échec (utilisable avant chaque déploiement).
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -140,6 +141,11 @@ class Diagnostic:
         client = getattr(llm, "client", None)
         if client is None:
             self.add("IA", "API Anthropic", WARN, "client non configuré")
+            return
+        if (type(llm).__name__ == "ClaudeClient" and not os.environ.get("ANTHROPIC_API_KEY")
+                and not os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+            self.add("IA", "clé API Anthropic", FAIL,
+                     "ANTHROPIC_API_KEY vide : l'ajouter dans .env puis « docker compose up -d »")
             return
         for label, model in (("modèle de tri", self.rt.settings.triage_model),
                              ("modèle de rédaction", self.rt.settings.writing_model)):
