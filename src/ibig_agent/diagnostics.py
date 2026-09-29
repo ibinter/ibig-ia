@@ -125,8 +125,10 @@ class Diagnostic:
         todo = [d.pole for d in kb.documents if d.meta.get("statut") == "a_completer"]
         self.add("Base de connaissances", "fiches pôles", WARN if todo else OK,
                  f"à compléter : {', '.join(sorted(todo))}" if todo else "complètes")
+        pending = f", {len(kb.faq_pending)} réponse(s) à rédiger" if kb.faq_pending else ""
         self.add("Base de connaissances", "FAQ", OK if kb.faq else WARN,
-                 f"{len(kb.faq)} entrée(s)" if kb.faq else "aucune : pas de réponse FAQ")
+                 (f"{len(kb.faq)} entrée(s) active(s){pending}" if kb.faq
+                  else f"aucune réponse active : pas de réponse FAQ{pending}"))
         guides = [d for d in kb.documents if d.type == "guide"]
         auto = [d for d in guides if d.meta.get("reponses_auto") is True]
         self.add("Base de connaissances", "guides du support", OK if guides else WARN,

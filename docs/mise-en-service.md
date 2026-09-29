@@ -15,7 +15,7 @@ pour l'installation, puis deux semaines d'essai réel avant la recette (section 
 | Responsable de l'agent, valideur + suppléant + commercial + support par pôle (adresses mail) | `config/poles.yaml` |
 | Liste des boîtes mail : adresse, hébergeur (Gmail / LWS), pôle, responsable | `config/mailboxes.yaml` |
 | Technologie de chaque site (WordPress / PHP / sans back-office) | `config/sites.yaml` |
-| 8 fiches pôles, FAQ, guides utilisateurs, contacts officiels, interdits | `knowledge/` |
+| 8 fiches pôles, FAQ, catalogues, guides utilisateurs, contacts officiels, interdits | `knowledge/` (fiches, FAQ et catalogues pré-remplis : compléter chaque « À COMPLÉTER ») |
 | Nom de domaine pour le tableau de bord (ex. `agent.ibigsoft.com`) | `.env` |
 | Clé API Anthropic (offre professionnelle, sans entraînement sur les données) | coffre à secrets |
 
@@ -83,6 +83,11 @@ docker compose exec agent ibig-agent diagnostic
 ```
 
 Le tableau de bord est alors sur `https://<domaine>` (certificat automatique).
+
+**Base de connaissances** : les fiches pôles, les FAQ et les catalogues sont livrés
+pré-remplis avec ce que dit le cahier des charges. Un texte qui contient encore
+« À COMPLÉTER » n'est jamais utilisé pour répondre ; une fiche pôle ne sert aux contenus
+qu'une fois la ligne `statut: a_completer` retirée.
 
 **Démarrer en douceur** : tant qu'aucune FAQ n'est renseignée et qu'aucun guide n'a
 `reponses_auto: true`, l'agent n'envoie seul que des accusés de réception ; tout le reste

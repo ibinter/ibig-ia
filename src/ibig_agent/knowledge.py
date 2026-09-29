@@ -42,6 +42,15 @@ class Passage:
         return self.doc.meta.get("reponses_auto") is True
 
 
+# Marqueur des informations à fournir par IBIG : un texte qui le contient n'est jamais
+# utilisé pour répondre (FAQ automatique, passage cité par le Support).
+PLACEHOLDER = re.compile(r"[àa]\s+compl[ée]ter", re.IGNORECASE)
+
+
+def is_placeholder(text: str) -> bool:
+    return bool(PLACEHOLDER.search(text))
+
+
 def normalize_quote(text: str) -> str:
     """Pour vérifier une citation : casse, espaces, apostrophes et emphase ignorés."""
     text = text.replace("’", "'").replace("«", '"').replace("»", '"')
@@ -148,10 +157,12 @@ class KnowledgeBase:
             for p in sorted(self.root.rglob("*.md"))
             if p.name != "README.md" and not p.name.startswith("_")
         ]
-        self.faq = []
+        self.faq, self.faq_pending = [], []
         for doc in self.documents:
             if doc.type == "faq":
-                self.faq.extend(self._faq_entries(doc))
+                for entry in self._faq_entries(doc):
+                    # Réponse encore à rédiger : jamais envoyée automatiquement.
+                    (self.faq_pending if is_placeholder(entry.answer) else self.faq).append(entry)
         self.passages = [p for d in self.documents for p in self._split(d)]
         corpus = "\n".join(d.body for d in self.documents)
         self._emails = {e.lower() for e in _EMAIL.findall(corpus)}
@@ -230,7 +241,8 @@ class KnowledgeBase:
         q = set(_keywords(query))
         scored = []
         for p in self.passages:
-            if p.doc.type not in types or p.doc.pole not in (pole, "GROUPE"):
+            if (p.doc.type not in types or p.doc.pole not in (pole, "GROUPE")
+                    or is_placeholder(p.text)):
                 continue
             words = _keywords(f"{p.doc.titre} {p.heading} {p.text}")
             score = sum(1 for w in words if w in q) / (1 + len(words) ** 0.5)

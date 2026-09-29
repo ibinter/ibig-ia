@@ -15,7 +15,8 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [ ] Préciser le pôle du groupe Facebook 367494932590382 et compléter les comptes IBIG SOFT → `config/canaux.yaml`
 - [ ] Indiquer la technologie de chaque site (WordPress ou PHP maison)
 - [ ] Rédiger les 8 fiches pôles → `knowledge/poles/*.md` (retirer `statut: a_completer`)
-- [ ] Réunir les FAQ → `knowledge/faq/`, les guides utilisateurs → `knowledge/guides/` et
+- [ ] Rédiger les réponses des FAQ (36 questions proposées dans `knowledge/faq/`), compléter
+      les catalogues IBIG SOFT et formations ; réunir les guides utilisateurs → `knowledge/guides/` et
       les 20 meilleures publications → `knowledge/publications/`
 - [ ] Compléter les contacts officiels → `knowledge/contacts.md`
 - [ ] Choisir l'option A (raccordement direct, implémentée) ou B (centralisation) pour les mails

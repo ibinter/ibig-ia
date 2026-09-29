@@ -1,13 +1,11 @@
 # FAQ par pôle
 
-Déposer ici une FAQ par pôle (`eduform.md`, `soft.md`…) avec en-tête :
+Un fichier par pôle (`soft.md`, `eduform.md`…), une question par intertitre `##`,
+la réponse juste en dessous. Les fichiers livrés sont **pré-remplis de questions** tirées
+des cibles du cahier des charges, avec des réponses « À COMPLÉTER ».
 
-```
----
-titre: FAQ IBIG SOFT
-pole: SOFT
-type: faq
----
-```
+**Règle importante** : une réponse est envoyée **automatiquement** (niveau 1) dès qu'elle
+ne contient plus « À COMPLÉTER ». Rédiger avec le responsable du pôle, n'y mettre que des
+informations exactes (prix, délais, contacts), puis enregistrer.
 
-Seules les réponses de ces fichiers peuvent être envoyées automatiquement (niveau 1).
+`ibig-agent diagnostic` indique le nombre de réponses actives et à rédiger.

@@ -6,27 +6,37 @@ statut: a_completer
 ---
 # Fiche pôle — IBIG PARTNERS
 
+<!-- Pré-remplie à partir du cahier des charges. Remplacer chaque « À COMPLÉTER », relire les
+propositions, puis retirer la ligne « statut: a_completer » de l'en-tête : tant qu'elle est
+là, l'agent ne produit aucun contenu (réseaux sociaux, articles) pour ce pôle. -->
+
 ## Identité
 IBIG PARTNERS : Représentation commerciale, partenariats stratégiques.
 Promesse en une phrase : À COMPLÉTER.
 
 ## Cibles
 Revendeurs, apporteurs d'affaires.
+Besoins de chaque cible : À COMPLÉTER.
 
 ## Offres
-À COMPLÉTER (prix publics ou « sur devis »).
+- Représentation commerciale
+- Partenariats stratégiques
+- Prix publics ou « sur devis » pour chaque offre : À COMPLÉTER
 
 ## Ton
-À COMPLÉTER, avec 3 exemples.
+Proposition à valider : professionnel, orienté gagnant-gagnant.
+Exemples de formulations (3) : À COMPLÉTER.
 
 ## Comptes
-Voir config/canaux.yaml et config/mailboxes.yaml. À COMPLÉTER.
+- Comptes propres au pôle : À COMPLÉTER (sinon, relais par les comptes du groupe)
+- Boîtes mail et numéros WhatsApp du pôle : voir config/mailboxes.yaml et config/whatsapp.yaml
 
 ## Rythme
-3 publications par semaine minimum (objectif section 3).
+3 publications par semaine minimum (objectif de la section 3), déclinées par réseau.
 
 ## Interdits
-Voir interdits.md. Spécifiques au pôle : À COMPLÉTER.
+Proposition à valider : aucun taux de commission ni exclusivité sans contrat signé (niveau 3 : contrats).
+Voir aussi interdits.md (règles du groupe).
 
 ## Contact humain
-À COMPLÉTER (valideur et suppléant).
+Valideur, suppléant, commercial et support : adresses dans config/poles.yaml (À COMPLÉTER).
