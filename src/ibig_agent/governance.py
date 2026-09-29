@@ -203,7 +203,9 @@ class Governor:
                 raise GovernanceError(
                     f"L'agent {req.agent!r} ne peut pas émettre {req.action_type!r}"
                 )
-        elif autonomy == "validation" and level == Level.AUTOMATIQUE:
+        elif (autonomy == "validation" and level == Level.AUTOMATIQUE
+              and req.action_type not in READ_ONLY_ACTIONS):
+            # Les actions internes (alertes à l'équipe) ne touchent aucun canal extérieur.
             level = Level.VALIDATION
 
         if level == Level.AUTOMATIQUE:

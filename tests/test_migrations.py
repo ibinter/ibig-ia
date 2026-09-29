@@ -76,6 +76,14 @@ def test_new_not_null_column_applies_to_existing_rows(engine):
             "category, urgency, sentiment, decision, suspicious, processed_at) VALUES "
             "('b@x', '<1@x>', 'c@x', 's', 'SOFT', 'client', 'normale', 'neutre', 'faq', "
             ":f, CURRENT_TIMESTAMP)"), {"f": False})
+        conn.execute(text(
+            "INSERT INTO prospects (email, name, pole, source, need, status, created_at, "
+            "updated_at) VALUES ('p@x', 'P', 'SOFT', 'b@x', 'besoin', 'nouveau', "
+            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
     migrate.upgrade(engine)
     with engine.connect() as conn:
         assert conn.execute(text("SELECT summary FROM processed_messages")).scalar() == ""
+        row = conn.execute(text("SELECT score, followups_sent, stop_followups, temperature "
+                                "FROM prospects")).one()
+        assert (row.score, row.followups_sent, bool(row.stop_followups),
+                row.temperature) == (0, 0, False, "")

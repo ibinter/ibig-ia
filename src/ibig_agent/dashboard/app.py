@@ -190,10 +190,25 @@ def create_app(rt: Runtime) -> FastAPI:
     @app.get("/prospects", response_class=HTMLResponse)
     def prospects(request: Request, who: Principal = Depends(user)):
         with rt.sessions() as s:
-            rows = s.scalars(select(Prospect).order_by(desc(Prospect.updated_at))).all()
+            rows = s.scalars(select(Prospect).order_by(desc(Prospect.score),
+                                                       desc(Prospect.updated_at))).all()
         if who.role == "valideur":  # données personnelles : chacun voit ses pôles
             rows = [p for p in rows if p.pole in who.poles]
         return page(request, "prospects.html", rows=rows)
+
+    @app.post("/prospects/{pid}/statut")
+    def prospect_status(pid: int, statut: str = Form(...), who: Principal = Depends(user)):
+        with rt.sessions() as s:
+            p = s.get(Prospect, pid)
+        if p is None:
+            raise HTTPException(404)
+        if who.role == "valideur" and p.pole not in who.poles:
+            return back("/prospects", f"Refusé : vous ne suivez pas le pôle {p.pole}")
+        try:
+            rt.commercial.set_status(pid, statut, by=who.label)
+        except ValueError as exc:
+            return back("/prospects", f"Refusé : {exc}")
+        return back("/prospects", f"{p.email} : {statut}")
 
     @app.get("/indicateurs", response_class=HTMLResponse)
     def indicators(request: Request, jours: int = 7, who: Principal = Depends(user)):

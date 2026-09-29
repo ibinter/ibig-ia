@@ -9,6 +9,7 @@ from datetime import timedelta
 from sqlalchemy.orm import Session, sessionmaker
 
 from .agents.chef import ChefAgent
+from .agents.commercial import CommercialAgent
 from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
@@ -52,6 +53,7 @@ def mail_executors(connectors: dict[str, MailConnector]) -> dict[str, Executor]:
         "mail.ack": send,
         "mail.faq_reply": send,
         "mail.reply": send,
+        "commercial.followup": send,
         "mail.forward_internal": forward,
         "notify.internal": forward,
     }
@@ -109,6 +111,12 @@ class Runtime:
     def notifier(self) -> ValidatorNotifier:
         return ValidatorNotifier(self.settings, self.org, self.governor, self.sessions,
                                  set(self.connectors))
+
+    @property
+    def commercial(self) -> CommercialAgent:
+        return CommercialAgent(self.settings, self.org, self.kb, self.llm, self.governor,
+                               self.sessions,
+                               {a: c.mailbox for a, c in self.connectors.items()})
 
     @property
     def veille(self) -> VeilleAgent:

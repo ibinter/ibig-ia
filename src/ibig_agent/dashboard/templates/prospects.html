@@ -1,11 +1,27 @@
 {% extends "base.html" %}
 {% block content %}
 <h2>Prospects</h2>
+<p class="muted">Classés par score. Relances automatiques (brouillons à valider) à J+3, J+7 et J+14
+  sans réponse ; « Stop » les arrête pour ce prospect.</p>
 <div class="card scroll"><table>
-<tr><th>Mis à jour</th><th>Nom</th><th>Email</th><th>Pôle</th><th>Besoin</th><th>Statut</th><th>Source</th></tr>
+<tr><th>Prospect</th><th>Pôle</th><th>Score</th><th>Besoin / solution</th><th>Prochaine étape</th>
+  <th>Statut</th><th>Essai / démo</th><th></th></tr>
 {% for p in rows %}
-<tr><td>{{ p.updated_at.strftime('%d/%m %H:%M') }}</td><td>{{ p.name }}</td><td>{{ p.email }}</td>
-<td>{{ p.pole }}</td><td>{{ p.need }}</td><td>{{ p.status }}</td><td>{{ p.source }}</td></tr>
+<tr>
+<td><b>{{ p.name or '—' }}</b><br><span class="muted">{{ p.email }}</span></td>
+<td>{{ p.pole }}</td>
+<td>{% if p.qualified_at %}<span class="tag {{ 'l3' if p.temperature == 'chaud' else ('l2' if p.temperature == 'tiede' else '') }}">{{ p.score }} · {{ p.temperature }}</span>{% else %}<span class="muted">à qualifier</span>{% endif %}</td>
+<td>{{ p.need }}{% if p.solution %}<br><span class="muted">→ {{ p.solution }}</span>{% endif %}</td>
+<td class="muted">{{ p.next_step }}</td>
+<td>{{ p.status }}{% if p.followups_sent %}<br><span class="muted">{{ p.followups_sent }} relance(s)</span>{% endif %}
+  {% if p.stop_followups %}<br><span class="tag l3">stop</span>{% endif %}</td>
+<td class="muted">{% if p.trial_ends_at %}essai → {{ p.trial_ends_at.strftime('%d/%m') }}<br>{% endif %}{% if p.demo_at %}démo {{ p.demo_at.strftime('%d/%m %H:%M') }}{% endif %}</td>
+<td><form method="post" action="/prospects/{{ p.id }}/statut" class="row">
+  <select name="statut">
+    <option value="gagne">Gagné</option><option value="perdu">Perdu</option>
+    <option value="stop">Stop relances</option><option value="reprise">Reprendre</option>
+  </select><button>OK</button></form></td>
+</tr>
 {% endfor %}
 </table></div>
 {% endblock %}

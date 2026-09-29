@@ -35,11 +35,16 @@ class FakeLLM:
         self.draft = "Bonjour,\n\nMerci pour votre intérêt pour nos solutions."
         self.calls: list[str] = []
         self.calendar: dict | None = None
+        self.qualification = {"score": 40, "temperature": "tiede", "solution": "",
+                              "prochaine_etape": "Appeler", "raisons": "r"}
 
     def structured(self, purpose, kind, system, user, schema, max_tokens=2000):
         self.calls.append(purpose)
         if purpose == "social.calendar":
             return self.calendar
+        if purpose == "commercial.qualify":
+            self.last_user = user
+            return dict(self.qualification)
         for subject, data in self.triages.items():
             if subject in user:
                 base = {"pole": "SOFT", "categorie": "support", "urgence": "normale",

@@ -52,6 +52,7 @@ class Pole:
     cibles: str = ""
     valideur: str = ""
     suppleant: str = ""
+    commercial: str = ""
 
 
 @dataclass(frozen=True)

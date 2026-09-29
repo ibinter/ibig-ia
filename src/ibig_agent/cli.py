@@ -32,6 +32,10 @@ def main(argv: list[str] | None = None) -> None:
     ind = sub.add_parser("indicateurs", help="Indicateurs de réussite (section 3)")
     ind.add_argument("--jours", type=int, default=7)
     sub.add_parser("veille", help="Lancer les alertes de veille maintenant")
+    sub.add_parser("commercial", help="Qualifier et relancer les prospects maintenant")
+    imp = sub.add_parser("prospects", help="Importer une liste de prospects (CSV)")
+    imp.add_argument("fichier", help="CSV : email, nom, pole, solution, besoin, fin_essai, "
+                                     "demo, boite")
     art = sub.add_parser("article", help="Préparer un article (brouillon à valider)")
     art.add_argument("--site", help="URL du site (défaut : tous les sites actifs)")
     art.add_argument("--sujet", default="", help="Sujet imposé (facultatif)")
@@ -82,6 +86,14 @@ def main(argv: list[str] | None = None) -> None:
             print(rt.contenus_web.run())
     elif args.cmd == "indicateurs":
         print(rt.veille.indicators(args.jours).as_text())
+    elif args.cmd == "commercial":
+        print(rt.commercial.qualify_new())
+        print(rt.commercial.run())
+    elif args.cmd == "prospects":
+        result = rt.commercial.import_csv(args.fichier)
+        print(f"{result.crees} créé(s), {result.mis_a_jour} mis à jour")
+        for err in result.erreurs:
+            print("  -", err)
     elif args.cmd == "veille":
         print(rt.veille.check_alerts())
     elif args.cmd == "alertes":

@@ -115,9 +115,31 @@ class Prospect(Base):
     pole: Mapped[str] = mapped_column(String(40), default="")
     source: Mapped[str] = mapped_column(String(200), default="")
     need: Mapped[str] = mapped_column(Text, default="")
+    # nouveau | qualifie | en_discussion | relance | sans_suite | gagne | perdu
     status: Mapped[str] = mapped_column(String(30), default="nouveau")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Qualification (agent Commercial)
+    score: Mapped[int] = mapped_column(Integer, default=0)
+    temperature: Mapped[str] = mapped_column(String(10), default="")  # chaud | tiede | froid
+    solution: Mapped[str] = mapped_column(String(200), default="")
+    next_step: Mapped[str] = mapped_column(Text, default="")
+    qualified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Suivi des échanges et des relances
+    last_inbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                             nullable=True)
+    last_outbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                              nullable=True)
+    followups_sent: Mapped[int] = mapped_column(Integer, default=0)
+    stop_followups: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Essais et démonstrations
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                           nullable=True)
+    trial_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                               nullable=True)
+    demo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    demo_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                              nullable=True)
 
 
 class User(Base):

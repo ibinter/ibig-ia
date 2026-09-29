@@ -165,3 +165,25 @@ valideur du pôle, toujours visibles au tableau de bord) :
 
 Seuils réglables : `IBIG_BUSINESS_OPEN_HOUR`, `IBIG_BUSINESS_CLOSE_HOUR`,
 `IBIG_RESPONSE_TARGET_HOURS`, `IBIG_SPIKE_MIN_MESSAGES`, `IBIG_SPIKE_FACTOR`.
+
+## Agent Commercial
+
+Autonomie : validation en un clic. Seules les alertes internes aux commerciaux partent
+sans validation (elles ne touchent aucun canal extérieur).
+
+| Étape | Fonctionnement | Niveau |
+|---|---|---|
+| Qualification (toutes les 15 min) | Modèle léger : score 0–100, chaud / tiède / froid, solution visée, prochaine étape, à partir des résumés du tri (jamais le texte brut) et de la base de connaissances | journal |
+| Prospect chaud (score ≥ 70) | Alerte immédiate au commercial du pôle (`commercial` dans `poles.yaml`, à défaut le valideur) | interne |
+| Relances (semaine, heures ouvrées) | Brouillon si pas de réponse à notre dernier message : J+3, J+7, J+14 ; arrêt dès que le prospect écrit ; « sans suite » 7 jours après la 3e | 2 |
+| Fin d'essai | Brouillon de relance 3 jours avant la fin + alerte au commercial | 2 |
+| Démonstration | Rappel au commercial la veille | interne |
+| Gagné / perdu / stop | Décision au tableau de bord (page Prospects), tracée au journal | humain |
+
+**Consentement** : chaque relance se termine par « répondez simplement STOP » (ajouté par
+le code si le modèle l'omet). Une réponse de désinscription (« STOP », « ne plus me
+contacter », « désinscrire »…) est détectée par l'agent Messagerie et arrête les relances.
+
+**Import** (`ibig-agent prospects fichier.csv`, séparateur `,` ou `;`) : colonnes
+`email, nom, pole, solution, besoin, fin_essai, demo, boite` — tant que le moteur de
+licences IBIG SOFT n'est pas raccordé, c'est ainsi que l'on renseigne essais et démos.

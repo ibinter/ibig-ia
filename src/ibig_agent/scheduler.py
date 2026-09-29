@@ -53,6 +53,13 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
                   id="watch_alerts", max_instances=1, coalesce=True)
     sched.add_job(_safe("indicateurs de la semaine", rt.veille.weekly_report), "cron",
                   day_of_week="mon", hour=8, minute=15, id="weekly_indicators")
+    # Commercial : qualification rapide des nouveaux prospects ; relances, essais et
+    # démonstrations en semaine, aux heures ouvrées (pas de relance le week-end).
+    sched.add_job(_safe("qualification des prospects", rt.commercial.qualify_new), "interval",
+                  minutes=15, id="prospect_qualification", max_instances=1, coalesce=True)
+    sched.add_job(_safe("suivi commercial", rt.commercial.run), "cron", day_of_week="mon-fri",
+                  hour=f"{rt.settings.business_open_hour}-{rt.settings.business_close_hour - 1}",
+                  minute=10, id="sales_followup", max_instances=1, coalesce=True)
     # Contenus web : 2 articles par mois et par site actif (1er et 15 du mois).
     sched.add_job(_safe("articles web", rt.contenus_web.run), "cron", day="1,15", hour=7,
                   minute=30, id="web_articles")

@@ -27,7 +27,8 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Agent Communication : calendrier éditorial hebdomadaire | 🟡 génération + validation ; publication via outil multi-comptes à raccorder |
 | Agent Contenus web : articles en brouillon (WordPress, module PHP, export HTML) | ✅ (technologie des sites à renseigner) |
 | Agent Veille : indicateurs de réussite (section 3), alertes pic / mécontentement / sans réponse | ✅ (mails et journal ; réseaux sociaux à raccorder) |
-| Commercial, Support (SARA), WhatsApp | ⏳ phases 2 et 3 |
+| Agent Commercial : qualification, relances J+3/J+7/J+14 à valider, essais et démos, désinscription | ✅ |
+| Support (SARA), WhatsApp | ⏳ phase 3 |
 
 ## Architecture
 
@@ -69,6 +70,8 @@ ibig-agent alertes            # alerter les valideurs maintenant
 ibig-agent article --site https://ibigsoft.com   # préparer un article (brouillon à valider)
 ibig-agent indicateurs --jours 30                # indicateurs de réussite
 ibig-agent veille             # alertes de veille maintenant
+ibig-agent commercial         # qualifier et relancer les prospects maintenant
+ibig-agent prospects essais.csv   # importer des prospects (essais, démonstrations)
 ibig-agent serve              # tableau de bord (http://localhost:8000) + tâches planifiées
 pytest                        # tests
 ```

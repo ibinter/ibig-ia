@@ -3,6 +3,8 @@
 # `valideur` / `suppleant` : ADRESSES MAIL, à compléter par IBIG avant la phase 1
 # (section 19). Elles donnent les droits de validation du pôle dans le tableau de bord
 # (compte créé avec `ibig-agent utilisateur ajouter`) et reçoivent les alertes.
+# `commercial` : adresse du commercial du pôle, qui reçoit les alertes prospects
+# (à défaut, le valideur).
 poles:
   - code: GROUPE
     nom: IBIG SARL (Groupe)
@@ -10,51 +12,60 @@ poles:
     cibles: Grand public, partenaires, institutions
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: EDUFORM
     nom: IBIG EDUFORM
     activite: Formation professionnelle, certifications métiers, insertion
     cibles: Jeunes diplômés, salariés, entreprises
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: IMMOTRUST
     nom: IBIG IMMOTRUST
     activite: Immobilier, BTP, sécurisation des investissements
     cibles: Investisseurs, diaspora, particuliers
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: SOFT
     nom: IBIG SOFT
     activite: Édition logicielle, SaaS, applications métiers (14 solutions)
     cibles: PME, écoles, cliniques, agences, ONG
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: MARKET
     nom: IBIG MARKET
     activite: Commerce, distribution, e-commerce
     cibles: Particuliers, revendeurs
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: DIGITAL
     nom: IBIG DIGITAL
     activite: Digitalisation, ERP, intelligence artificielle
     cibles: Entreprises et institutions
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: CONSEIL
     nom: IBIG CONSEIL+
     activite: Conseil stratégique, ingénierie de projets, structuration
     cibles: Dirigeants, porteurs de projets
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: PARTNERS
     nom: IBIG PARTNERS
     activite: Représentation commerciale, partenariats stratégiques
     cibles: Revendeurs, apporteurs d'affaires
     valideur: ""
     suppleant: ""
+    commercial: ""
   - code: MULTISERVICES
     nom: IBIG MULTISERVICES
     activite: Logistique, RH, transport, communication, tourisme
     cibles: Entreprises, particuliers
     valideur: ""
     suppleant: ""
+    commercial: ""

@@ -196,6 +196,7 @@ class MessagerieAgent:
 
     # ------------------------------------------------------------ traitement
     def process(self, msg: MailMessage, mailbox: Mailbox) -> str:
+        self._honour_opt_out(msg)
         injection_hits = detect_injection(f"{msg.subject}\n{msg.body}")
         try:
             triage = self.triage(msg, mailbox)
@@ -383,6 +384,24 @@ class MessagerieAgent:
             title=f"À traiter à la main : {msg.subject[:150]}",
             payload={**self._ref(msg), "raison": reason},
         ))
+
+    def _honour_opt_out(self, msg: MailMessage) -> None:
+        """Un prospect qui demande à ne plus être contacté n'est plus relancé."""
+        from .commercial import is_opt_out
+
+        if not is_opt_out(msg.body):
+            return
+        with self._sessions() as s:
+            p = s.scalar(select(Prospect).where(Prospect.email == msg.sender))
+            if p is None or p.stop_followups:
+                return
+            p.stop_followups = True
+            p.updated_at = utcnow()
+            s.add(JournalEntry(agent=AGENT, action_type="prospect.opt_out", level=1,
+                               channel="mail", pole=p.pole, status="executed",
+                               summary=f"Désinscription : plus de relance pour {p.email}",
+                               details={"ref": msg.message_id, "prospect_id": p.id}))
+            s.commit()
 
     def _upsert_prospect(self, msg: MailMessage, mailbox: Mailbox, triage: Triage) -> None:
         with self._sessions() as s:

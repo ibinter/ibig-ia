@@ -9,7 +9,7 @@ avec IBIG.
 
 Actions de la section 19, qui débloquent la phase 1 :
 
-- [ ] Nommer le responsable de l'agent et un valideur (+ suppléant) par pôle → adresses dans `config/poles.yaml`, comptes avec `ibig-agent utilisateur ajouter`
+- [ ] Nommer le responsable de l'agent, un valideur (+ suppléant) et un commercial par pôle → adresses dans `config/poles.yaml`, comptes avec `ibig-agent utilisateur ajouter`
 - [ ] Lister toutes les adresses mail (hébergeur, pôle, responsable) → `config/mailboxes.yaml`
 - [ ] Lister les numéros WhatsApp Business et les chaînes ; choisir 1 ou 2 numéros à automatiser
 - [ ] Préciser le pôle du groupe Facebook 367494932590382 et compléter les comptes IBIG SOFT → `config/canaux.yaml`
@@ -51,7 +51,9 @@ Actions de la section 19, qui débloquent la phase 1 :
 
 - [ ] Migration d'1 ou 2 numéros vers la plateforme WhatsApp Business (API Cloud Meta),
       modèles de messages validés par Meta, gestion du consentement
-- [ ] Agent Commercial : qualification, séquences de relance, suivi des démos et essais
+- [x] Agent Commercial : qualification, séquences de relance, suivi des démos et essais,
+      désinscription
+- [ ] Raccorder le moteur de licences IBIG SOFT (dates d'essai automatiques, au lieu de l'import CSV)
 - [ ] Agent Support : réponses documentées sur les 14 solutions et les formations ;
       SARA comme visage public
 - [x] Agent Veille : indicateurs de la section 3, alertes (avis négatif, pic de messages,
