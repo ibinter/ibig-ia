@@ -14,7 +14,8 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [ ] Lister les numéros WhatsApp Business et les chaînes ; choisir 1 ou 2 numéros à automatiser
 - [ ] Préciser le pôle du groupe Facebook 367494932590382 et compléter les comptes IBIG SOFT → `config/canaux.yaml`
 - [ ] Indiquer la technologie de chaque site (WordPress ou PHP maison)
-- [ ] Rédiger les 8 fiches pôles → `knowledge/poles/*.md` (retirer `statut: a_completer`)
+- [ ] Compléter les 8 fiches pôles, pré-remplies à partir du cahier des charges →
+      `knowledge/poles/*.md` (puis retirer `statut: a_completer`)
 - [ ] Rédiger les réponses des FAQ (36 questions proposées dans `knowledge/faq/`), compléter
       les catalogues IBIG SOFT et formations ; réunir les guides utilisateurs → `knowledge/guides/` et
       les 20 meilleures publications → `knowledge/publications/`
