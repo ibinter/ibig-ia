@@ -10,9 +10,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .agents.chef import ChefAgent
 from .agents.communication import CommunicationAgent
+from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
 from .channels.mail import MailConnector, connector_for
+from .channels.web import WebConnector, sanitize_html, web_connector_for
 from .config import OrgConfig, Settings, get_settings, load_org_config
 from .db import make_engine, open_db
 from .governance import Executor, Governor
@@ -54,6 +56,18 @@ def mail_executors(connectors: dict[str, MailConnector]) -> dict[str, Executor]:
     }
 
 
+def web_executors(connectors: dict[str, WebConnector]) -> dict[str, Executor]:
+    def draft(payload: dict) -> dict:
+        connector = connectors.get(payload["site"])
+        if connector is None:
+            raise RuntimeError(f"Site non raccordé : {payload['site']}")
+        # Nettoyé à nouveau : le valideur a pu modifier le HTML avant de valider.
+        return connector.create_draft({**payload,
+                                       "contenu_html": sanitize_html(payload["contenu_html"])})
+
+    return {"web.article_draft": draft}
+
+
 def manual_social_executors() -> dict[str, Executor]:
     """Tant que l'outil multi-comptes (Metricool, Buffer…) n'est pas raccordé (phase 2),
     une publication validée est remise à l'équipe pour publication manuelle."""
@@ -75,6 +89,7 @@ class Runtime:
     governor: Governor
     llm: LLM | None
     connectors: dict[str, MailConnector] = field(default_factory=dict)
+    web_connectors: dict[str, WebConnector] = field(default_factory=dict)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -84,6 +99,10 @@ class Runtime:
     @property
     def communication(self) -> CommunicationAgent:
         return CommunicationAgent(self.org, self.kb, self.llm, self.governor)
+
+    @property
+    def contenus_web(self) -> ContenusWebAgent:
+        return ContenusWebAgent(self.org, self.kb, self.llm, self.governor, self.sessions)
 
     @property
     def notifier(self) -> ValidatorNotifier:
@@ -98,16 +117,20 @@ class Runtime:
 
 def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                   connectors: dict[str, MailConnector] | None = None,
-                  with_llm: bool = True) -> Runtime:
+                  with_llm: bool = True,
+                  web_connectors: dict[str, WebConnector] | None = None) -> Runtime:
     settings = settings or get_settings()
     org = load_org_config(settings.config_dir)
     sessions = open_db(make_engine(settings.database_url))
     kb = KnowledgeBase(settings.knowledge_dir)
     if connectors is None:
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}
-    executors = {**mail_executors(connectors), **manual_social_executors()}
+    if web_connectors is None:
+        web_connectors = {s.url: c for s in org.sites if (c := web_connector_for(s))}
+    executors = {**mail_executors(connectors), **web_executors(web_connectors),
+                 **manual_social_executors()}
     governor = Governor(sessions, executors,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
-    return Runtime(settings, org, sessions, kb, governor, llm, connectors)
+    return Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors)

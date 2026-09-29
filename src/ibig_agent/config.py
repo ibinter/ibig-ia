@@ -72,6 +72,28 @@ class Mailbox:
 
 
 @dataclass(frozen=True)
+class Site:
+    nom: str
+    url: str
+    pole: str
+    technologie: str  # wordpress | php | statique | a_preciser
+    articles_par_mois: int = 2
+    actif: bool = False
+    wp_user: str = ""
+    wp_password_env: str = ""
+    endpoint_url: str = ""
+    secret_env: str = ""
+    export_dir: str = "./exports/articles"
+
+    def secret(self) -> str:
+        name = self.wp_password_env or self.secret_env
+        value = os.environ.get(name, "") if name else ""
+        if not value:
+            raise RuntimeError(f"Secret manquant pour {self.url} (variable {name or '?'})")
+        return value
+
+
+@dataclass(frozen=True)
 class SocialAccount:
     reseau: str
     compte: str
@@ -85,6 +107,7 @@ class OrgConfig:
     mailboxes: list[Mailbox] = field(default_factory=list)
     social_accounts: list[SocialAccount] = field(default_factory=list)
     declinaison: dict[str, str] = field(default_factory=dict)
+    sites: list[Site] = field(default_factory=list)
 
     @property
     def pole_codes(self) -> list[str]:
@@ -98,6 +121,9 @@ class OrgConfig:
         email = email.lower()
         return [p.code for p in self.poles
                 if email in (p.valideur.lower(), p.suppleant.lower()) and email]
+
+    def site(self, url: str) -> Site | None:
+        return next((s for s in self.sites if s.url == url), None)
 
     def mailbox(self, adresse: str) -> Mailbox | None:
         return next((m for m in self.mailboxes if m.adresse == adresse), None)
@@ -120,4 +146,5 @@ def load_org_config(config_dir: Path | None = None) -> OrgConfig:
         mailboxes=mailboxes,
         social_accounts=accounts,
         declinaison=canaux.get("declinaison", {}),
+        sites=[Site(**s) for s in _read_yaml(config_dir / "sites.yaml").get("sites", [])],
     )

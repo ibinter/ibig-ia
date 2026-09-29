@@ -99,6 +99,8 @@ class ProcessedMessage(Base):
     urgency: Mapped[str] = mapped_column(String(20), default="")
     sentiment: Mapped[str] = mapped_column(String(20), default="")
     decision: Mapped[str] = mapped_column(String(40), default="")
+    # Résumé du tri, sans nom ni coordonnées (sert aux « questions réelles » des articles)
+    summary: Mapped[str] = mapped_column(Text, default="")
     suspicious: Mapped[bool] = mapped_column(Boolean, default=False)
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

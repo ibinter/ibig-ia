@@ -48,4 +48,7 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     sched.add_job(_safe("calendrier éditorial",
                         lambda: rt.communication.weekly_calendar(next_monday(tz=tz))),
                   "cron", day_of_week="mon", hour=7, minute=0, id="weekly_calendar")
+    # Contenus web : 2 articles par mois et par site actif (1er et 15 du mois).
+    sched.add_job(_safe("articles web", rt.contenus_web.run), "cron", day="1,15", hour=7,
+                  minute=30, id="web_articles")
     return sched

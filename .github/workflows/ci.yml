@@ -29,4 +29,6 @@ jobs:
           cache: pip
       - run: pip install -e ".[dev,postgres]"
       - run: ruff check src tests
+      # Le module PHP des sites est testé de bout en bout : PHP doit être présent.
+      - run: php -l integrations/php/ibig-article-inbox.php
       - run: pytest -q

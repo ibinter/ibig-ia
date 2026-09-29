@@ -25,7 +25,8 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Rapport quotidien de 8 h, alerte des validations en retard (24 h) | ✅ |
 | Maîtrise des coûts IA (modèle léger pour le tri, plafond, alerte à 80 %) | ✅ |
 | Agent Communication : calendrier éditorial hebdomadaire | 🟡 génération + validation ; publication via outil multi-comptes à raccorder |
-| Contenus web, Commercial, Support (SARA), Veille, WhatsApp | ⏳ phases 2 et 3 |
+| Agent Contenus web : articles en brouillon (WordPress, module PHP, export HTML) | ✅ (technologie des sites à renseigner) |
+| Commercial, Support (SARA), Veille, WhatsApp | ⏳ phases 2 et 3 |
 
 ## Architecture
 
@@ -64,6 +65,7 @@ ibig-agent verifier-base      # état de la base de connaissances
 ibig-agent poll               # relever les boîtes une fois
 ibig-agent rapport            # rapport quotidien
 ibig-agent alertes            # alerter les valideurs maintenant
+ibig-agent article --site https://ibigsoft.com   # préparer un article (brouillon à valider)
 ibig-agent serve              # tableau de bord (http://localhost:8000) + tâches planifiées
 pytest                        # tests
 ```
@@ -86,6 +88,8 @@ HTTPS. Sauvegardes quotidiennes de la base et journaux conservés 12 mois (secti
 | `config/poles.yaml` | Les 8 pôles, valideurs et suppléants |
 | `config/canaux.yaml` | Comptes sociaux, pôle rattaché, règles de déclinaison |
 | `config/mailboxes.yaml` | Boîtes mail (non versionné — modèle : `mailboxes.example.yaml`) |
+| `config/sites.yaml` | Sites web, technologie, rythme d'articles |
+| `integrations/php/` | Module d'entrée des articles pour les sites PHP maison |
 | `knowledge/` | Base de connaissances : charte, fiches pôles, FAQ, contacts, interdits |
 | `src/ibig_agent/governance.py` | Niveaux de validation, journal, bouton d'arrêt |
 | `src/ibig_agent/agents/` | Agents chef, Messagerie, Communication |

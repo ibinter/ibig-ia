@@ -1,0 +1,58 @@
+# Sites web (section 11). À compléter par IBIG : la technologie de chaque site (section 19).
+#
+# technologie :
+#   wordpress : brouillon créé par l'API REST avec un compte « Auteur » dédié à l'agent
+#               (mot de passe d'application WordPress, jamais celui d'un salarié)
+#   php       : module d'entrée sécurisé (integrations/php/) qui reçoit le brouillon
+#   statique  : l'agent livre un fichier HTML, intégration manuelle
+#   a_preciser: site ignoré tant que la technologie n'est pas renseignée
+#
+# Les secrets ne sont jamais écrits ici : on indique le NOM de la variable d'environnement.
+sites:
+  - nom: Intermark Business
+    url: https://intermark-business.com
+    pole: GROUPE
+    technologie: a_preciser
+    articles_par_mois: 2
+    actif: false
+
+  - nom: IBIG SOFT
+    url: https://ibigsoft.com
+    pole: SOFT
+    technologie: php
+    endpoint_url: https://ibigsoft.com/ibig-article-inbox.php
+    secret_env: IBIGSOFT_ENDPOINT_SECRET
+    articles_par_mois: 2
+    actif: false            # passer à true une fois le module installé sur le site
+
+  - nom: IBIG EDUFORM
+    url: https://ibig-eduform.com
+    pole: EDUFORM
+    technologie: a_preciser
+    articles_par_mois: 2
+    actif: false
+
+  - nom: IBIG LEARN
+    url: https://ibiglearn.com
+    pole: EDUFORM
+    technologie: a_preciser
+    articles_par_mois: 2
+    actif: false
+
+# Exemples des deux autres modes :
+#  - nom: Exemple WordPress
+#    url: https://exemple.com
+#    pole: MARKET
+#    technologie: wordpress
+#    wp_user: agent-ia
+#    wp_password_env: EXEMPLE_WP_APP_PASSWORD
+#    articles_par_mois: 2
+#    actif: true
+#
+#  - nom: Exemple statique
+#    url: https://exemple-statique.com
+#    pole: CONSEIL
+#    technologie: statique
+#    export_dir: ./exports/articles
+#    articles_par_mois: 2
+#    actif: true

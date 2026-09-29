@@ -63,3 +63,19 @@ def test_legacy_database_is_refused_then_stamped(engine):
     migrate.stamp(engine)
     migrate.upgrade(engine)
     assert migrate.current_revision(engine) == migrate.head_revision()
+
+
+def test_new_not_null_column_applies_to_existing_rows(engine):
+    """Une migration doit passer sur une base qui contient déjà des données."""
+    from sqlalchemy import text
+
+    migrate.upgrade(engine, "0001")
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO processed_messages (mailbox, message_id, sender, subject, pole, "
+            "category, urgency, sentiment, decision, suspicious, processed_at) VALUES "
+            "('b@x', '<1@x>', 'c@x', 's', 'SOFT', 'client', 'normale', 'neutre', 'faq', "
+            ":f, CURRENT_TIMESTAMP)"), {"f": False})
+    migrate.upgrade(engine)
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT summary FROM processed_messages")).scalar() == ""

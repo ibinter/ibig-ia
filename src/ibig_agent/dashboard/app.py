@@ -23,7 +23,7 @@ from ..runtime import Runtime
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 SESSION_COOKIE = "ibig_session"
-EDITABLE_KEYS = ("body", "texte")
+EDITABLE_KEYS = ("body", "texte", "contenu_html")
 MAX_FAILED_LOGINS = 5
 LOCKOUT_SECONDS = 15 * 60
 

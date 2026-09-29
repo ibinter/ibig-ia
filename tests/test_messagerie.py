@@ -138,3 +138,12 @@ def test_daily_report(rt, llm, connector):
     report = rt.chef.run_daily()
     assert report.mails_recus == 1 and report.validations_en_attente == 1
     assert "Urgence" in report.as_text()
+
+
+def test_triage_summary_is_stored(rt, llm, connector):
+    connector.add("Tarif paie", "Bonjour, combien coûte le module de paie ?")
+    llm.triages["Tarif paie"] = {"categorie": "prospect",
+                                 "resume": "Demande le prix du module de paie"}
+    rt.messagerie.poll()
+    with rt.sessions() as s:
+        assert s.scalar(select(ProcessedMessage)).summary == "Demande le prix du module de paie"

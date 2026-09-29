@@ -41,8 +41,10 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Calendrier éditorial hebdomadaire (génération + validation)
 - [ ] Raccordement de l'outil multi-comptes (Metricool, Buffer…) pour programmer les posts validés
 - [ ] Briefs visuels vers Canva (modèles aux couleurs IBIG)
-- [ ] Agent Contenus web : WordPress (API REST, compte « Auteur ») et module d'entrée
-      sécurisé réutilisable pour les sites PHP maison ; export HTML pour les sites sans back-office
+- [x] Agent Contenus web : WordPress (API REST, compte « Auteur »), module d'entrée
+      sécurisé réutilisable pour les sites PHP maison, export HTML pour les sites sans back-office
+- [ ] Installer le module PHP sur ibigsoft.com et renseigner la technologie des autres sites
+      (`config/sites.yaml`)
 - [ ] Préparation hebdomadaire des messages des chaînes WhatsApp (publication manuelle)
 
 ## Phase 3 — Commercial, Support, WhatsApp, Veille (mois 3)

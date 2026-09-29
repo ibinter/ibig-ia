@@ -153,6 +153,7 @@ class MessagerieAgent:
             if triage:
                 row.pole, row.category = triage.pole, triage.categorie
                 row.urgency, row.sentiment = triage.urgence, triage.sentiment
+                row.summary = triage.resume[:500]
             s.commit()
 
     # ------------------------------------------------------------------ tri
@@ -169,7 +170,9 @@ class MessagerieAgent:
             "fournisseur, partenaire, candidature, administratif, juridique, spam.\n"
             "faq_id : l'identifiant de la FAQ qui répond ENTIÈREMENT à la demande, sinon "
             "chaîne vide. prospect_nom / prospect_besoin : vides si ce n'est pas un prospect.\n"
-            "resume : une phrase en français."
+            "resume : une phrase en français qui décrit la demande, SANS nom, adresse, "
+            "numéro ni autre donnée personnelle (ex. « Demande le prix du logiciel de "
+            "gestion scolaire pour 300 élèves »)."
         )
         user = (
             f"Boîte de réception : {mailbox.adresse} (pôle {mailbox.pole})\n"

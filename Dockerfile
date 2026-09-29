@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir ".[postgres,gmail]"
 COPY config ./config
 COPY knowledge ./knowledge
 
-RUN useradd --create-home agent
+RUN useradd --create-home agent && mkdir -p /app/exports && chown agent /app/exports
 USER agent
 
 EXPOSE 8000

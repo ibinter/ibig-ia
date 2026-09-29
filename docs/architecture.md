@@ -115,3 +115,24 @@ Un envoi échoué (canal suspendu, boîte en panne) est retenté au passage suiv
 * Comptes dédiés à l'agent, droits minimaux (compte « Auteur » WordPress, jeton Gmail
   `gmail.modify` d'un compte dédié).
 * Offre API professionnelle (pas d'entraînement sur les données envoyées).
+
+## Agent Contenus web (section 11)
+
+Le 1er et le 15 du mois (2 articles par mois et par site actif), pour chaque site de
+`config/sites.yaml` dont la technologie est connue et la fiche pôle complète :
+
+1. **Matière** : questions réelles des clients (résumés du tri des mails, sans nom ni
+   coordonnées, mails suspects exclus) et FAQ du pôle ; mots-clés déjà traités écartés.
+2. **Rédaction** (modèle avancé, sortie structurée) : mot-clé, question, titre, meta
+   description, contenu HTML, sources de chaque chiffre.
+3. **Contrôles** : HTML nettoyé par liste blanche (ni script, ni attribut `on…`, liens
+   http(s) seulement) ; prix, contacts, liens et pourcentages absents de la base signalés.
+4. **Validation en un clic** (niveau 2) ; le valideur peut corriger le HTML, qui est
+   nettoyé à nouveau avant l'envoi.
+5. **Dépôt en brouillon** sur le site ; un humain relit et met en ligne.
+
+| Technologie | Raccordement |
+|---|---|
+| WordPress | API REST `wp/v2/posts`, `status: draft`, compte « Auteur » + mot de passe d'application |
+| PHP maison | `integrations/php/ibig-article-inbox.php` : HMAC-SHA256, anti-rejeu, stockage hors racine web |
+| Sans back-office | Fichier HTML dans `exports/articles/<site>/` |

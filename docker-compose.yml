@@ -24,6 +24,8 @@ services:
       # Configuration et base de connaissances tenues à jour sans reconstruire l'image
       - ./config:/app/config:ro
       - ./knowledge:/app/knowledge:ro
+      # Articles livrés en HTML pour les sites sans back-office
+      - ./exports:/app/exports
     ports:
       - "127.0.0.1:8000:8000"   # exposé via un reverse proxy HTTPS (Caddy, Nginx)
     depends_on:

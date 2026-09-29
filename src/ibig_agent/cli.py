@@ -29,6 +29,9 @@ def main(argv: list[str] | None = None) -> None:
     cal.add_argument("--semaine", help="Lundi de la semaine (AAAA-MM-JJ)")
     sub.add_parser("verifier-base", help="Contrôler la base de connaissances")
     sub.add_parser("alertes", help="Alerter les valideurs maintenant")
+    art = sub.add_parser("article", help="Préparer un article (brouillon à valider)")
+    art.add_argument("--site", help="URL du site (défaut : tous les sites actifs)")
+    art.add_argument("--sujet", default="", help="Sujet imposé (facultatif)")
     user = sub.add_parser("utilisateur", help="Gérer les comptes du tableau de bord")
     user_sub = user.add_subparsers(dest="user_cmd", required=True)
     add = user_sub.add_parser("ajouter", help="Créer un compte")
@@ -63,6 +66,17 @@ def main(argv: list[str] | None = None) -> None:
     rt = build_runtime()
     if args.cmd == "poll":
         print(rt.messagerie.poll())
+    elif args.cmd == "article":
+        if args.site:
+            site = rt.org.site(args.site)
+            if site is None:
+                raise SystemExit(f"Site inconnu : {args.site} (voir config/sites.yaml)")
+            reason = rt.contenus_web.why_skipped(site)
+            if reason:
+                raise SystemExit(f"{site.nom} ignoré : {reason}")
+            print("Brouillon à valider :", rt.contenus_web.write_article(site, args.sujet))
+        else:
+            print(rt.contenus_web.run())
     elif args.cmd == "alertes":
         rt.governor.flag_stale()
         print(rt.notifier.run())

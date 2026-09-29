@@ -25,6 +25,7 @@ SCRIPT_LOCATION = Path(__file__).parent / "migrations"
 def _config() -> Config:
     cfg = Config()
     cfg.set_main_option("script_location", str(SCRIPT_LOCATION))
+    cfg.set_main_option("file_template", "%%(rev)s_%%(slug)s")
     return cfg
 
 
@@ -58,8 +59,14 @@ def stamp(engine: Engine, revision: str = "head") -> None:
 
 
 def new_revision(engine: Engine, message: str) -> None:
-    """Génère une migration en comparant db.py à une base à jour (à relire avant commit)."""
+    """Génère une migration en comparant db.py à une base à jour.
+
+    Toujours relire le fichier : par exemple, une colonne NOT NULL ajoutée à une table
+    existante doit recevoir un server_default, sinon la migration échoue en production.
+    """
     with engine.begin() as conn:
         cfg = _config()
         cfg.attributes["connection"] = conn
-        command.revision(cfg, message=message, autogenerate=True)
+        head = head_revision()
+        rev_id = f"{int(head) + 1:04d}" if head and head.isdigit() else None
+        command.revision(cfg, message=message, autogenerate=True, rev_id=rev_id)
