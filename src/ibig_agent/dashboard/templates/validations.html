@@ -13,6 +13,10 @@
   {% if a.payload.get('original') %}
     <details><summary class="muted">Message d'origine</summary><pre>{{ a.payload.original }}</pre></details>
   {% endif %}
+  {% if a.payload.get('contenu_html') %}
+    <details open><summary class="muted">Aperçu de l'article</summary>
+      <div class="card"><h3>{{ a.payload.get('titre', '') }}</h3>{{ a.payload.contenu_html | apercu }}</div></details>
+  {% endif %}
   {% if a.payload.get('brief_visuel') %}<p class="muted">Brief visuel : {{ a.payload.brief_visuel }}</p>{% endif %}
   {% for src in a.payload.get('sources', []) %}
     <div class="muted">Source : {{ src.titre }} — {{ src.section }} : « {{ src.extrait }} »</div>
@@ -24,6 +28,8 @@
     {% for k in editable if k in a.payload %}
       <textarea name="contenu">{{ a.payload[k] }}</textarea>
     {% endfor %}
+    {% set txt = a.payload.get('body') or a.payload.get('texte') or a.payload.get('contenu_html') or '' %}
+    {% if 'COMPLÉTER' in txt.upper() %}<div class="alert">Texte incomplet : remplacez « À COMPLÉTER » avant de valider.</div>{% endif %}
     <div class="row"><button class="ok">Valider</button></div>
   </form>
   <form method="post" action="/validations/{{ a.id }}/rejeter" class="row" style="margin-top:8px">

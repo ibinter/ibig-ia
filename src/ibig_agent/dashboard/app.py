@@ -15,14 +15,18 @@ from urllib.parse import quote
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from sqlalchemy import desc, func, select
 
 from ..auth import Principal, UserStore, make_session, read_session
+from ..channels.web import sanitize_html
 from ..db import JournalEntry, PendingAction, ProcessedMessage, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+# Aperçu des articles : toujours re-nettoyé (le HTML a pu être modifié par un valideur).
+TEMPLATES.env.filters["apercu"] = lambda html: Markup(sanitize_html(html or ""))
 SESSION_COOKIE = "ibig_session"
 EDITABLE_KEYS = ("body", "texte", "contenu_html")
 SARA_MAX_QUESTION = 2000

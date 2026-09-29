@@ -35,5 +35,6 @@ def test_calendar_posts_wait_for_validation(rt, llm, kb_dir):
         posts = s.scalars(select(PendingAction)).all()
     assert all(p.status == "pending" and p.level == 2 for p in posts)
     assert posts[0].payload["date"] == "2026-10-06"
+    assert posts[0].title.startswith("Mardi 06/10")  # jour en français
     assert posts[0].payload["alertes"] == []
     assert any("1 000 FCFA" in a for a in posts[1].payload["alertes"])

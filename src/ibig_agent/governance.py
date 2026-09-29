@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .db import ChannelState, JournalEntry, PendingAction, utcnow
+from .knowledge import is_placeholder
 
 
 class Level(IntEnum):
@@ -103,6 +104,10 @@ CHANNELS = [
     "web",
 ]
 ALL_CHANNELS = "*"
+
+
+# Champs dont le contenu part vers l'extérieur (mail, publication, article, WhatsApp).
+SENT_TEXT_KEYS = ("body", "texte", "contenu_html", "titre", "subject")
 
 
 def level_for(action_type: str) -> Level:
@@ -268,8 +273,15 @@ class Governor:
                 raise GovernanceError(f"Action {pending_id} déjà traitée ({pa.status})")
             if self.is_stopped(pa.channel):
                 raise ChannelStopped(f"Canal {pa.channel} suspendu")
-            if payload_override:
-                pa.payload = {**pa.payload, **payload_override}
+            payload = {**pa.payload, **(payload_override or {})}
+            # Un texte qui contient encore « À COMPLÉTER » ne part jamais : le valideur
+            # doit d'abord écrire l'information manquante.
+            unfinished = [k for k in SENT_TEXT_KEYS
+                          if isinstance(payload.get(k), str) and is_placeholder(payload[k])]
+            if unfinished:
+                raise GovernanceError("Texte incomplet : remplacer « À COMPLÉTER » avant de "
+                                      "valider")
+            pa.payload = payload
             pa.status = "approved"
             pa.decided_by = by
             pa.decided_at = utcnow()

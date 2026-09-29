@@ -31,6 +31,22 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Agent Support : réponses documentées par les guides (citations vérifiées), tickets, API SARA | ✅ (guides à rédiger) |
 | WhatsApp Business (API Cloud Meta) : webhook signé, réponses, fenêtre de 24 h, STOP | ✅ (numéros à migrer chez Meta) |
 
+## Voir l'agent sans rien raccorder : le mode démonstration
+
+```bash
+pip install -e .
+ibig-agent demo          # http://127.0.0.1:8000 — direction@ibig.demo / demo-ibig-2026
+```
+
+Le vrai tableau de bord sur des **données fictives** : mails triés, brouillons à valider,
+prospects, tickets, alertes, rapports. Boîtes et sites simulés, IA remplacée par des
+réponses préparées : **rien ne sort de la machine et aucun appel payant n'est fait**.
+Utile pour présenter l'agent et former les valideurs avant la mise en service.
+
+| Accueil | Validations | Indicateurs |
+|---|---|---|
+| ![Accueil](docs/captures/1-accueil.png) | ![Validations](docs/captures/2-validations.png) | ![Indicateurs](docs/captures/5-indicateurs.png) |
+
 ## Architecture
 
 ```

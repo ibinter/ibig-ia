@@ -140,7 +140,8 @@ class CommunicationAgent:
                 channel=NETWORK_CHANNEL.get(account.reseau, account.reseau),
                 account=account.compte,
                 pole=pole_code,
-                title=f"{day:%a %d/%m} · {account.reseau} · {post['sujet'][:100]}",
+                title=f"{post['jour'].capitalize()} {day:%d/%m} · {account.reseau} · "
+                      f"{post['sujet'][:100]}",
                 payload={
                     "reseau": account.reseau, "compte": account.compte,
                     "date": day.isoformat(), "texte": post["texte"],

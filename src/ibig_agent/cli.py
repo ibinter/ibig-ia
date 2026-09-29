@@ -31,6 +31,10 @@ def main(argv: list[str] | None = None) -> None:
     diag = sub.add_parser("diagnostic", help="Tout vérifier sans rien envoyer (mise en service)")
     diag.add_argument("--hors-ligne", action="store_true",
                       help="Ne pas se connecter aux boîtes, sites et à l'API d'IA")
+    demo = sub.add_parser("demo", help="Tableau de bord sur données fictives (rien n'est envoyé)")
+    demo.add_argument("--host", default="127.0.0.1")
+    demo.add_argument("--port", type=int, default=8000)
+    demo.add_argument("--dossier", help="Dossier des données de démonstration (défaut : temporaire)")
     sub.add_parser("revue", help="Produire la revue mensuelle maintenant")
     rec = sub.add_parser("recette", help="Mesure du critère R-02 (classement des mails)")
     rec_sub = rec.add_subparsers(dest="rec_cmd", required=True)
@@ -86,6 +90,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.cmd == "utilisateur":
         _users(args)
+        return
+    if args.cmd == "demo":
+        _demo(args)
         return
     if args.cmd == "gmail-jeton":
         _gmail_token(args.client)
@@ -211,6 +218,22 @@ def _migrate(args: argparse.Namespace) -> None:
     else:
         migrate.upgrade(engine)
         print(f"Base à jour (version {migrate.current_revision(engine)}) : {shown}")
+
+
+def _demo(args: argparse.Namespace) -> None:
+    import uvicorn
+
+    from .dashboard.app import create_app
+    from .demo import DEMO_PASSWORD, build_demo, seed
+
+    demo = build_demo(args.dossier)
+    seed(demo)
+    print("\nDÉMONSTRATION — données fictives, boîtes et sites simulés, aucun appel à l'IA.")
+    print(f"Données : {demo.folder}")
+    print(f"Tableau de bord : http://{args.host}:{args.port}")
+    for email, _, role in demo.users:
+        print(f"  {role:9} {email}  /  {DEMO_PASSWORD}")
+    uvicorn.run(create_app(demo.runtime), host=args.host, port=args.port)
 
 
 def _gmail_token(client_file: str) -> None:

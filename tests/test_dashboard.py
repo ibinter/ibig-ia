@@ -123,3 +123,23 @@ def test_short_secret_key_is_refused(rt):
 
 def test_home_page(rt, accounts):
     assert "Synthèse" in client(rt, "awa@ibig.test").get("/").text
+
+
+def test_article_preview_is_sanitized(rt, accounts):
+    rt.governor.submit(ActionRequest(
+        agent="contenus_web", action_type="web.article_draft", channel="web", pole="SOFT",
+        title="Article test", payload={"site": "https://ibigsoft.com", "titre": "Titre",
+                                       "contenu_html": "<h2>Intro</h2><script>alert(1)</script>"
+                                                       "<p onclick='x()'>Texte</p>"}))
+    page = client(rt, "awa@ibig.test").get("/validations").text
+    assert "<h2>Intro</h2>" in page and "<p>Texte</p>" in page
+    assert "<script>alert" not in page and "onclick='x()'>" not in page
+
+
+def test_incomplete_draft_is_flagged_on_page(rt, accounts, connector):
+    rt.governor.submit(ActionRequest(
+        agent="messagerie", action_type="mail.reply", channel="mail", pole="SOFT",
+        title="Brouillon incomplet", payload={"mailbox": connector.mailbox.adresse,
+                                              "to": "a@b.ci", "subject": "S",
+                                              "body": "[À COMPLÉTER : réponse]"}))
+    assert "Texte incomplet" in client(rt, "awa@ibig.test").get("/validations").text

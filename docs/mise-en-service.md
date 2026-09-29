@@ -8,6 +8,12 @@ pour l'installation, puis deux semaines d'essai réel avant la recette (section 
 
 ---
 
+## Avant tout : former les valideurs avec la démonstration
+
+`ibig-agent demo` ouvre le tableau de bord sur des données fictives (rien n'est envoyé,
+aucun appel à l'IA). Chaque valideur peut s'y entraîner : valider, corriger, rejeter,
+traiter un dossier de niveau 3, actionner le bouton d'arrêt.
+
 ## 0. Ce qu'IBIG doit avoir préparé (section 19)
 
 | Élément | Où il va |

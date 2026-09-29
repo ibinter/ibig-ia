@@ -103,3 +103,15 @@ def test_executor_failure_is_journaled(rt):
     rt.governor.executors["mail.ack"] = lambda p: (_ for _ in ()).throw(RuntimeError("SMTP"))
     out = rt.governor.submit(req("mail.ack"))
     assert out.status == "failed" and "SMTP" in out.error
+
+
+def test_placeholder_text_can_never_be_approved(rt, connector):
+    out = rt.governor.submit(req("mail.reply", payload={
+        "mailbox": connector.mailbox.adresse, "to": "a@b.ci", "subject": "s",
+        "body": "Bonjour, le prix est [À COMPLÉTER : prix]."}))
+    with pytest.raises(GovernanceError, match="incomplet"):
+        rt.governor.approve(out.pending_id, by="Awa")
+    assert connector.sent == []
+    done = rt.governor.approve(out.pending_id, by="Awa",
+                               payload_override={"body": "Bonjour, le prix est sur devis."})
+    assert done.status == "executed" and connector.sent[0]["body"].endswith("sur devis.")
