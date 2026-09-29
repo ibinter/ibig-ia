@@ -115,14 +115,22 @@ def create_app(rt: Runtime) -> FastAPI:
     # ---------------------------------------------------------------- pages
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, who: Principal = Depends(user)):
+        # Cloisonnement : un valideur ne voit que les chiffres de ses pôles.
+        scoped = who.role == "valideur"
         with rt.sessions() as s:
-            counts = dict(s.execute(select(PendingAction.status, func.count())
-                                    .group_by(PendingAction.status)).all())
-            mails = s.scalar(select(func.count()).select_from(ProcessedMessage)) or 0
-            prospects = s.scalar(select(func.count()).select_from(Prospect)) or 0
-        report = rt.chef.build_daily_report()
+            q = select(PendingAction.status, func.count()).group_by(PendingAction.status)
+            m = select(func.count()).select_from(ProcessedMessage)
+            p = select(func.count()).select_from(Prospect)
+            if scoped:
+                q = q.where(PendingAction.pole.in_(who.poles))
+                m = m.where(ProcessedMessage.pole.in_(who.poles))
+                p = p.where(Prospect.pole.in_(who.poles))
+            counts = dict(s.execute(q).all())
+            mails, prospects = s.scalar(m) or 0, s.scalar(p) or 0
+        # La synthèse couvre tous les pôles (expéditeurs compris) : réservée à la direction.
+        report = None if scoped else rt.chef.build_daily_report().as_text()
         return page(request, "index.html", counts=counts, mails=mails, prospects=prospects,
-                    states=rt.governor.channel_states(), report=report.as_text())
+                    states=rt.governor.channel_states(), report=report)
 
     @app.get("/validations", response_class=HTMLResponse)
     def validations(request: Request, who: Principal = Depends(user)):
@@ -176,9 +184,11 @@ def create_app(rt: Runtime) -> FastAPI:
 
     @app.get("/journal", response_class=HTMLResponse)
     def journal(request: Request, limit: int = 200, who: Principal = Depends(user)):
+        q = select(JournalEntry).order_by(desc(JournalEntry.id)).limit(min(limit, 1000))
+        if who.role == "valideur":  # entrées de ses pôles seulement
+            q = q.where(JournalEntry.pole.in_(who.poles))
         with rt.sessions() as s:
-            rows = s.scalars(select(JournalEntry).order_by(desc(JournalEntry.id))
-                             .limit(min(limit, 1000))).all()
+            rows = s.scalars(q).all()
         return page(request, "journal.html", rows=rows)
 
     @app.get("/arret", response_class=HTMLResponse)
@@ -330,6 +340,8 @@ def create_app(rt: Runtime) -> FastAPI:
 
     @app.get("/rapports", response_class=HTMLResponse)
     def reports(request: Request, who: Principal = Depends(user)):
+        if who.role == "valideur":  # rapports de direction, tous pôles confondus
+            raise HTTPException(403)
         with rt.sessions() as s:
             rows = s.scalars(select(JournalEntry).where(
                 JournalEntry.action_type == "report.publish",

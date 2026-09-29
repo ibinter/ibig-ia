@@ -11,5 +11,10 @@
 <div class="card alert">Canaux suspendus :
   {% for s in stopped %}<span class="tag l3">{{ s.channel }}</span>{% endfor %}</div>
 {% endif %}
+{% if report %}
 <div class="card"><h3>Synthèse des dernières 24 h</h3><pre>{{ report }}</pre></div>
+{% else %}
+<p class="muted">Chiffres de vos pôles : {{ user.poles | join(', ') or 'aucun pôle attribué' }}.
+  La synthèse de tous les pôles est réservée à la direction.</p>
+{% endif %}
 {% endblock %}

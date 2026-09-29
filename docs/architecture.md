@@ -70,6 +70,10 @@ avec le nom et l'adresse de la personne.
 | direction | tous les pôles | oui | suspendre et réactiver | — |
 | admin | tous les pôles | oui | suspendre et réactiver | liste |
 
+**Cloisonnement** : un valideur ne voit que ses pôles partout (validations, journal,
+prospects, tickets, alertes, chiffres de l'accueil) ; la synthèse quotidienne et la page
+Rapports, qui couvrent tous les pôles, sont réservées à la direction.
+
 Les comptes se créent en ligne de commande (`ibig-agent utilisateur ...`) : pas de
 formulaire d'inscription exposé sur Internet.
 

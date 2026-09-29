@@ -122,7 +122,7 @@ def test_short_secret_key_is_refused(rt):
 
 
 def test_home_page(rt, accounts):
-    assert "Synthèse" in client(rt, "awa@ibig.test").get("/").text
+    assert "Synthèse" in client(rt, "dg@ibig.test").get("/").text  # direction
 
 
 def test_article_preview_is_sanitized(rt, accounts):
@@ -143,3 +143,19 @@ def test_incomplete_draft_is_flagged_on_page(rt, accounts, connector):
                                               "to": "a@b.ci", "subject": "S",
                                               "body": "[À COMPLÉTER : réponse]"}))
     assert "Texte incomplet" in client(rt, "awa@ibig.test").get("/validations").text
+
+
+def test_validator_sees_only_own_poles_everywhere(rt, accounts, connector):
+    queue(rt, connector, pole="SOFT")
+    queue(rt, connector, pole="EDUFORM")
+    rt.chef.run_daily()
+    awa = client(rt, "awa@ibig.test")
+    journal = awa.get("/journal").text
+    assert "Réponse test SOFT" in journal and "Réponse test EDUFORM" not in journal
+    assert awa.get("/rapports").status_code == 403
+    home = awa.get("/").text
+    assert "Synthèse des dernières 24 h" not in home and "SOFT" in home
+    dg = client(rt, "dg@ibig.test")
+    assert "Réponse test EDUFORM" in dg.get("/journal").text
+    assert dg.get("/rapports").status_code == 200
+    assert "Synthèse des dernières 24 h" in dg.get("/").text
