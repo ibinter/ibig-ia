@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     spike_factor: float = 3.0
     # Clé de l'API SARA (appelée par le serveur des solutions, jamais depuis le navigateur)
     sara_api_key: str = ""
+    # Conservation des données personnelles (section 13)
+    retention_months: int = 12
 
 
 @lru_cache

@@ -129,6 +129,18 @@ class ImapSmtpConnector:
         conn.select("INBOX")
         return conn
 
+    def check(self) -> str:
+        """Connexion IMAP et SMTP sans rien lire ni envoyer (diagnostic)."""
+        conn = self._imap()
+        try:
+            status, data = conn.status("INBOX", "(MESSAGES)")
+        finally:
+            conn.logout()
+        with smtplib.SMTP_SSL(self.mailbox.smtp_host, self.mailbox.smtp_port, timeout=20) as smtp:
+            smtp.login(self.mailbox.adresse, self.mailbox.secret())
+        detail = data[0].decode(errors="replace") if status == "OK" and data else "?"
+        return f"IMAP et SMTP OK ({detail})"
+
     def fetch_recent(self, days: int = 3) -> list[MailMessage]:
         since = (datetime.now(UTC) - timedelta(days=days)).strftime("%d-%b-%Y")
         conn = self._imap()
@@ -187,6 +199,14 @@ class GmailConnector:
             )
             self._service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         return self._service
+
+    def check(self) -> str:
+        """Accès à l'API Gmail sans rien lire ni envoyer (diagnostic)."""
+        profile = self._svc().users().getProfile(userId="me").execute()
+        if profile.get("emailAddress", "").lower() != self.mailbox.adresse.lower():
+            raise RuntimeError(f"le jeton appartient à {profile.get('emailAddress')}, "
+                               f"pas à {self.mailbox.adresse}")
+        return f"API Gmail OK ({profile.get('messagesTotal', '?')} messages)"
 
     def fetch_recent(self, days: int = 3) -> list[MailMessage]:
         users = self._svc().users()

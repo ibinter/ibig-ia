@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..db import JournalEntry, PendingAction, ProcessedMessage, utcnow
+from ..db import JournalEntry, PendingAction, ProcessedMessage, User, utcnow
 from ..governance import ActionRequest, Governor
 from ..llm import ClaudeClient
 
@@ -61,10 +61,14 @@ class ChefAgent:
     name = "chef"
 
     def __init__(self, governor: Governor, session_factory: sessionmaker[Session],
-                 llm: ClaudeClient | None = None) -> None:
+                 llm: ClaudeClient | None = None, notification_mailbox: str = "",
+                 dashboard_url: str = "") -> None:
         self.gov = governor
         self._sessions = session_factory
         self.llm = llm
+        # Boîte raccordée qui envoie le rapport ; vide = rapport au tableau de bord seulement
+        self.notification_mailbox = notification_mailbox
+        self.dashboard_url = dashboard_url
 
     def build_daily_report(self, now: datetime | None = None) -> DailyReport:
         now = now or utcnow()
@@ -110,4 +114,22 @@ class ChefAgent:
             title=f"Rapport quotidien du {report.until:%d/%m/%Y}",
             payload={"text": report.as_text()},
         ))
+        self._email(report)
         return report
+
+    def _email(self, report: DailyReport) -> None:
+        """Envoie le rapport à la direction et au responsable de l'agent (comptes admin)."""
+        if not self.notification_mailbox:
+            return
+        with self._sessions() as s:
+            recipients = s.scalars(select(User.email).where(
+                User.role.in_(("direction", "admin")), User.active.is_(True))).all()
+        for to in recipients:
+            self.gov.submit(ActionRequest(
+                agent=self.name, action_type="notify.internal", channel="interne",
+                account=self.notification_mailbox, title=f"Rapport quotidien → {to}",
+                payload={"mailbox": self.notification_mailbox, "to": to,
+                         "subject": f"[IBIG] Rapport quotidien du {report.until:%d/%m/%Y}",
+                         "body": f"{report.as_text()}\n\nTableau de bord : "
+                                 f"{self.dashboard_url}"},
+            ))

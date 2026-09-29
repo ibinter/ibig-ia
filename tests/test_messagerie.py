@@ -147,3 +147,12 @@ def test_triage_summary_is_stored(rt, llm, connector):
     rt.messagerie.poll()
     with rt.sessions() as s:
         assert s.scalar(select(ProcessedMessage)).summary == "Demande le prix du module de paie"
+
+
+def test_daily_report_is_emailed_to_management(rt, connector):
+    from ibig_agent.auth import UserStore
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "DG", "direction", "mot-de-passe-1")
+    rt.chef.run_daily()
+    (mail,) = connector.sent
+    assert mail["to"] == "dg@ibig.test" and "Rapport quotidien" in mail["subject"]
+    assert "Mails reçus (24 h)" in mail["body"]

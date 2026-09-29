@@ -26,11 +26,28 @@ services:
       - ./knowledge:/app/knowledge:ro
       # Articles livrés en HTML pour les sites sans back-office
       - ./exports:/app/exports
-    ports:
-      - "127.0.0.1:8000:8000"   # exposé via un reverse proxy HTTPS (Caddy, Nginx)
+    # Pas de port publié : seul Caddy (HTTPS) est exposé.
+    expose: ["8000"]
     depends_on:
       db:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "10"}
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      IBIG_DOMAIN: ${IBIG_DOMAIN:?définir IBIG_DOMAIN dans .env (ex. agent.exemple.ci)}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [agent]
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

@@ -109,6 +109,21 @@ class WordPressConnector:
         self.site = site
         self.client = client or httpx.Client(timeout=30)
 
+    def check(self) -> str:
+        """Identifiants et rôle du compte de l'agent (moindre privilège, section 13)."""
+        resp = self.client.get(f"{self.site.url.rstrip('/')}/wp-json/wp/v2/users/me",
+                               params={"context": "edit"},
+                               auth=(self.site.wp_user, self.site.secret()))
+        if resp.status_code != 200:
+            raise RuntimeError(f"WordPress {resp.status_code} : {resp.text[:200]}")
+        roles = set(resp.json().get("roles", []))
+        if roles & {"administrator", "editor"}:
+            raise RuntimeError(f"compte trop puissant ({', '.join(sorted(roles))}) : "
+                               "utiliser un compte « Auteur »")
+        if "author" not in roles and "contributor" not in roles:
+            raise RuntimeError(f"rôle inattendu : {', '.join(sorted(roles)) or 'aucun'}")
+        return f"WordPress OK (compte {self.site.wp_user}, rôle {', '.join(sorted(roles))})"
+
     def create_draft(self, article: dict) -> dict:
         resp = self.client.post(
             f"{self.site.url.rstrip('/')}/wp-json/wp/v2/posts",
@@ -137,6 +152,22 @@ class PhpEndpointConnector:
     def __init__(self, site: Site, client: httpx.Client | None = None) -> None:
         self.site = site
         self.client = client or httpx.Client(timeout=30)
+
+    def check(self) -> str:
+        """Requête signée volontairement incomplète : 400 = module joignable et secret
+        accepté, sans créer de brouillon."""
+        body = b"{}"
+        ts = str(int(time.time()))
+        resp = self.client.post(
+            self.site.endpoint_url, content=body,
+            headers={"Content-Type": "application/json", "X-IBIG-Timestamp": ts,
+                     "X-IBIG-Signature": sign(self.site.secret(), ts, body)},
+        )
+        if resp.status_code == 400:
+            return "module PHP OK (signature acceptée)"
+        if resp.status_code == 401:
+            raise RuntimeError("signature refusée : secrets différents ou horloges décalées")
+        raise RuntimeError(f"réponse inattendue {resp.status_code} : {resp.text[:200]}")
 
     def create_draft(self, article: dict) -> dict:
         body = json.dumps({
@@ -178,6 +209,14 @@ HTML_PAGE = """<!doctype html>
 class StaticExportConnector:
     def __init__(self, site: Site) -> None:
         self.site = site
+
+    def check(self) -> str:
+        folder = Path(self.site.export_dir)
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".ecriture-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return f"dossier d'export accessible en écriture ({folder})"
 
     def create_draft(self, article: dict) -> dict:
         folder = Path(self.site.export_dir) / slugify(self.site.nom)

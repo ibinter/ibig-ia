@@ -30,6 +30,8 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Tableau de bord de validation
 - [x] Rapport quotidien de 8 h
 - [x] Plafond de dépense IA + alerte à 80 %
+- [x] Kit de mise en service : `ibig-agent diagnostic`, jeton Gmail, HTTPS, sauvegardes,
+      conservation et droits des personnes (section 13), guide `docs/mise-en-service.md`
 - [ ] Raccorder les vraies boîtes et mesurer le point de départ pendant un mois (section 3)
 - [x] Comptes nominatifs pour le tableau de bord, droits par pôle et par rôle
 - [x] Alertes mail aux valideurs, relance du suppléant après 24 h, niveau 3 à la direction

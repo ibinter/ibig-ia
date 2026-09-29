@@ -164,3 +164,35 @@ def test_php_module_rejects_bad_requests(php_inbox):
     assert post(url, evil).status_code == 422
     assert post(url, json.dumps({"titre": "x"}).encode()).status_code == 400
     assert httpx.get(url).status_code == 405
+
+
+# ------------------------------------------------------------------ diagnostics
+def test_wordpress_check_enforces_least_privilege(monkeypatch):
+    monkeypatch.setenv("WP_TEST_PWD", "x")
+    for roles, ok in ((["author"], True), (["administrator"], False), (["editor"], False),
+                      (["subscriber"], False)):
+        conn = WordPressConnector(wp_site(), httpx.Client(transport=httpx.MockTransport(
+            lambda r, roles=roles: httpx.Response(200, json={"roles": roles}))))
+        if ok:
+            assert "author" in conn.check()
+        else:
+            with pytest.raises(RuntimeError):
+                conn.check()
+
+
+def test_php_check_without_creating_draft(php_inbox, monkeypatch):
+    url, drafts = php_inbox
+    site = Site(nom="PHP", url="https://php.test", pole="SOFT", technologie="php",
+                endpoint_url=url, secret_env="PHP_TEST_SECRET")
+    monkeypatch.setenv("PHP_TEST_SECRET", SECRET)
+    assert "signature acceptée" in PhpEndpointConnector(site).check()
+    assert not list(drafts.glob("*.json"))
+    monkeypatch.setenv("PHP_TEST_SECRET", "autre-secret-autre-secret-autre-s")
+    with pytest.raises(RuntimeError, match="signature refusée"):
+        PhpEndpointConnector(site).check()
+
+
+def test_static_check(tmp_path):
+    site = Site(nom="S", url="https://s.test", pole="SOFT", technologie="statique",
+                export_dir=str(tmp_path / "x"))
+    assert "écriture" in StaticExportConnector(site).check()

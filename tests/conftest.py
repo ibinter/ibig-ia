@@ -86,6 +86,11 @@ class FakeConnector:
         self.sent.append({"to": to, "subject": subject, "body": body, "in_reply_to": in_reply_to})
         return {"message_id": f"<sent{len(self.sent)}@test>"}
 
+    def check(self):
+        if self.fail_fetch:
+            raise ConnectionError("IMAP indisponible")
+        return "IMAP et SMTP OK (test)"
+
     def label(self, ref, labels):
         self.labels.setdefault(ref, []).extend(labels)
 

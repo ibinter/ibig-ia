@@ -25,7 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]
-gmail = ["google-api-python-client>=2.130", "google-auth>=2.30"]
+gmail = ["google-api-python-client>=2.130", "google-auth>=2.30", "google-auth-oauthlib>=1.2"]
 dev = ["pytest>=8", "ruff==0.16.9"]
 
 [project.scripts]

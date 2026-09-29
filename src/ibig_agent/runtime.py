@@ -135,7 +135,10 @@ class Runtime:
     @property
     def chef(self) -> ChefAgent:
         llm = self.llm if isinstance(self.llm, ClaudeClient) else None
-        return ChefAgent(self.governor, self.sessions, llm)
+        mailbox = self.settings.notification_mailbox
+        return ChefAgent(self.governor, self.sessions, llm,
+                         notification_mailbox=mailbox if mailbox in self.connectors else "",
+                         dashboard_url=self.settings.dashboard_url)
 
 
 def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
