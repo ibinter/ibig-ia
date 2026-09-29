@@ -36,6 +36,9 @@ ACTION_LEVELS: dict[str, Level] = {
     "mail.label": Level.AUTOMATIQUE,
     "mail.ack": Level.AUTOMATIQUE,
     "mail.faq_reply": Level.AUTOMATIQUE,
+    # Réponses du Support dont chaque citation est vérifiée dans un guide validé
+    "support.answer": Level.AUTOMATIQUE,
+    "sara.answer": Level.AUTOMATIQUE,
     "mail.forward_internal": Level.AUTOMATIQUE,
     "report.publish": Level.AUTOMATIQUE,
     "notify.internal": Level.AUTOMATIQUE,
@@ -85,6 +88,7 @@ READ_ONLY_ACTIONS = {"report.publish", "stats.read", "notify.internal"}
 
 CHANNELS = [
     "mail",
+    "sara",
     "whatsapp",
     "facebook",
     "instagram",

@@ -235,7 +235,7 @@ class CommercialAgent:
                     outbound[to] = max(outbound.get(to, as_utc(pa.decided_at)),
                                        as_utc(pa.decided_at))
             for e in s.scalars(select(JournalEntry).where(
-                    JournalEntry.action_type == "mail.faq_reply",
+                    JournalEntry.action_type.in_(("mail.faq_reply", "support.answer")),
                     JournalEntry.status == "executed", JournalEntry.created_at >= since)):
                 to = sender_of.get((e.details or {}).get("ref", ""), "")
                 if to in emails:

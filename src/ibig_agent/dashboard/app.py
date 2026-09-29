@@ -6,24 +6,30 @@ Ils y donnent les objectifs, valident (niveau 2), traitent les dossiers réserv�
 
 from __future__ import annotations
 
+import secrets
 import time
 from collections import defaultdict, deque
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
 
 from ..auth import Principal, UserStore, make_session, read_session
-from ..db import JournalEntry, PendingAction, ProcessedMessage, Prospect
+from ..db import JournalEntry, PendingAction, ProcessedMessage, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 
 TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 SESSION_COOKIE = "ibig_session"
 EDITABLE_KEYS = ("body", "texte", "contenu_html")
+SARA_MAX_QUESTION = 2000
+SARA_RATE = (20, 600)          # 20 questions par 10 minutes et par conversation
+SARA_GLOBAL_RATE = (600, 600)  # plafond global (protège aussi le budget IA)
+SARA_TRANSFER = ("Je transmets votre question à un conseiller, qui vous répondra dans les "
+                 "meilleurs délais.")
 MAX_FAILED_LOGINS = 5
 LOCKOUT_SECONDS = 15 * 60
 
@@ -39,6 +45,7 @@ def create_app(rt: Runtime) -> FastAPI:
     users = UserStore(rt.sessions, rt.org)
     secret = rt.settings.secret_key
     failed_logins: dict[str, deque[float]] = defaultdict(deque)
+    sara_calls: dict[str, deque[float]] = defaultdict(deque)
 
     @app.exception_handler(NotLoggedIn)
     async def _to_login(request: Request, exc: NotLoggedIn):
@@ -195,6 +202,80 @@ def create_app(rt: Runtime) -> FastAPI:
         if who.role == "valideur":  # données personnelles : chacun voit ses pôles
             rows = [p for p in rows if p.pole in who.poles]
         return page(request, "prospects.html", rows=rows)
+
+    # ---------------------------------------------------------------- support
+    @app.get("/tickets", response_class=HTMLResponse)
+    def tickets(request: Request, tous: int = 0, who: Principal = Depends(user)):
+        with rt.sessions() as s:
+            q = select(Ticket).order_by(desc(Ticket.id)).limit(200)
+            if not tous:
+                q = q.where(Ticket.status == "ouvert")
+            rows = s.scalars(q).all()
+        if who.role == "valideur":
+            rows = [t for t in rows if t.pole in who.poles]
+        return page(request, "tickets.html", rows=rows, tous=tous)
+
+    @app.post("/tickets/{tid}/resolu")
+    def ticket_resolved(tid: int, who: Principal = Depends(user)):
+        with rt.sessions() as s:
+            t = s.get(Ticket, tid)
+        if t is None:
+            raise HTTPException(404)
+        if who.role == "valideur" and t.pole not in who.poles:
+            return back("/tickets", f"Refusé : vous ne suivez pas le pôle {t.pole}")
+        try:
+            rt.support.resolve(tid, by=who.label)
+        except ValueError as exc:
+            return back("/tickets", f"Refusé : {exc}")
+        return back("/tickets", f"Ticket n° {tid} résolu")
+
+    @app.post("/api/sara/question")
+    async def sara_question(request: Request):
+        """API de SARA, à appeler depuis le serveur des solutions (clé secrète)."""
+        key = rt.settings.sara_api_key
+        if len(key) < 32:
+            return JSONResponse({"erreur": "API SARA non configurée"}, status_code=503)
+        auth = request.headers.get("authorization", "")
+        if not secrets.compare_digest(auth.encode(), f"Bearer {key}".encode()):
+            return JSONResponse({"erreur": "clé invalide"}, status_code=401)
+        try:
+            data = await request.json()
+        except ValueError:
+            return JSONResponse({"erreur": "JSON invalide"}, status_code=400)
+        if not isinstance(data, dict):
+            return JSONResponse({"erreur": "objet JSON attendu"}, status_code=400)
+        question = str(data.get("question", "")).strip()
+        pole = str(data.get("pole") or "SOFT")
+        conversation = str(data.get("conversation", ""))[:200]
+        if not question or len(question) > SARA_MAX_QUESTION:
+            return JSONResponse({"erreur": "question vide ou trop longue"}, status_code=400)
+        if pole not in rt.org.pole_codes:
+            return JSONResponse({"erreur": f"pôle inconnu : {pole}"}, status_code=400)
+        # L'appelant est le serveur du site : on limite par conversation du chat
+        # (l'adresse IP serait la même pour tous les clients), plus un plafond global.
+        client = request.client.host if request.client else "?"
+        now = time.monotonic()
+        for bucket, (limit, window) in ((f"conv:{conversation or client}", SARA_RATE),
+                                        ("*", SARA_GLOBAL_RATE)):
+            calls = sara_calls[bucket]
+            while calls and now - calls[0] > window:
+                calls.popleft()
+            if len(calls) >= limit:
+                return JSONResponse({"erreur": "trop de questions, réessayez plus tard"},
+                                    status_code=429)
+        sara_calls[f"conv:{conversation or client}"].append(now)
+        sara_calls["*"].append(now)
+        result = rt.support.handle_chat(question, pole,
+                                        contact=str(data.get("contact", ""))[:300],
+                                        conversation=conversation)
+        answered = result.ticket_id is None
+        return JSONResponse({
+            "reponse": result.reponse if answered else SARA_TRANSFER,
+            "sources": [{"titre": x["titre"], "section": x["section"]} for x in result.sources]
+            if answered else [],
+            "transmis": not answered,
+            "ticket": result.ticket_id,
+        })
 
     @app.post("/prospects/{pid}/statut")
     def prospect_status(pid: int, statut: str = Form(...), who: Principal = Depends(user)):

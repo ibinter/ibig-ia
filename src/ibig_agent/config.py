@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     response_target_hours: float = 2.0
     spike_min_messages: int = 10
     spike_factor: float = 3.0
+    # Clé de l'API SARA (appelée par le serveur des solutions, jamais depuis le navigateur)
+    sara_api_key: str = ""
 
 
 @lru_cache
@@ -53,6 +55,7 @@ class Pole:
     valideur: str = ""
     suppleant: str = ""
     commercial: str = ""
+    support: str = ""
 
 
 @dataclass(frozen=True)

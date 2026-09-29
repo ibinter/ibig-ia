@@ -89,13 +89,14 @@ class Triage:
 class MessagerieAgent:
     def __init__(self, org: OrgConfig, kb: KnowledgeBase, llm: LLM, governor: Governor,
                  session_factory: sessionmaker[Session],
-                 connectors: dict[str, MailConnector]) -> None:
+                 connectors: dict[str, MailConnector], support=None) -> None:
         self.org = org
         self.kb = kb
         self.llm = llm
         self.gov = governor
         self._sessions = session_factory
         self.connectors = connectors
+        self.support = support  # agent Support (facultatif) pour les questions d'usage
 
     # ------------------------------------------------------------------ relève
     def poll(self, days: int = 3) -> dict[str, int]:
@@ -269,14 +270,18 @@ class MessagerieAgent:
             self._finish(msg, "prospect", triage)
             return "prospect"
 
-        # 5. Client / support : accusé de réception + brouillon à valider.
+        # 5. Question d'usage : l'agent Support répond à partir des guides si possible.
+        if triage.categorie == "support" and self.support is not None:
+            return self._support(msg, mailbox, triage)
+
+        # 6. Client / support : accusé de réception + brouillon à valider.
         if triage.categorie in ("client", "support"):
             self._ack(msg, mailbox, triage)
             self._queue_draft(msg, mailbox, triage)
             self._finish(msg, "brouillon", triage)
             return "brouillon"
 
-        # 6. Autres : transfert au responsable du pôle.
+        # 7. Autres : transfert au responsable du pôle.
         if mailbox.responsable:
             self.gov.submit(ActionRequest(
                 ref=msg.message_id,
@@ -375,6 +380,40 @@ class MessagerieAgent:
             escalate_to=Level.HUMAIN if triage.urgence == "haute" and
             triage.sentiment == "negatif" else None,
         ))
+
+    def _support(self, msg: MailMessage, mailbox: Mailbox, triage: Triage) -> str:
+        from .support import AUTO, DRAFT
+
+        sensitive = triage.sentiment == "negatif" or triage.urgence == "haute"
+        result = self.support.answer(f"{msg.subject}\n\n{msg.body}", triage.pole, sensitive)
+        if result.status == AUTO:
+            out = self.gov.submit(ActionRequest(
+                ref=msg.message_id,
+                agent=AGENT, action_type="support.answer", channel="mail",
+                account=mailbox.adresse, pole=triage.pole,
+                title=f"Réponse documentée (guides) : {msg.subject[:120]}",
+                payload={**self._reply_payload(
+                    msg, mailbox, f"Bonjour,\n\n{result.reponse}\n\n{AUTO_NOTICE}"),
+                    "sources": result.sources},
+            ))
+            if out.status == "executed":
+                self._finish(msg, "support_auto", triage)
+                return "support_auto"
+        self._ack(msg, mailbox, triage)
+        if result.status in (AUTO, DRAFT):  # documentée mais pas envoyable seule
+            self.gov.submit(ActionRequest(
+                ref=msg.message_id,
+                agent=AGENT, action_type="mail.reply", channel="mail",
+                account=mailbox.adresse, pole=triage.pole,
+                title=f"Réponse documentée à valider : {msg.subject[:120]}",
+                payload={**self._reply_payload(msg, mailbox, f"Bonjour,\n\n{result.reponse}"),
+                         "resume": triage.resume, "sources": result.sources,
+                         "alertes": result.raisons, "urgence": triage.urgence},
+            ))
+        else:  # la base ne couvre pas la question : brouillon libre, comme avant
+            self._queue_draft(msg, mailbox, triage)
+        self._finish(msg, "brouillon", triage)
+        return "brouillon"
 
     def _prepare_manual(self, msg: MailMessage, mailbox: Mailbox, reason: str) -> None:
         self.gov.submit(ActionRequest(

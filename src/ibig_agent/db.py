@@ -142,6 +142,27 @@ class Prospect(Base):
                                                               nullable=True)
 
 
+class Ticket(Base):
+    """Question que l'agent Support n'a pas pu traiter seul : un humain prend le relais."""
+
+    __tablename__ = "tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
+                                                 index=True)
+    channel: Mapped[str] = mapped_column(String(20))  # mail | sara | whatsapp
+    contact: Mapped[str] = mapped_column(String(300), default="")
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    question: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    draft: Mapped[str] = mapped_column(Text, default="")
+    sources: Mapped[list] = mapped_column(JSON, default=list)
+    ref: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[str] = mapped_column(String(20), default="ouvert", index=True)
+    resolved_by: Mapped[str] = mapped_column(String(300), default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class User(Base):
     """Compte nominatif du tableau de bord.
 

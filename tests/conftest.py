@@ -35,6 +35,7 @@ class FakeLLM:
         self.draft = "Bonjour,\n\nMerci pour votre intérêt pour nos solutions."
         self.calls: list[str] = []
         self.calendar: dict | None = None
+        self.support_answer: dict = {"repondable": False, "reponse": "", "citations": []}
         self.qualification = {"score": 40, "temperature": "tiede", "solution": "",
                               "prochaine_etape": "Appeler", "raisons": "r"}
 
@@ -42,6 +43,9 @@ class FakeLLM:
         self.calls.append(purpose)
         if purpose == "social.calendar":
             return self.calendar
+        if purpose == "support.answer":
+            self.last_support_user = user
+            return dict(self.support_answer)
         if purpose == "commercial.qualify":
             self.last_user = user
             return dict(self.qualification)

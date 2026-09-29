@@ -4,6 +4,7 @@
 # (section 19). Elles donnent les droits de validation du pôle dans le tableau de bord
 # (compte créé avec `ibig-agent utilisateur ajouter`) et reçoivent les alertes.
 # `commercial` : adresse du commercial du pôle, qui reçoit les alertes prospects
+# (à défaut, le valideur). `support` : adresse qui reçoit les tickets du support
 # (à défaut, le valideur).
 poles:
   - code: GROUPE
@@ -13,6 +14,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: EDUFORM
     nom: IBIG EDUFORM
     activite: Formation professionnelle, certifications métiers, insertion
@@ -20,6 +22,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: IMMOTRUST
     nom: IBIG IMMOTRUST
     activite: Immobilier, BTP, sécurisation des investissements
@@ -27,6 +30,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: SOFT
     nom: IBIG SOFT
     activite: Édition logicielle, SaaS, applications métiers (14 solutions)
@@ -34,6 +38,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: MARKET
     nom: IBIG MARKET
     activite: Commerce, distribution, e-commerce
@@ -41,6 +46,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: DIGITAL
     nom: IBIG DIGITAL
     activite: Digitalisation, ERP, intelligence artificielle
@@ -48,6 +54,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: CONSEIL
     nom: IBIG CONSEIL+
     activite: Conseil stratégique, ingénierie de projets, structuration
@@ -55,6 +62,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: PARTNERS
     nom: IBIG PARTNERS
     activite: Représentation commerciale, partenariats stratégiques
@@ -62,6 +70,7 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""
   - code: MULTISERVICES
     nom: IBIG MULTISERVICES
     activite: Logistique, RH, transport, communication, tourisme
@@ -69,3 +78,4 @@ poles:
     valideur: ""
     suppleant: ""
     commercial: ""
+    support: ""

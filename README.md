@@ -28,7 +28,8 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Agent Contenus web : articles en brouillon (WordPress, module PHP, export HTML) | ✅ (technologie des sites à renseigner) |
 | Agent Veille : indicateurs de réussite (section 3), alertes pic / mécontentement / sans réponse | ✅ (mails et journal ; réseaux sociaux à raccorder) |
 | Agent Commercial : qualification, relances J+3/J+7/J+14 à valider, essais et démos, désinscription | ✅ |
-| Support (SARA), WhatsApp | ⏳ phase 3 |
+| Agent Support : réponses documentées par les guides (citations vérifiées), tickets, API SARA | ✅ (guides à rédiger) |
+| WhatsApp (API Cloud Meta) | ⏳ phase 3 |
 
 ## Architecture
 

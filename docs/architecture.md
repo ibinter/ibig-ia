@@ -187,3 +187,30 @@ contacter », « désinscrire »…) est détectée par l'agent Messagerie et ar
 **Import** (`ibig-agent prospects fichier.csv`, séparateur `,` ou `;`) : colonnes
 `email, nom, pole, solution, besoin, fin_essai, demo, boite` — tant que le moteur de
 licences IBIG SOFT n'est pas raccordé, c'est ainsi que l'on renseigne essais et démos.
+
+## Agent Support et SARA
+
+« Automatique si la réponse est dans la base, sinon escalade » (section 6). La base est
+découpée en passages (sections `##` des guides, FAQ, catalogue) ; le modèle répond à
+partir des passages trouvés et cite chacun **mot pour mot**. Le code vérifie :
+
+| Contrôle | Si échec |
+|---|---|
+| La question est entièrement couverte (sinon le modèle le dit) | escalade |
+| Chaque citation existe mot pour mot dans le passage cité | brouillon (ou escalade si aucune source valide) |
+| Aucun prix, contact, lien ou pourcentage absent de la base | brouillon |
+| Chaque guide cité porte `reponses_auto: true` (validé par un humain) | brouillon |
+| Demande ni suspecte, ni mécontente, ni urgente | brouillon / escalade |
+| Canal non suspendu (`mail`, `sara`) | escalade |
+
+* **Mail** : réponse automatique (avec « un conseiller prendra le relais si nécessaire »),
+  sinon accusé de réception + brouillon documenté à valider (sources affichées au
+  valideur), sinon brouillon libre comme pour les autres mails.
+* **SARA** : `POST /api/sara/question` (en-tête `Authorization: Bearer <IBIG_SARA_API_KEY>`,
+  20 questions / 10 min par client), corps `{"question", "pole", "contact", "conversation"}`.
+  Réponse `{"reponse", "sources", "transmis", "ticket"}` : si la réponse n'est pas
+  automatique, SARA répond « Je transmets votre question à un conseiller » et un ticket
+  est ouvert (avec la proposition de réponse pour le conseiller). À appeler depuis le
+  serveur du site, jamais depuis le navigateur : `integrations/php/sara-client.example.php`.
+* **Tickets** : page « Tickets » (chacun voit ses pôles), alerte au `support` du pôle
+  (`poles.yaml`, à défaut le valideur).

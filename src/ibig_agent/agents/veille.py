@@ -27,7 +27,7 @@ from ..governance import ActionRequest, Governor, as_utc
 
 AGENT = "veille"
 RESPONSE_CATEGORIES = ("prospect", "client", "support")
-REPLY_ACTIONS = ("mail.faq_reply", "mail.reply")  # l'accusé de réception ne compte pas
+REPLY_ACTIONS = ("mail.faq_reply", "mail.reply", "support.answer")  # l'accusé de réception ne compte pas
 NOT_CLASSIFIED = ("en_cours", "erreur", "a_trier_manuel")
 SOCIAL_ACTIONS = ("social.post", "social.manual_post")
 

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Tickets du support</h2>
+<p class="muted">Questions que l'agent Support (et SARA) n'a pas traitées seul.
+  {% if tous %}<a href="/tickets">Voir les tickets ouverts</a>{% else %}<a href="?tous=1">Voir aussi les tickets résolus</a>{% endif %}</p>
+{% if not rows %}<p class="muted">Aucun ticket.</p>{% endif %}
+{% for t in rows %}
+<div class="card">
+  <div class="row"><span class="tag {{ 'l3' if t.status == 'ouvert' else 'l1' }}">{{ t.status }}</span>
+    <span class="tag">{{ t.channel }}</span><span class="tag">{{ t.pole }}</span>
+    <span class="muted">n° {{ t.id }} · {{ t.created_at.strftime('%d/%m %H:%M') }} · contact : {{ t.contact or 'non communiqué' }}</span></div>
+  <pre>{{ t.question }}</pre>
+  {% if t.reason %}<p class="muted">Pourquoi un humain : {{ t.reason }}</p>{% endif %}
+  {% if t.draft %}<details><summary>Proposition de réponse (à vérifier)</summary><pre>{{ t.draft }}</pre>
+    {% for src in t.sources %}<p class="muted">Source : {{ src.titre }} — {{ src.section }} : « {{ src.extrait }} »</p>{% endfor %}</details>{% endif %}
+  {% if t.status == 'ouvert' %}
+  <form method="post" action="/tickets/{{ t.id }}/resolu" class="row" style="margin-top:8px"><button class="ok">Marquer comme résolu</button></form>
+  {% else %}<p class="muted">Résolu par {{ t.resolved_by }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endblock %}

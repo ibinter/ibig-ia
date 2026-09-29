@@ -14,6 +14,7 @@ from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
+from .agents.support import SupportAgent
 from .agents.veille import VeilleAgent
 from .channels.mail import MailConnector, connector_for
 from .channels.web import WebConnector, sanitize_html, web_connector_for
@@ -54,6 +55,7 @@ def mail_executors(connectors: dict[str, MailConnector]) -> dict[str, Executor]:
         "mail.faq_reply": send,
         "mail.reply": send,
         "commercial.followup": send,
+        "support.answer": send,
         "mail.forward_internal": forward,
         "notify.internal": forward,
     }
@@ -80,6 +82,8 @@ def manual_social_executors() -> dict[str, Executor]:
                 "reseau": payload.get("reseau"), "compte": payload.get("compte")}
 
     return {"social.post": manual, "social.manual_post": manual,
+            # La réponse de SARA est renvoyée par l'API ; l'action sert au journal et à l'arrêt.
+            "sara.answer": lambda payload: {"canal": "sara"},
             "report.publish": lambda payload: {"publie": "tableau de bord"}}
 
 
@@ -97,7 +101,12 @@ class Runtime:
     @property
     def messagerie(self) -> MessagerieAgent:
         return MessagerieAgent(self.org, self.kb, self.llm, self.governor, self.sessions,
-                               self.connectors)
+                               self.connectors, support=self.support)
+
+    @property
+    def support(self) -> SupportAgent:
+        return SupportAgent(self.settings, self.org, self.kb, self.llm, self.governor,
+                            self.sessions, set(self.connectors))
 
     @property
     def communication(self) -> CommunicationAgent:

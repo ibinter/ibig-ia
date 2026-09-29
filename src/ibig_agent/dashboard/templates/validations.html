@@ -14,6 +14,9 @@
     <details><summary class="muted">Message d'origine</summary><pre>{{ a.payload.original }}</pre></details>
   {% endif %}
   {% if a.payload.get('brief_visuel') %}<p class="muted">Brief visuel : {{ a.payload.brief_visuel }}</p>{% endif %}
+  {% for src in a.payload.get('sources', []) %}
+    <div class="muted">Source : {{ src.titre }} — {{ src.section }} : « {{ src.extrait }} »</div>
+  {% endfor %}
   {% for al in a.payload.get('alertes', []) %}
     <div class="alert">⚠ Absent de la base de connaissances — {{ al }}</div>
   {% endfor %}

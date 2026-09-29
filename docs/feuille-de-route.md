@@ -15,7 +15,8 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [ ] Préciser le pôle du groupe Facebook 367494932590382 et compléter les comptes IBIG SOFT → `config/canaux.yaml`
 - [ ] Indiquer la technologie de chaque site (WordPress ou PHP maison)
 - [ ] Rédiger les 8 fiches pôles → `knowledge/poles/*.md` (retirer `statut: a_completer`)
-- [ ] Réunir les FAQ → `knowledge/faq/` et les 20 meilleures publications → `knowledge/publications/`
+- [ ] Réunir les FAQ → `knowledge/faq/`, les guides utilisateurs → `knowledge/guides/` et
+      les 20 meilleures publications → `knowledge/publications/`
 - [ ] Compléter les contacts officiels → `knowledge/contacts.md`
 - [ ] Choisir l'option A (raccordement direct, implémentée) ou B (centralisation) pour les mails
 - [ ] Réserver le VPS ; ouvrir les comptes de l'outil multi-comptes et du service d'emailing
@@ -54,8 +55,11 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Agent Commercial : qualification, séquences de relance, suivi des démos et essais,
       désinscription
 - [ ] Raccorder le moteur de licences IBIG SOFT (dates d'essai automatiques, au lieu de l'import CSV)
-- [ ] Agent Support : réponses documentées sur les 14 solutions et les formations ;
-      SARA comme visage public
+- [x] Agent Support : réponses documentées sur les solutions et les formations (citations
+      vérifiées), tickets, API pour SARA
+- [ ] Rédiger les guides utilisateurs (`knowledge/guides/`) et valider ceux qui peuvent
+      servir aux réponses automatiques (`reponses_auto: true`)
+- [ ] Brancher le widget SARA des solutions sur l'API (côté serveur)
 - [x] Agent Veille : indicateurs de la section 3, alertes (avis négatif, pic de messages,
       mails sans réponse), rapport hebdomadaire
 - [ ] Veille des réseaux sociaux et avis en ligne (après raccordement de l'outil multi-comptes)
