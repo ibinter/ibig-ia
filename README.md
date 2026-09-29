@@ -59,6 +59,7 @@ cp config/mailboxes.example.yaml config/mailboxes.yaml   # lister les boîtes (s
 ibig-agent utilisateur ajouter --email direction@exemple.ci --nom "Direction" --role admin
 ibig-agent utilisateur ajouter --email valideur.soft@exemple.ci --nom "Valideur SOFT" --role valideur
 
+ibig-agent migrer             # créer / mettre à jour la base (automatique au démarrage)
 ibig-agent verifier-base      # état de la base de connaissances
 ibig-agent poll               # relever les boîtes une fois
 ibig-agent rapport            # rapport quotidien
@@ -74,7 +75,8 @@ cp .env.example .env    # + POSTGRES_PASSWORD
 docker compose up -d --build
 ```
 
-Le tableau de bord écoute sur `127.0.0.1:8000` : le publier derrière un reverse proxy
+Les migrations de la base sont appliquées automatiquement au démarrage du service
+(`ibig-agent migrer` pour les lancer à la main). Le tableau de bord écoute sur `127.0.0.1:8000` : le publier derrière un reverse proxy
 HTTPS. Sauvegardes quotidiennes de la base et journaux conservés 12 mois (section 13).
 
 ## Organisation du dépôt

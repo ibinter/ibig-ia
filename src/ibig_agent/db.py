@@ -154,5 +154,14 @@ def make_engine(url: str) -> Engine:
 
 
 def init_db(engine: Engine) -> sessionmaker[Session]:
+    """Crée le schéma directement : réservé aux tests unitaires isolés."""
     Base.metadata.create_all(engine)
+    return sessionmaker(engine, expire_on_commit=False)
+
+
+def open_db(engine: Engine) -> sessionmaker[Session]:
+    """Applique les migrations en attente puis ouvre la base (usage normal)."""
+    from .migrate import upgrade
+
+    upgrade(engine)
     return sessionmaker(engine, expire_on_commit=False)

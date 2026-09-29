@@ -14,7 +14,7 @@ from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
 from .channels.mail import MailConnector, connector_for
 from .config import OrgConfig, Settings, get_settings, load_org_config
-from .db import init_db, make_engine
+from .db import make_engine, open_db
 from .governance import Executor, Governor
 from .knowledge import KnowledgeBase
 from .llm import LLM, ClaudeClient
@@ -101,7 +101,7 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                   with_llm: bool = True) -> Runtime:
     settings = settings or get_settings()
     org = load_org_config(settings.config_dir)
-    sessions = init_db(make_engine(settings.database_url))
+    sessions = open_db(make_engine(settings.database_url))
     kb = KnowledgeBase(settings.knowledge_dir)
     if connectors is None:
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}

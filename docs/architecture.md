@@ -24,6 +24,20 @@ recevoir un webhook et appeler l'API de l'agent).
 | Planification | APScheduler (relève 5 min, rapport 8 h, calendrier du lundi) |
 | Déploiement | Docker Compose sur VPS Linux (4 Go de RAM minimum) |
 
+## Base de données et migrations
+
+Le schéma est défini dans `db.py` et versionné par des migrations Alembic
+(`src/ibig_agent/migrations/versions`), appliquées au démarrage et par
+`ibig-agent migrer`. Après une modification de `db.py` :
+
+```bash
+ibig-agent migrer --nouvelle "ajout du téléphone des prospects"   # génère la migration
+# relire le fichier généré, puis le committer avec la modification de db.py
+```
+
+Un test (`test_migrations_match_models`) échoue si `db.py` et les migrations divergent ;
+en CI, les migrations sont jouées sur SQLite et sur PostgreSQL.
+
 ## Le Governor : toute action passe par lui
 
 ```

@@ -13,6 +13,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "sqlalchemy>=2.0",
+    "alembic>=1.13",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "pyyaml>=6.0",
@@ -33,7 +34,12 @@ ibig-agent = "ibig_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-ibig_agent = ["dashboard/templates/*.html"]
+ibig_agent = [
+    "dashboard/templates/*.html",
+    "migrations/*.py",
+    "migrations/script.py.mako",
+    "migrations/versions/*.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -13,7 +13,12 @@ from .runtime import build_runtime
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="ibig-agent", description="Agent IA IBIG")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("init-db", help="Créer les tables de la base")
+    sub.add_parser("init-db", help="Créer ou mettre à jour la base (alias de migrer)")
+    mig = sub.add_parser("migrer", help="Appliquer les migrations de la base")
+    mig.add_argument("--nouvelle", metavar="MESSAGE",
+                     help="Générer une migration à partir des changements de db.py")
+    mig.add_argument("--marquer", action="store_true",
+                     help="Marquer une base existante comme à jour, sans rien modifier")
     serve = sub.add_parser("serve", help="Tableau de bord + tâches planifiées")
     serve.add_argument("--host", default="0.0.0.0")
     serve.add_argument("--port", type=int, default=8000)
@@ -39,6 +44,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.getLogger("alembic.runtime.plugins").setLevel(logging.WARNING)
 
     if args.cmd == "verifier-base":
         rt = build_runtime(with_llm=False, connectors={})
@@ -50,11 +56,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "utilisateur":
         _users(args)
         return
+    if args.cmd in ("migrer", "init-db"):
+        _migrate(args)
+        return
 
     rt = build_runtime()
-    if args.cmd == "init-db":
-        print("Base initialisée :", rt.settings.database_url)
-    elif args.cmd == "poll":
+    if args.cmd == "poll":
         print(rt.messagerie.poll())
     elif args.cmd == "alertes":
         rt.governor.flag_stale()
@@ -80,6 +87,28 @@ def main(argv: list[str] | None = None) -> None:
         if not args.sans_planificateur:
             build_scheduler(rt).start()
         uvicorn.run(create_app(rt), host=args.host, port=args.port)
+
+
+def _migrate(args: argparse.Namespace) -> None:
+    from sqlalchemy.engine import make_url
+
+    from . import migrate
+    from .config import get_settings
+    from .db import make_engine
+
+    url = get_settings().database_url
+    engine = make_engine(url)
+    shown = make_url(url).render_as_string(hide_password=True)
+    if getattr(args, "nouvelle", None):
+        migrate.upgrade(engine)  # la comparaison se fait contre une base à jour
+        migrate.new_revision(engine, args.nouvelle)
+        print("Migration générée dans src/ibig_agent/migrations/versions : à relire")
+    elif getattr(args, "marquer", False):
+        migrate.stamp(engine)
+        print(f"Base marquée à la version {migrate.head_revision()} : {shown}")
+    else:
+        migrate.upgrade(engine)
+        print(f"Base à jour (version {migrate.current_revision(engine)}) : {shown}")
 
 
 def _read_password() -> str:

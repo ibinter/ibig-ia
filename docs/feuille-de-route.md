@@ -33,7 +33,7 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Comptes nominatifs pour le tableau de bord, droits par pôle et par rôle
 - [x] Alertes mail aux valideurs, relance du suppléant après 24 h, niveau 3 à la direction
 - [ ] Validation depuis WhatsApp (après la migration vers l'API Cloud, phase 3)
-- [ ] Migrations de schéma de base (Alembic) avant la mise en production
+- [x] Migrations de schéma de base (Alembic), testées sur SQLite et PostgreSQL
 - [ ] Recette sur 2 semaines d'essai réel (voir ci-dessous)
 
 ## Phase 2 — Communication et contenus web (mois 2)
