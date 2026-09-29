@@ -14,6 +14,7 @@ from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
+from .agents.revue import MonthlyReviewer
 from .agents.support import SupportAgent
 from .agents.veille import VeilleAgent
 from .agents.whatsapp import WhatsAppAgent
@@ -107,7 +108,9 @@ def manual_social_executors() -> dict[str, Executor]:
     return {"social.post": manual, "social.manual_post": manual,
             # La réponse de SARA est renvoyée par l'API ; l'action sert au journal et à l'arrêt.
             "sara.answer": lambda payload: {"canal": "sara"},
-            "report.publish": lambda payload: {"publie": "tableau de bord"}}
+            # Le texte est conservé au journal : page « Rapports » du tableau de bord.
+            "report.publish": lambda payload: {"publie": "tableau de bord",
+                                               "texte": payload.get("text", "")}}
 
 
 @dataclass
@@ -155,6 +158,13 @@ class Runtime:
         return CommercialAgent(self.settings, self.org, self.kb, self.llm, self.governor,
                                self.sessions,
                                {a: c.mailbox for a, c in self.connectors.items()})
+
+    @property
+    def revue(self) -> MonthlyReviewer:
+        mailbox = self.settings.notification_mailbox
+        return MonthlyReviewer(self.governor, self.sessions, self.veille,
+                               notification_mailbox=mailbox if mailbox in self.connectors else "",
+                               month_spend=getattr(self.llm, "month_spend", None))
 
     @property
     def veille(self) -> VeilleAgent:

@@ -229,3 +229,16 @@ partir des passages trouvés et cite chacun **mot pour mot**. Le code vérifie :
   arriver trop tard.
 * **Contacts** (`whatsapp_contacts`) : dernier message reçu, dernier accusé, désinscription,
   consentement promotionnel (jamais déduit d'un simple message).
+
+## Revue mensuelle et mesure de la recette
+
+* **Revue mensuelle** (section 12), le 1er de chaque mois sur 30 jours : indicateurs,
+  actions en échec, plaintes et incidents, décisions humaines par type d'action, coûts,
+  et **pistes** — sujets récurrents sans réponse automatique (FAQ ou guide à écrire),
+  contenus souvent rejetés, brouillons presque toujours acceptés tels quels. Ce sont des
+  suggestions : l'équipe décide. Publiée page « Rapports » et envoyée à la direction.
+* **Critère R-02** : `ibig-agent recette echantillon` puis `ibig-agent recette score` —
+  justesse du pôle, du type et des deux, confusions les plus fréquentes, résultat
+  atteint / non atteint (code de sortie).
+* **Rapports** : le texte de chaque rapport publié est conservé au journal et lisible
+  page « Rapports ».

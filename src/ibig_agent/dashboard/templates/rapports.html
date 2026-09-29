@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Rapports</h2>
+<p class="muted">Rapports quotidiens, indicateurs hebdomadaires et revues mensuelles (section 12).</p>
+{% if not rows %}<p class="muted">Aucun rapport pour l'instant.</p>{% endif %}
+{% for r in rows %}
+<div class="card">
+  <div class="row"><span class="tag">{{ r.agent }}</span><span class="muted">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</span></div>
+  <h3>{{ r.summary }}</h3>
+  <details {% if loop.first %}open{% endif %}><summary class="muted">Texte</summary>
+    <pre>{{ r.details.get('texte', '(texte non conservé)') }}</pre></details>
+</div>
+{% endfor %}
+{% endblock %}

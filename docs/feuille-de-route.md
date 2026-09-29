@@ -73,7 +73,8 @@ Actions de la section 19, qui débloquent la phase 1 :
 ## Phase 4 — Consolidation et produit (mois 4)
 
 - [ ] Recherche sémantique pgvector derrière `KnowledgeBase.search()`
-- [ ] Revue mensuelle outillée (erreurs, plaintes, indicateurs)
+- [x] Revue mensuelle outillée (erreurs, plaintes, indicateurs, pistes d'ajustement)
+- [x] Mesure du critère R-02 (échantillon à vérifier, calcul de la justesse)
 - [ ] Étude du passage en produit IBIG SOFT (moteur de licences existant)
 
 ## Recette (section 17)

@@ -73,6 +73,8 @@ ibig-agent article --site https://ibigsoft.com   # préparer un article (brouill
 ibig-agent indicateurs --jours 30                # indicateurs de réussite
 ibig-agent veille             # alertes de veille maintenant
 ibig-agent commercial         # qualifier et relancer les prospects maintenant
+ibig-agent revue              # revue mensuelle (section 12)
+ibig-agent recette echantillon    # recette R-02 : échantillon de 200 mails à vérifier
 ibig-agent prospects essais.csv   # importer des prospects (essais, démonstrations)
 ibig-agent serve              # tableau de bord (http://localhost:8000) + tâches planifiées
 pytest                        # tests

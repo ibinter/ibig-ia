@@ -324,6 +324,15 @@ def create_app(rt: Runtime) -> FastAPI:
             return back("/prospects", f"Refusé : {exc}")
         return back("/prospects", f"{p.email} : {statut}")
 
+    @app.get("/rapports", response_class=HTMLResponse)
+    def reports(request: Request, who: Principal = Depends(user)):
+        with rt.sessions() as s:
+            rows = s.scalars(select(JournalEntry).where(
+                JournalEntry.action_type == "report.publish",
+                JournalEntry.status == "executed").order_by(desc(JournalEntry.id))
+                .limit(60)).all()
+        return page(request, "rapports.html", rows=rows)
+
     @app.get("/indicateurs", response_class=HTMLResponse)
     def indicators(request: Request, jours: int = 7, who: Principal = Depends(user)):
         jours = min(max(jours, 1), 90)

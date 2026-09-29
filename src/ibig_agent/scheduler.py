@@ -63,6 +63,9 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     # Contenus web : 2 articles par mois et par site actif (1er et 15 du mois).
     sched.add_job(_safe("articles web", rt.contenus_web.run), "cron", day="1,15", hour=7,
                   minute=30, id="web_articles")
+    # Revue mensuelle (section 12) : le 1er du mois, sur les 30 derniers jours.
+    sched.add_job(_safe("revue mensuelle", rt.revue.run), "cron", day=1, hour=9, minute=0,
+                  id="monthly_review")
     # Conservation limitée des données (section 13) : purge le 1er de chaque mois.
     from .privacy import purge
 

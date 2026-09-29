@@ -146,7 +146,7 @@ docker compose exec -T db pg_restore -U ibig -d ibig_agent --clean < base-AAAAMM
 |---|---|
 | Chaque jour | Rapport de 8 h ; page Validations (rien ne doit dépasser 24 h) ; page Tickets |
 | Chaque lundi | Indicateurs de la semaine (mail à la direction, page Indicateurs) |
-| Chaque mois | Revue (section 12) : erreurs, plaintes, indicateurs, règles de niveau 1 ; exercice du bouton d'arrêt ; purge automatique des données le 1er |
+| Chaque mois | Revue mensuelle (section 12) produite le 1er à 9 h (mail à la direction, page Rapports) : erreurs, plaintes, indicateurs, validations, pistes (FAQ à écrire, contenus souvent rejetés) ; l'équipe décide des changements ; exercice du bouton d'arrêt ; purge automatique des données le 1er |
 | Mise à jour | `git pull && docker compose up -d --build` puis `ibig-agent diagnostic` (les migrations s'appliquent seules) |
 | Journaux techniques | `docker compose logs --tail 200 agent` |
 
@@ -157,7 +157,7 @@ Deux semaines d'essai réel ; chaque critère bloquant doit être atteint.
 | Réf. | Comment le vérifier |
 |---|---|
 | R-01 | Comparer chaque jour le nombre de mails des boîtes et la page Indicateurs (« mails lus et classés » = 100 %) ; aucune alerte « relève impossible » au journal |
-| R-02 | Tirer 200 mails au hasard dans le journal, noter pôle et type attendus, compter les écarts (≥ 95 % justes) |
+| R-02 | `ibig-agent recette echantillon` (200 mails au hasard, fichier CSV sans adresse), remplir `pole_attendu` / `categorie_attendue` en consultant les mails (vide = l'agent a juste), puis `ibig-agent recette score recette-r02.csv` : ≥ 95 % des deux justes |
 | R-03 | Indicateur « actions sensibles exécutées sans validation » = 0 ; envoyer un faux mail juridique et vérifier qu'il arrive en niveau 3 sans réponse |
 | R-04 | Même indicateur ; aucune publication ni réponse personnalisée au journal sans nom de valideur |
 | R-05 | Relire 50 contenus validés : 0 erreur de prix, contact ou lien ; indicateur « contenus envoyés malgré une alerte » = 0 |

@@ -31,6 +31,15 @@ def main(argv: list[str] | None = None) -> None:
     diag = sub.add_parser("diagnostic", help="Tout vérifier sans rien envoyer (mise en service)")
     diag.add_argument("--hors-ligne", action="store_true",
                       help="Ne pas se connecter aux boîtes, sites et à l'API d'IA")
+    sub.add_parser("revue", help="Produire la revue mensuelle maintenant")
+    rec = sub.add_parser("recette", help="Mesure du critère R-02 (classement des mails)")
+    rec_sub = rec.add_subparsers(dest="rec_cmd", required=True)
+    ech = rec_sub.add_parser("echantillon", help="Tirer un échantillon à vérifier (CSV)")
+    ech.add_argument("--fichier", default="recette-r02.csv")
+    ech.add_argument("--taille", type=int, default=200)
+    ech.add_argument("--jours", type=int, default=30)
+    sco = rec_sub.add_parser("score", help="Calculer la justesse d'un échantillon rempli")
+    sco.add_argument("fichier")
     sub.add_parser("purger", help="Supprimer les données au-delà de la durée de conservation")
     contact = sub.add_parser("contact", help="Droits d'une personne sur ses données")
     contact.add_argument("action", choices=["exporter", "supprimer"])
@@ -86,6 +95,22 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     rt = build_runtime()
+    if args.cmd == "revue":
+        print(rt.revue.run().as_text())
+        return
+    if args.cmd == "recette":
+        from . import recette
+
+        if args.rec_cmd == "echantillon":
+            n = recette.write_sample(rt.sessions, args.fichier, args.taille, args.jours)
+            print(f"{n} mail(s) dans {args.fichier} : remplir pole_attendu et "
+                  "categorie_attendue (laisser vide si l'agent a juste), puis "
+                  f"« ibig-agent recette score {args.fichier} »")
+        else:
+            score = recette.score_file(args.fichier, rt.org.pole_codes)
+            print(score.as_text())
+            raise SystemExit(0 if score.passed else 1)
+        return
     if args.cmd == "purger":
         from .privacy import purge
 
