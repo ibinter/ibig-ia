@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent IA IBIG</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#667085; --line:#e4e7ec;
+          --brand:#0b4f9c; --ok:#127a3e; --warn:#b54708; --bad:#b42318; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  header { background:var(--brand); color:#fff; padding:10px 16px; display:flex;
+           flex-wrap:wrap; gap:16px; align-items:center; }
+  header a { color:#fff; text-decoration:none; font-weight:500; }
+  header .who { margin-left:auto; font-size:13px; opacity:.9; }
+  main { max-width:1100px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px;
+          padding:14px 16px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .stat b { font-size:26px; display:block; }
+  .muted { color:var(--muted); font-size:13px; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px;
+         background:#eef2f7; margin-right:4px; }
+  .l1 { background:#e7f5ec; } .l2 { background:#fff4e5; } .l3 { background:#fdecea; }
+  .alert { color:var(--bad); font-size:13px; }
+  .flash { background:#eef4ff; border:1px solid #c7d7fe; padding:8px 12px; border-radius:6px;
+           margin-bottom:14px; }
+  textarea { width:100%; min-height:140px; font:inherit; padding:8px; }
+  input[type=text], input[type=password], select { font:inherit; padding:6px 8px; }
+  button { font:inherit; padding:6px 14px; border-radius:6px; border:1px solid var(--line);
+           cursor:pointer; background:#fff; }
+  button.ok { background:var(--ok); color:#fff; border-color:var(--ok); }
+  button.bad { background:var(--bad); color:#fff; border-color:var(--bad); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .scroll { overflow-x:auto; }
+  pre { white-space:pre-wrap; margin:0; font:13px/1.45 ui-monospace,monospace; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+</style>
+</head>
+<body>
+{% if user %}
+<header>
+  <strong>Agent IA IBIG</strong>
+  <a href="/">Accueil</a><a href="/validations">Validations</a><a href="/journal">Journal</a>
+  <a href="/prospects">Prospects</a><a href="/arret">Bouton d'arrêt</a>
+  <span class="who">{{ user }}
+    <form method="post" action="/logout" style="display:inline"><button>Quitter</button></form>
+  </span>
+</header>
+{% endif %}
+<main>
+{% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

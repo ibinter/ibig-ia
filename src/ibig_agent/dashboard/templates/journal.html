@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Journal des actions</h2>
+<div class="card scroll"><table>
+<tr><th>Date</th><th>Agent</th><th>Action</th><th>Niv.</th><th>Canal / compte</th><th>Statut</th><th>Résumé</th><th>Par</th></tr>
+{% for r in rows %}
+<tr><td>{{ r.created_at.strftime('%d/%m %H:%M:%S') }}</td><td>{{ r.agent }}</td><td>{{ r.action_type }}</td>
+<td><span class="tag l{{ r.level }}">{{ r.level }}</span></td><td>{{ r.channel }}<br><span class="muted">{{ r.account }}</span></td>
+<td>{{ r.status }}</td><td>{{ r.summary }}</td><td>{{ r.decided_by }}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

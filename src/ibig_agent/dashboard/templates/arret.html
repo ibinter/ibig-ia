@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Bouton d'arrêt</h2>
+<p class="muted">Suspend l'agent sur un canal ou sur tout le périmètre (*). Effet immédiat : aucune
+action automatique ni validation n'est exécutée sur un canal suspendu.</p>
+<div class="card scroll"><table>
+<tr><th>Canal</th><th>État</th><th>Motif</th><th>Par</th><th></th></tr>
+{% for c in channels %}{% set st = states.get(c) %}
+<tr><td><b>{{ 'Tout le périmètre (*)' if c == '*' else c }}</b></td>
+<td>{% if st and st.stopped %}<span class="tag l3">suspendu</span>{% else %}<span class="tag l1">actif</span>{% endif %}</td>
+<td>{{ st.reason if st else '' }}</td><td>{{ st.updated_by if st else '' }}</td>
+<td><form method="post" action="/arret" class="row">
+  <input type="hidden" name="canal" value="{{ c }}">
+  {% if st and st.stopped %}
+    <input type="hidden" name="action" value="reprise"><button class="ok">Réactiver</button>
+  {% else %}
+    <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
+    <button class="bad">Suspendre</button>
+  {% endif %}
+</form></td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

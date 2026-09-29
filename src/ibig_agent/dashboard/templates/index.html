@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+  <div class="card stat"><b>{{ counts.get('pending', 0) }}</b>à valider (niveau 2)</div>
+  <div class="card stat"><b>{{ counts.get('prepared', 0) }}</b>dossiers humains (niveau 3)</div>
+  <div class="card stat"><b>{{ mails }}</b>mails traités au total</div>
+  <div class="card stat"><b>{{ prospects }}</b>prospects</div>
+</div>
+{% set stopped = states.values() | selectattr('stopped') | list %}
+{% if stopped %}
+<div class="card alert">Canaux suspendus :
+  {% for s in stopped %}<span class="tag l3">{{ s.channel }}</span>{% endfor %}</div>
+{% endif %}
+<div class="card"><h3>Synthèse des dernières 24 h</h3><pre>{{ report }}</pre></div>
+{% endblock %}

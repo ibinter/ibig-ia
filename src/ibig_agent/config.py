@@ -1,0 +1,113 @@
+"""Configuration de l'agent : variables d'environnement + fichiers YAML de config/."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+
+import yaml
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="IBIG_", env_file=".env", extra="ignore")
+
+    database_url: str = "sqlite:///./ibig_agent.db"
+    triage_model: str = "claude-haiku-4-5"
+    writing_model: str = "claude-opus-5-5"
+    writing_effort: str = "medium"  # low | medium | high | xhigh | max
+    monthly_ai_budget_usd: float = 150.0
+    budget_alert_ratio: float = 0.8
+    dashboard_token: str = "change-moi"
+    timezone: str = "Africa/Abidjan"
+    config_dir: Path = Path("./config")
+    knowledge_dir: Path = Path("./knowledge")
+    mail_poll_minutes: int = 5
+    daily_report_hour: int = 8
+    approval_timeout_hours: int = 24
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+@dataclass(frozen=True)
+class Pole:
+    code: str
+    nom: str
+    activite: str = ""
+    cibles: str = ""
+    valideur: str = ""
+    suppleant: str = ""
+
+
+@dataclass(frozen=True)
+class Mailbox:
+    adresse: str
+    hebergeur: str  # "lws" ou "gmail"
+    pole: str
+    responsable: str = ""
+    signature: str = ""
+    imap_host: str = ""
+    imap_port: int = 993
+    smtp_host: str = ""
+    smtp_port: int = 465
+    password_env: str = ""
+    gmail_token_env: str = ""
+
+    def secret(self) -> str:
+        """Lit le secret de la boîte dans l'environnement (alimenté par le coffre)."""
+        name = self.password_env or self.gmail_token_env
+        value = os.environ.get(name, "") if name else ""
+        if not value:
+            raise RuntimeError(f"Secret manquant pour {self.adresse} (variable {name or '?'})")
+        return value
+
+
+@dataclass(frozen=True)
+class SocialAccount:
+    reseau: str
+    compte: str
+    pole: str
+    publication_auto: bool
+
+
+@dataclass
+class OrgConfig:
+    poles: list[Pole] = field(default_factory=list)
+    mailboxes: list[Mailbox] = field(default_factory=list)
+    social_accounts: list[SocialAccount] = field(default_factory=list)
+    declinaison: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def pole_codes(self) -> list[str]:
+        return [p.code for p in self.poles]
+
+    def pole(self, code: str) -> Pole | None:
+        return next((p for p in self.poles if p.code == code), None)
+
+    def mailbox(self, adresse: str) -> Mailbox | None:
+        return next((m for m in self.mailboxes if m.adresse == adresse), None)
+
+
+def _read_yaml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def load_org_config(config_dir: Path | None = None) -> OrgConfig:
+    config_dir = config_dir or get_settings().config_dir
+    poles = [Pole(**p) for p in _read_yaml(config_dir / "poles.yaml").get("poles", [])]
+    mailboxes = [Mailbox(**m) for m in _read_yaml(config_dir / "mailboxes.yaml").get("mailboxes", [])]
+    canaux = _read_yaml(config_dir / "canaux.yaml")
+    accounts = [SocialAccount(**a) for a in canaux.get("comptes_sociaux", [])]
+    return OrgConfig(
+        poles=poles,
+        mailboxes=mailboxes,
+        social_accounts=accounts,
+        declinaison=canaux.get("declinaison", {}),
+    )

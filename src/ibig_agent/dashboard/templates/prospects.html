@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Prospects</h2>
+<div class="card scroll"><table>
+<tr><th>Mis à jour</th><th>Nom</th><th>Email</th><th>Pôle</th><th>Besoin</th><th>Statut</th><th>Source</th></tr>
+{% for p in rows %}
+<tr><td>{{ p.updated_at.strftime('%d/%m %H:%M') }}</td><td>{{ p.name }}</td><td>{{ p.email }}</td>
+<td>{{ p.pole }}</td><td>{{ p.need }}</td><td>{{ p.status }}</td><td>{{ p.source }}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

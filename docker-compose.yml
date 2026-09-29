@@ -1,0 +1,34 @@
+# Déploiement sur le VPS (section 14) : agent + PostgreSQL avec pgvector.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ibig_agent
+      POSTGRES_USER: ibig
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ibig -d ibig_agent"]
+      interval: 10s
+      retries: 5
+
+  agent:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      IBIG_DATABASE_URL: postgresql+psycopg://ibig:${POSTGRES_PASSWORD}@db:5432/ibig_agent
+    volumes:
+      # Configuration et base de connaissances tenues à jour sans reconstruire l'image
+      - ./config:/app/config:ro
+      - ./knowledge:/app/knowledge:ro
+    ports:
+      - "127.0.0.1:8000:8000"   # exposé via un reverse proxy HTTPS (Caddy, Nginx)
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

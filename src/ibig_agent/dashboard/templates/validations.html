@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>À valider (niveau 2)</h2>
+{% if not pending %}<p class="muted">Rien à valider.</p>{% endif %}
+{% for a in pending %}
+<div class="card">
+  <div class="row"><span class="tag l2">niveau 2</span><span class="tag">{{ a.channel }}</span>
+    <span class="tag">{{ a.pole }}</span><span class="muted">{{ a.account }} · {{ a.created_at.strftime('%d/%m %H:%M') }}
+    · agent {{ a.agent }}</span>
+    {% if a.flagged_at %}<span class="tag l3">en attente depuis plus de 24 h</span>{% endif %}</div>
+  <h3>{{ a.title }}</h3>
+  {% if a.payload.get('resume') %}<p class="muted">Résumé : {{ a.payload.resume }}</p>{% endif %}
+  {% if a.payload.get('original') %}
+    <details><summary class="muted">Message d'origine</summary><pre>{{ a.payload.original }}</pre></details>
+  {% endif %}
+  {% if a.payload.get('brief_visuel') %}<p class="muted">Brief visuel : {{ a.payload.brief_visuel }}</p>{% endif %}
+  {% for al in a.payload.get('alertes', []) %}
+    <div class="alert">⚠ Absent de la base de connaissances — {{ al }}</div>
+  {% endfor %}
+  <form method="post" action="/validations/{{ a.id }}/approuver">
+    {% for k in editable if k in a.payload %}
+      <textarea name="contenu">{{ a.payload[k] }}</textarea>
+    {% endfor %}
+    <div class="row"><button class="ok">Valider</button></div>
+  </form>
+  <form method="post" action="/validations/{{ a.id }}/rejeter" class="row" style="margin-top:8px">
+    <input type="text" name="motif" placeholder="Motif du rejet">
+    <button class="bad">Rejeter</button>
+  </form>
+</div>
+{% endfor %}
+
+<h2>Réservé à un humain (niveau 3)</h2>
+<p class="muted">L'agent a préparé ces dossiers ; il n'agira pas. Traitez-les puis marquez-les comme traités.</p>
+{% if not prepared %}<p class="muted">Aucun dossier.</p>{% endif %}
+{% for a in prepared %}
+<div class="card">
+  <div class="row"><span class="tag l3">niveau 3</span><span class="tag">{{ a.action_type }}</span>
+    <span class="tag">{{ a.pole }}</span><span class="muted">{{ a.account }} · {{ a.created_at.strftime('%d/%m %H:%M') }}</span></div>
+  <h3>{{ a.title }}</h3>
+  {% if a.payload.get('motifs') %}<div class="alert">Motifs suspects : {{ a.payload.motifs | join(', ') }}</div>{% endif %}
+  {% if a.payload.get('resume') %}<p class="muted">Résumé : {{ a.payload.resume }}</p>{% endif %}
+  {% if a.payload.get('raison') %}<p class="muted">{{ a.payload.raison }}</p>{% endif %}
+  {% if a.payload.get('body') %}<details><summary>Brouillon préparé</summary><pre>{{ a.payload.body }}</pre></details>{% endif %}
+  <form method="post" action="/validations/{{ a.id }}/traite" class="row" style="margin-top:8px">
+    <input type="text" name="note" placeholder="Note (facultatif)">
+    <button>Marquer comme traité</button>
+  </form>
+</div>
+{% endfor %}
+{% endblock %}

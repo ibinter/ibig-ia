@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto">
+  <h2>Connexion au tableau de bord</h2>
+  <form method="post" action="/login">
+    <p><label>Votre nom (tracé dans le journal)<br><input type="text" name="nom" required></label></p>
+    <p><label>Jeton d'accès<br><input type="password" name="token" required></label></p>
+    <button class="ok">Entrer</button>
+  </form>
+</div>
+{% endblock %}

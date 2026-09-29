@@ -1,0 +1,58 @@
+# Les 8 pôles d'IBIG SARL (section 2 du cahier des charges).
+# `code` est l'identifiant utilisé partout (classement, comptes, fiches).
+# `valideur` / `suppleant` : à compléter par IBIG avant la phase 1 (section 19).
+poles:
+  - code: GROUPE
+    nom: IBIG SARL (Groupe)
+    activite: Communication institutionnelle du groupe
+    cibles: Grand public, partenaires, institutions
+    valideur: ""
+    suppleant: ""
+  - code: EDUFORM
+    nom: IBIG EDUFORM
+    activite: Formation professionnelle, certifications métiers, insertion
+    cibles: Jeunes diplômés, salariés, entreprises
+    valideur: ""
+    suppleant: ""
+  - code: IMMOTRUST
+    nom: IBIG IMMOTRUST
+    activite: Immobilier, BTP, sécurisation des investissements
+    cibles: Investisseurs, diaspora, particuliers
+    valideur: ""
+    suppleant: ""
+  - code: SOFT
+    nom: IBIG SOFT
+    activite: Édition logicielle, SaaS, applications métiers (14 solutions)
+    cibles: PME, écoles, cliniques, agences, ONG
+    valideur: ""
+    suppleant: ""
+  - code: MARKET
+    nom: IBIG MARKET
+    activite: Commerce, distribution, e-commerce
+    cibles: Particuliers, revendeurs
+    valideur: ""
+    suppleant: ""
+  - code: DIGITAL
+    nom: IBIG DIGITAL
+    activite: Digitalisation, ERP, intelligence artificielle
+    cibles: Entreprises et institutions
+    valideur: ""
+    suppleant: ""
+  - code: CONSEIL
+    nom: IBIG CONSEIL+
+    activite: Conseil stratégique, ingénierie de projets, structuration
+    cibles: Dirigeants, porteurs de projets
+    valideur: ""
+    suppleant: ""
+  - code: PARTNERS
+    nom: IBIG PARTNERS
+    activite: Représentation commerciale, partenariats stratégiques
+    cibles: Revendeurs, apporteurs d'affaires
+    valideur: ""
+    suppleant: ""
+  - code: MULTISERVICES
+    nom: IBIG MULTISERVICES
+    activite: Logistique, RH, transport, communication, tourisme
+    cibles: Entreprises, particuliers
+    valideur: ""
+    suppleant: ""
