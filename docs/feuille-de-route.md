@@ -9,7 +9,7 @@ avec IBIG.
 
 Actions de la section 19, qui débloquent la phase 1 :
 
-- [ ] Nommer le responsable de l'agent et un valideur (+ suppléant) par pôle → `config/poles.yaml`
+- [ ] Nommer le responsable de l'agent et un valideur (+ suppléant) par pôle → adresses dans `config/poles.yaml`, comptes avec `ibig-agent utilisateur ajouter`
 - [ ] Lister toutes les adresses mail (hébergeur, pôle, responsable) → `config/mailboxes.yaml`
 - [ ] Lister les numéros WhatsApp Business et les chaînes ; choisir 1 ou 2 numéros à automatiser
 - [ ] Préciser le pôle du groupe Facebook 367494932590382 et compléter les comptes IBIG SOFT → `config/canaux.yaml`
@@ -30,8 +30,10 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Rapport quotidien de 8 h
 - [x] Plafond de dépense IA + alerte à 80 %
 - [ ] Raccorder les vraies boîtes et mesurer le point de départ pendant un mois (section 3)
-- [ ] Validation par WhatsApp ou mail en plus du tableau de bord
-- [ ] Comptes nominatifs pour le tableau de bord (aujourd'hui : jeton partagé + nom déclaré)
+- [x] Comptes nominatifs pour le tableau de bord, droits par pôle et par rôle
+- [x] Alertes mail aux valideurs, relance du suppléant après 24 h, niveau 3 à la direction
+- [ ] Validation depuis WhatsApp (après la migration vers l'API Cloud, phase 3)
+- [ ] Migrations de schéma de base (Alembic) avant la mise en production
 - [ ] Recette sur 2 semaines d'essai réel (voir ci-dessous)
 
 ## Phase 2 — Communication et contenus web (mois 2)

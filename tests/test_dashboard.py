@@ -1,44 +1,125 @@
+import pytest
 from fastapi.testclient import TestClient
 
+from ibig_agent.auth import UserStore
 from ibig_agent.dashboard.app import create_app
 from ibig_agent.governance import ActionRequest
 
+PASSWORD = "mot-de-passe-solide"
 
-def client(rt, login=True):
-    c = TestClient(create_app(rt))
-    if login:
-        r = c.post("/login", data={"nom": "Awa", "token": "secret-test"}, follow_redirects=False)
-        assert r.status_code == 303
+
+@pytest.fixture
+def accounts(rt):
+    store = UserStore(rt.sessions, rt.org)
+    store.create("awa@ibig.test", "Awa", "valideur", PASSWORD)       # valideur SOFT
+    store.create("kofi@ibig.test", "Kofi", "valideur", PASSWORD)     # aucun pôle
+    store.create("dg@ibig.test", "Direction", "direction", PASSWORD)
+    store.create("admin@ibig.test", "Admin", "admin", PASSWORD)
+    return store
+
+
+def client(rt, email=None):
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    if email:
+        r = c.post("/login", data={"email": email, "password": PASSWORD},
+                   follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/"
     return c
 
 
-def test_requires_login(rt):
-    c = client(rt, login=False)
+def queue(rt, connector, pole="SOFT", action="mail.reply"):
+    return rt.governor.submit(ActionRequest(
+        agent="messagerie", action_type=action, channel="mail", pole=pole,
+        title=f"Réponse test {pole}",
+        payload={"mailbox": connector.mailbox.adresse, "to": "a@b.ci", "subject": "S",
+                 "body": "Brouillon"})).pending_id
+
+
+def test_requires_login(rt, accounts):
+    c = client(rt)
     r = c.get("/validations", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"] == "/login"
-    r = c.post("/login", data={"nom": "X", "token": "faux"}, follow_redirects=False)
+    r = c.post("/login", data={"email": "awa@ibig.test", "password": "faux-mot-de-passe"},
+               follow_redirects=False)
     assert "invalides" in r.headers["location"]
 
 
-def test_one_click_approval_with_edit(rt, connector):
-    out = rt.governor.submit(ActionRequest(
-        agent="messagerie", action_type="mail.reply", channel="mail", title="Réponse test",
-        payload={"mailbox": connector.mailbox.adresse, "to": "a@b.ci", "subject": "S",
-                 "body": "Brouillon"}))
+def test_login_lockout_after_repeated_failures(rt, accounts):
     c = client(rt)
-    assert "Réponse test" in c.get("/validations").text
-    c.post(f"/validations/{out.pending_id}/approuver", data={"contenu": "Texte corrigé"})
+    for _ in range(5):
+        c.post("/login", data={"email": "awa@ibig.test", "password": "mauvais-mot"})
+    r = c.post("/login", data={"email": "awa@ibig.test", "password": PASSWORD},
+               follow_redirects=False)
+    assert "tentatives" in r.headers["location"]
+
+
+def test_forged_session_is_rejected(rt, accounts):
+    c = client(rt)
+    c.cookies.set("ibig_session", "1:9999999999:signature-inventee")
+    assert c.get("/", follow_redirects=False).status_code == 303
+
+
+def test_disabled_account_loses_access(rt, accounts):
+    c = client(rt, "awa@ibig.test")
+    accounts.set_active("awa@ibig.test", False)
+    assert c.get("/", follow_redirects=False).status_code == 303
+
+
+def test_pole_validator_approves_with_edit(rt, accounts, connector):
+    pid = queue(rt, connector)
+    c = client(rt, "awa@ibig.test")
+    assert "Réponse test SOFT" in c.get("/validations").text
+    c.post(f"/validations/{pid}/approuver", data={"contenu": "Texte corrigé"})
     assert connector.sent[0]["body"] == "Texte corrigé"
-    assert "Awa" in c.get("/journal").text
+    assert "Awa &lt;awa@ibig.test&gt;" in c.get("/journal").text
 
 
-def test_kill_switch_from_dashboard(rt):
-    c = client(rt)
+def test_validator_cannot_decide_other_poles(rt, accounts, connector):
+    pid = queue(rt, connector, pole="EDUFORM")
+    c = client(rt, "awa@ibig.test")
+    assert "Réponse test EDUFORM" not in c.get("/validations").text
+    r = c.post(f"/validations/{pid}/approuver", data={}, follow_redirects=False)
+    assert "Refus" in r.headers["location"]
+    c.post(f"/validations/{pid}/rejeter", data={"motif": "x"})
+    assert connector.sent == []
+    # Kofi n'est valideur d'aucun pôle
+    assert "Réponse test" not in client(rt, "kofi@ibig.test").get("/validations").text
+    # La direction voit et valide tous les pôles
+    client(rt, "dg@ibig.test").post(f"/validations/{pid}/approuver", data={})
+    assert len(connector.sent) == 1
+
+
+def test_level3_reserved_to_direction(rt, accounts, connector):
+    pid = queue(rt, connector, action="legal")
+    r = client(rt, "awa@ibig.test").post(f"/validations/{pid}/traite", data={},
+                                         follow_redirects=False)
+    assert "direction" in r.headers["location"]
+    client(rt, "dg@ibig.test").post(f"/validations/{pid}/traite", data={"note": "ok"})
+    from ibig_agent.db import PendingAction
+    with rt.sessions() as s:
+        assert s.get(PendingAction, pid).status == "handled"
+
+
+def test_anyone_stops_only_direction_resumes(rt, accounts):
+    c = client(rt, "kofi@ibig.test")
     c.post("/arret", data={"canal": "*", "action": "stop", "motif": "incident"})
     assert rt.governor.is_stopped("mail")
     c.post("/arret", data={"canal": "*", "action": "reprise"})
+    assert rt.governor.is_stopped("mail")
+    client(rt, "dg@ibig.test").post("/arret", data={"canal": "*", "action": "reprise"})
     assert not rt.governor.is_stopped("mail")
 
 
-def test_home_page(rt):
-    assert "Synthèse" in client(rt).get("/").text
+def test_accounts_page_is_admin_only(rt, accounts):
+    assert client(rt, "dg@ibig.test").get("/utilisateurs").status_code == 403
+    assert "kofi@ibig.test" in client(rt, "admin@ibig.test").get("/utilisateurs").text
+
+
+def test_short_secret_key_is_refused(rt):
+    rt.settings.secret_key = "court"
+    with pytest.raises(RuntimeError):
+        create_app(rt)
+
+
+def test_home_page(rt, accounts):
+    assert "Synthèse" in client(rt, "awa@ibig.test").get("/").text

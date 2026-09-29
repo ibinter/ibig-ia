@@ -1,6 +1,8 @@
 # Les 8 pôles d'IBIG SARL (section 2 du cahier des charges).
 # `code` est l'identifiant utilisé partout (classement, comptes, fiches).
-# `valideur` / `suppleant` : à compléter par IBIG avant la phase 1 (section 19).
+# `valideur` / `suppleant` : ADRESSES MAIL, à compléter par IBIG avant la phase 1
+# (section 19). Elles donnent les droits de validation du pôle dans le tableau de bord
+# (compte créé avec `ibig-agent utilisateur ajouter`) et reçoivent les alertes.
 poles:
   - code: GROUPE
     nom: IBIG SARL (Groupe)

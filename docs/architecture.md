@@ -44,6 +44,31 @@ Agent ──ActionRequest──▶ Governor ──niveau 1──▶ exécuteur (
 * Une validation non faite sous 24 h est **signalée**, jamais publiée par défaut.
 * Les validations sont **nominatives** et tracées au journal.
 
+## Tableau de bord : comptes et droits
+
+Comptes nominatifs (mot de passe haché PBKDF2, session signée de 12 h, cookie
+`HttpOnly`, `SameSite=Strict`, `Secure` en HTTPS). Chaque décision est tracée au journal
+avec le nom et l'adresse de la personne.
+
+| Rôle | Niveau 2 (validation) | Niveau 3 (dossiers humains) | Bouton d'arrêt | Comptes |
+|---|---|---|---|---|
+| valideur | pôles où son adresse est valideur ou suppléant (`config/poles.yaml`) | — | suspendre | — |
+| direction | tous les pôles | oui | suspendre et réactiver | — |
+| admin | tous les pôles | oui | suspendre et réactiver | liste |
+
+Les comptes se créent en ligne de commande (`ibig-agent utilisateur ...`) : pas de
+formulaire d'inscription exposé sur Internet.
+
+## Alertes aux valideurs
+
+Toutes les 15 minutes, l'agent chef envoie depuis `IBIG_NOTIFICATION_MAILBOX` :
+
+* au valideur du pôle, un récapitulatif des nouveaux éléments à valider ;
+* au suppléant, les éléments toujours en attente après 24 h (jamais publiés par défaut) ;
+* à la direction, les dossiers de niveau 3 et les éléments d'un pôle sans valideur.
+
+Un envoi échoué (canal suspendu, boîte en panne) est retenté au passage suivant.
+
 ## Circuit d'un mail entrant (agent Messagerie)
 
 1. Relève toutes les 5 min, sans marquer les mails comme lus. Chaque message est

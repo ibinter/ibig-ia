@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from ibig_agent.channels.mail import MailMessage
 from ibig_agent.config import Mailbox, Settings
@@ -89,6 +90,19 @@ def kb_dir(tmp_path):
 
 
 @pytest.fixture
+def config_dir(tmp_path):
+    """Configuration du dépôt, avec valideur et suppléant renseignés pour SOFT."""
+    dest = tmp_path / "config"
+    shutil.copytree(ROOT / "config", dest)
+    poles = yaml.safe_load((dest / "poles.yaml").read_text(encoding="utf-8"))
+    for p in poles["poles"]:
+        if p["code"] == "SOFT":
+            p["valideur"], p["suppleant"] = "awa@ibig.test", "yao@ibig.test"
+    (dest / "poles.yaml").write_text(yaml.safe_dump(poles, allow_unicode=True), encoding="utf-8")
+    return dest
+
+
+@pytest.fixture
 def mailbox():
     return Mailbox(adresse="contact@ibigsoft.com", hebergeur="lws", pole="SOFT",
                    responsable="responsable.soft@ibigsoft.com",
@@ -106,12 +120,14 @@ def llm():
 
 
 @pytest.fixture
-def rt(tmp_path, kb_dir, llm, connector):
+def rt(tmp_path, kb_dir, config_dir, llm, connector):
     settings = Settings(
         database_url=f"sqlite:///{tmp_path / 'test.db'}",
-        config_dir=ROOT / "config",
+        config_dir=config_dir,
         knowledge_dir=kb_dir,
-        dashboard_token="secret-test",
+        secret_key="s" * 40,
+        notification_mailbox=connector.mailbox.adresse,
+        dashboard_url="https://tableau.ibig.test",
         _env_file=None,
     )
     return build_runtime(settings, llm=llm, connectors={connector.mailbox.adresse: connector})

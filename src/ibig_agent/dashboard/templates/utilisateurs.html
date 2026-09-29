@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Comptes du tableau de bord</h2>
+<p class="muted">Création et désactivation par la ligne de commande :
+<code>ibig-agent utilisateur ajouter</code>. Les pôles d'un valideur viennent de
+<code>config/poles.yaml</code> (valideur ou suppléant).</p>
+<div class="card scroll"><table>
+<tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Pôles</th><th>Actif</th></tr>
+{% for u, poles in rows %}
+<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.role }}</td>
+<td>{{ poles | join(', ') if poles else ('tous' if u.role != 'valideur' else '—') }}</td>
+<td>{{ 'oui' if u.active else 'non' }}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

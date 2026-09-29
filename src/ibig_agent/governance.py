@@ -38,6 +38,7 @@ ACTION_LEVELS: dict[str, Level] = {
     "mail.faq_reply": Level.AUTOMATIQUE,
     "mail.forward_internal": Level.AUTOMATIQUE,
     "report.publish": Level.AUTOMATIQUE,
+    "notify.internal": Level.AUTOMATIQUE,
     "stats.read": Level.AUTOMATIQUE,
     "social.schedule_approved": Level.AUTOMATIQUE,
     # Niveau 2 — validation en un clic
@@ -78,8 +79,9 @@ AGENT_AUTONOMY: dict[str, str] = {
     "support": "automatique",
 }
 
-# Actions sans effet extérieur, permises aux agents « aucune » et « lecture ».
-READ_ONLY_ACTIONS = {"report.publish", "stats.read"}
+# Actions internes (rapports, alertes à l'équipe IBIG), permises aux agents « aucune »
+# (le chef rend compte et alerte) et « lecture » (veille).
+READ_ONLY_ACTIONS = {"report.publish", "stats.read", "notify.internal"}
 
 CHANNELS = [
     "mail",

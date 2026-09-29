@@ -20,7 +20,8 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Connecteurs mail : IMAP/SMTP (LWS) et API Gmail | ✅ (à tester sur les vraies boîtes) |
 | Protection contre les mails piégés | ✅ |
 | Base de connaissances + contrôle des faits (prix, contacts, liens) | ✅ (fiches à compléter par IBIG) |
-| Tableau de bord de validation | ✅ |
+| Tableau de bord de validation, comptes nominatifs, droits par pôle | ✅ |
+| Alertes mail aux valideurs, relance du suppléant après 24 h, dossiers niveau 3 à la direction | ✅ |
 | Rapport quotidien de 8 h, alerte des validations en retard (24 h) | ✅ |
 | Maîtrise des coûts IA (modèle léger pour le tri, plafond, alerte à 80 %) | ✅ |
 | Agent Communication : calendrier éditorial hebdomadaire | 🟡 génération + validation ; publication via outil multi-comptes à raccorder |
@@ -51,12 +52,17 @@ Voir [`docs/architecture.md`](docs/architecture.md).
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env                                # renseigner ANTHROPIC_API_KEY, IBIG_DASHBOARD_TOKEN
+cp .env.example .env                                # renseigner ANTHROPIC_API_KEY, IBIG_SECRET_KEY
 cp config/mailboxes.example.yaml config/mailboxes.yaml   # lister les boîtes (section 19)
+
+# Comptes du tableau de bord (les pôles d'un valideur viennent de config/poles.yaml)
+ibig-agent utilisateur ajouter --email direction@exemple.ci --nom "Direction" --role admin
+ibig-agent utilisateur ajouter --email valideur.soft@exemple.ci --nom "Valideur SOFT" --role valideur
 
 ibig-agent verifier-base      # état de la base de connaissances
 ibig-agent poll               # relever les boîtes une fois
 ibig-agent rapport            # rapport quotidien
+ibig-agent alertes            # alerter les valideurs maintenant
 ibig-agent serve              # tableau de bord (http://localhost:8000) + tâches planifiées
 pytest                        # tests
 ```

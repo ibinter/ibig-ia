@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .agents.chef import ChefAgent
 from .agents.communication import CommunicationAgent
 from .agents.messagerie import MessagerieAgent
+from .agents.notifications import ValidatorNotifier
 from .channels.mail import MailConnector, connector_for
 from .config import OrgConfig, Settings, get_settings, load_org_config
 from .db import init_db, make_engine
@@ -49,6 +50,7 @@ def mail_executors(connectors: dict[str, MailConnector]) -> dict[str, Executor]:
         "mail.faq_reply": send,
         "mail.reply": send,
         "mail.forward_internal": forward,
+        "notify.internal": forward,
     }
 
 
@@ -82,6 +84,11 @@ class Runtime:
     @property
     def communication(self) -> CommunicationAgent:
         return CommunicationAgent(self.org, self.kb, self.llm, self.governor)
+
+    @property
+    def notifier(self) -> ValidatorNotifier:
+        return ValidatorNotifier(self.settings, self.org, self.governor, self.sessions,
+                                 set(self.connectors))
 
     @property
     def chef(self) -> ChefAgent:

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import logging
+import os
 
 from .runtime import build_runtime
 
@@ -21,6 +23,19 @@ def main(argv: list[str] | None = None) -> None:
     cal = sub.add_parser("calendrier", help="Préparer le calendrier éditorial")
     cal.add_argument("--semaine", help="Lundi de la semaine (AAAA-MM-JJ)")
     sub.add_parser("verifier-base", help="Contrôler la base de connaissances")
+    sub.add_parser("alertes", help="Alerter les valideurs maintenant")
+    user = sub.add_parser("utilisateur", help="Gérer les comptes du tableau de bord")
+    user_sub = user.add_subparsers(dest="user_cmd", required=True)
+    add = user_sub.add_parser("ajouter", help="Créer un compte")
+    add.add_argument("--email", required=True)
+    add.add_argument("--nom", required=True)
+    add.add_argument("--role", required=True, choices=["admin", "direction", "valideur"])
+    pwd = user_sub.add_parser("mot-de-passe", help="Changer un mot de passe")
+    pwd.add_argument("--email", required=True)
+    for name in ("desactiver", "reactiver"):
+        p = user_sub.add_parser(name, help=f"{name.capitalize()} un compte")
+        p.add_argument("--email", required=True)
+    user_sub.add_parser("lister", help="Lister les comptes")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -32,11 +47,18 @@ def main(argv: list[str] | None = None) -> None:
         print("Fiches à compléter :", ", ".join(incomplete) or "aucune")
         return
 
+    if args.cmd == "utilisateur":
+        _users(args)
+        return
+
     rt = build_runtime()
     if args.cmd == "init-db":
         print("Base initialisée :", rt.settings.database_url)
     elif args.cmd == "poll":
         print(rt.messagerie.poll())
+    elif args.cmd == "alertes":
+        rt.governor.flag_stale()
+        print(rt.notifier.run())
     elif args.cmd == "rapport":
         print(rt.chef.run_daily().as_text())
     elif args.cmd == "calendrier":
@@ -52,11 +74,47 @@ def main(argv: list[str] | None = None) -> None:
         from .dashboard.app import create_app
         from .scheduler import build_scheduler
 
-        if rt.settings.dashboard_token in ("", "change-moi"):
-            raise SystemExit("Définir IBIG_DASHBOARD_TOKEN avant de lancer le tableau de bord")
+        if len(rt.settings.secret_key) < 32:
+            raise SystemExit("Définir IBIG_SECRET_KEY (32 caractères minimum) avant de lancer "
+                             "le tableau de bord")
         if not args.sans_planificateur:
             build_scheduler(rt).start()
         uvicorn.run(create_app(rt), host=args.host, port=args.port)
+
+
+def _read_password() -> str:
+    # IBIG_NEW_PASSWORD permet une création non interactive (script de déploiement).
+    password = os.environ.get("IBIG_NEW_PASSWORD") or getpass.getpass("Mot de passe : ")
+    if not os.environ.get("IBIG_NEW_PASSWORD") and password != getpass.getpass("Confirmer : "):
+        raise SystemExit("Les mots de passe ne correspondent pas")
+    return password
+
+
+def _users(args: argparse.Namespace) -> None:
+    from .auth import UserStore
+
+    rt = build_runtime(with_llm=False, connectors={})
+    store = UserStore(rt.sessions, rt.org)
+    try:
+        if args.user_cmd == "ajouter":
+            store.create(args.email, args.nom, args.role, _read_password())
+            poles = rt.org.poles_of(args.email)
+            print(f"Compte créé : {args.email} ({args.role})")
+            if args.role == "valideur" and not poles:
+                print("Attention : cette adresse n'est valideur ou suppléant d'aucun pôle "
+                      "dans config/poles.yaml ; elle ne pourra rien valider.")
+        elif args.user_cmd == "mot-de-passe":
+            store.set_password(args.email, _read_password())
+            print("Mot de passe changé")
+        elif args.user_cmd in ("desactiver", "reactiver"):
+            store.set_active(args.email, args.user_cmd == "reactiver")
+            print(f"Compte {'réactivé' if args.user_cmd == 'reactiver' else 'désactivé'}")
+        else:
+            for u in store.all():
+                poles = ", ".join(rt.org.poles_of(u.email)) or "—"
+                print(f"{u.email:40} {u.role:10} {'actif' if u.active else 'inactif':8} {poles}")
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

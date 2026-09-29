@@ -37,8 +37,12 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
                   coalesce=True)
     sched.add_job(_safe("rapport quotidien", rt.chef.run_daily), "cron",
                   hour=rt.settings.daily_report_hour, minute=0, id="daily_report")
-    sched.add_job(_safe("validations en retard", rt.governor.flag_stale), "interval",
-                  hours=1, id="stale_approvals")
+    def alert_validators():
+        rt.governor.flag_stale()
+        return rt.notifier.run()
+
+    sched.add_job(_safe("alertes valideurs", alert_validators), "interval",
+                  minutes=15, id="validator_alerts", max_instances=1, coalesce=True)
     # Chaque lundi matin : calendrier éditorial de la semaine suivante, pour laisser
     # le temps aux valideurs de relire.
     sched.add_job(_safe("calendrier éditorial",

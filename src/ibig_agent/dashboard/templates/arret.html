@@ -12,7 +12,9 @@ action automatique ni validation n'est exécutée sur un canal suspendu.</p>
 <td><form method="post" action="/arret" class="row">
   <input type="hidden" name="canal" value="{{ c }}">
   {% if st and st.stopped %}
+    {% if user.role in ('admin', 'direction') %}
     <input type="hidden" name="action" value="reprise"><button class="ok">Réactiver</button>
+    {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
   {% else %}
     <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
     <button class="bad">Suspendre</button>

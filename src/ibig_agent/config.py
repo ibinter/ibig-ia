@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     writing_effort: str = "medium"  # low | medium | high | xhigh | max
     monthly_ai_budget_usd: float = 150.0
     budget_alert_ratio: float = 0.8
-    dashboard_token: str = "change-moi"
+    # Clé de signature des sessions du tableau de bord (longue et aléatoire).
+    secret_key: str = ""
+    dashboard_url: str = "http://localhost:8000"
+    # Boîte (déclarée dans mailboxes.yaml) qui envoie les notifications aux valideurs.
+    notification_mailbox: str = ""
     timezone: str = "Africa/Abidjan"
     config_dir: Path = Path("./config")
     knowledge_dir: Path = Path("./knowledge")
@@ -88,6 +92,12 @@ class OrgConfig:
 
     def pole(self, code: str) -> Pole | None:
         return next((p for p in self.poles if p.code == code), None)
+
+    def poles_of(self, email: str) -> list[str]:
+        """Pôles dont cette personne est valideur ou suppléant."""
+        email = email.lower()
+        return [p.code for p in self.poles
+                if email in (p.valideur.lower(), p.suppleant.lower()) and email]
 
     def mailbox(self, adresse: str) -> Mailbox | None:
         return next((m for m in self.mailboxes if m.adresse == adresse), None)

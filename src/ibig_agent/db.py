@@ -66,6 +66,8 @@ class PendingAction(Base):
     decided_by: Mapped[str] = mapped_column(String(120), default="")
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str] = mapped_column(Text, default="")
 
 
@@ -114,6 +116,24 @@ class Prospect(Base):
     status: Mapped[str] = mapped_column(String(30), default="nouveau")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class User(Base):
+    """Compte nominatif du tableau de bord.
+
+    Rôles : admin (tout, dont les comptes), direction (niveau 3 et tous les pôles),
+    valideur (niveau 2 des pôles dont il est valideur ou suppléant dans poles.yaml).
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(300), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(20))
+    password_hash: Mapped[str] = mapped_column(String(300))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AIUsage(Base):
