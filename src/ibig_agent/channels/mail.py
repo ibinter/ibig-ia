@@ -15,6 +15,7 @@ import imaplib
 import json
 import re
 import smtplib
+import ssl
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage, Message
@@ -119,12 +120,21 @@ def _keyword(label: str) -> str:
 
 
 # ---------------------------------------------------------------- LWS (IMAP/SMTP)
+def tls_context() -> ssl.SSLContext:
+    """Contexte TLS qui vérifie le certificat et le nom du serveur.
+
+    Sans contexte explicite, imaplib et smtplib NE vérifient PAS le certificat : une
+    interception réseau suffirait à voler les mots de passe des boîtes.
+    """
+    return ssl.create_default_context()
+
 class ImapSmtpConnector:
     def __init__(self, mailbox: Mailbox) -> None:
         self.mailbox = mailbox
 
     def _imap(self) -> imaplib.IMAP4_SSL:
-        conn = imaplib.IMAP4_SSL(self.mailbox.imap_host, self.mailbox.imap_port)
+        conn = imaplib.IMAP4_SSL(self.mailbox.imap_host, self.mailbox.imap_port,
+                                 ssl_context=tls_context())
         conn.login(self.mailbox.adresse, self.mailbox.secret())
         conn.select("INBOX")
         return conn
@@ -136,7 +146,8 @@ class ImapSmtpConnector:
             status, data = conn.status("INBOX", "(MESSAGES)")
         finally:
             conn.logout()
-        with smtplib.SMTP_SSL(self.mailbox.smtp_host, self.mailbox.smtp_port, timeout=20) as smtp:
+        with smtplib.SMTP_SSL(self.mailbox.smtp_host, self.mailbox.smtp_port,
+                              context=tls_context(), timeout=20) as smtp:
             smtp.login(self.mailbox.adresse, self.mailbox.secret())
         detail = data[0].decode(errors="replace") if status == "OK" and data else "?"
         return f"IMAP et SMTP OK ({detail})"
@@ -160,7 +171,8 @@ class ImapSmtpConnector:
     def send(self, to: str, subject: str, body: str, in_reply_to: str = "",
              references: str = "", thread_id: str = "") -> dict:
         msg = build_reply(self.mailbox, to, subject, body, in_reply_to, references)
-        with smtplib.SMTP_SSL(self.mailbox.smtp_host, self.mailbox.smtp_port) as smtp:
+        with smtplib.SMTP_SSL(self.mailbox.smtp_host, self.mailbox.smtp_port,
+                              context=tls_context(), timeout=30) as smtp:
             smtp.login(self.mailbox.adresse, self.mailbox.secret())
             smtp.send_message(msg)
         return {"message_id": msg["Message-ID"]}
