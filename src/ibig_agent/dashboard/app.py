@@ -195,6 +195,18 @@ def create_app(rt: Runtime) -> FastAPI:
             rows = [p for p in rows if p.pole in who.poles]
         return page(request, "prospects.html", rows=rows)
 
+    @app.get("/indicateurs", response_class=HTMLResponse)
+    def indicators(request: Request, jours: int = 7, who: Principal = Depends(user)):
+        jours = min(max(jours, 1), 90)
+        with rt.sessions() as s:
+            alerts = s.scalars(select(JournalEntry).where(
+                JournalEntry.action_type == "veille.alert").order_by(desc(JournalEntry.id))
+                .limit(30)).all()
+        if who.role == "valideur":
+            alerts = [a for a in alerts if not a.pole or a.pole in who.poles]
+        return page(request, "indicateurs.html", jours=jours,
+                    report=rt.veille.indicators(jours), alerts=alerts)
+
     @app.get("/utilisateurs", response_class=HTMLResponse)
     def accounts(request: Request, who: Principal = Depends(user)):
         if who.role != "admin":

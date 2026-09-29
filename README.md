@@ -26,7 +26,8 @@ début de la phase 2 (calendrier éditorial). Détail et suite : [`docs/feuille-
 | Maîtrise des coûts IA (modèle léger pour le tri, plafond, alerte à 80 %) | ✅ |
 | Agent Communication : calendrier éditorial hebdomadaire | 🟡 génération + validation ; publication via outil multi-comptes à raccorder |
 | Agent Contenus web : articles en brouillon (WordPress, module PHP, export HTML) | ✅ (technologie des sites à renseigner) |
-| Commercial, Support (SARA), Veille, WhatsApp | ⏳ phases 2 et 3 |
+| Agent Veille : indicateurs de réussite (section 3), alertes pic / mécontentement / sans réponse | ✅ (mails et journal ; réseaux sociaux à raccorder) |
+| Commercial, Support (SARA), WhatsApp | ⏳ phases 2 et 3 |
 
 ## Architecture
 
@@ -66,6 +67,8 @@ ibig-agent poll               # relever les boîtes une fois
 ibig-agent rapport            # rapport quotidien
 ibig-agent alertes            # alerter les valideurs maintenant
 ibig-agent article --site https://ibigsoft.com   # préparer un article (brouillon à valider)
+ibig-agent indicateurs --jours 30                # indicateurs de réussite
+ibig-agent veille             # alertes de veille maintenant
 ibig-agent serve              # tableau de bord (http://localhost:8000) + tâches planifiées
 pytest                        # tests
 ```

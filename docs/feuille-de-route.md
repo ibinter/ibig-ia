@@ -54,7 +54,9 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [ ] Agent Commercial : qualification, séquences de relance, suivi des démos et essais
 - [ ] Agent Support : réponses documentées sur les 14 solutions et les formations ;
       SARA comme visage public
-- [ ] Agent Veille : statistiques, e-réputation, alertes (avis négatif, pic de messages)
+- [x] Agent Veille : indicateurs de la section 3, alertes (avis négatif, pic de messages,
+      mails sans réponse), rapport hebdomadaire
+- [ ] Veille des réseaux sociaux et avis en ligne (après raccordement de l'outil multi-comptes)
 - [ ] Emailing (Brevo ou Resend) avec domaine authentifié SPF / DKIM / DMARC
 
 ## Phase 4 — Consolidation et produit (mois 4)

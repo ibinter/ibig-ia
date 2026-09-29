@@ -29,6 +29,9 @@ def main(argv: list[str] | None = None) -> None:
     cal.add_argument("--semaine", help="Lundi de la semaine (AAAA-MM-JJ)")
     sub.add_parser("verifier-base", help="Contrôler la base de connaissances")
     sub.add_parser("alertes", help="Alerter les valideurs maintenant")
+    ind = sub.add_parser("indicateurs", help="Indicateurs de réussite (section 3)")
+    ind.add_argument("--jours", type=int, default=7)
+    sub.add_parser("veille", help="Lancer les alertes de veille maintenant")
     art = sub.add_parser("article", help="Préparer un article (brouillon à valider)")
     art.add_argument("--site", help="URL du site (défaut : tous les sites actifs)")
     art.add_argument("--sujet", default="", help="Sujet imposé (facultatif)")
@@ -77,6 +80,10 @@ def main(argv: list[str] | None = None) -> None:
             print("Brouillon à valider :", rt.contenus_web.write_article(site, args.sujet))
         else:
             print(rt.contenus_web.run())
+    elif args.cmd == "indicateurs":
+        print(rt.veille.indicators(args.jours).as_text())
+    elif args.cmd == "veille":
+        print(rt.veille.check_alerts())
     elif args.cmd == "alertes":
         rt.governor.flag_stale()
         print(rt.notifier.run())

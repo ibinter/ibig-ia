@@ -13,6 +13,7 @@ from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
+from .agents.veille import VeilleAgent
 from .channels.mail import MailConnector, connector_for
 from .channels.web import WebConnector, sanitize_html, web_connector_for
 from .config import OrgConfig, Settings, get_settings, load_org_config
@@ -108,6 +109,11 @@ class Runtime:
     def notifier(self) -> ValidatorNotifier:
         return ValidatorNotifier(self.settings, self.org, self.governor, self.sessions,
                                  set(self.connectors))
+
+    @property
+    def veille(self) -> VeilleAgent:
+        return VeilleAgent(self.settings, self.org, self.governor, self.sessions,
+                           set(self.connectors))
 
     @property
     def chef(self) -> ChefAgent:

@@ -136,3 +136,32 @@ Le 1er et le 15 du mois (2 articles par mois et par site actif), pour chaque sit
 | WordPress | API REST `wp/v2/posts`, `status: draft`, compte « Auteur » + mot de passe d'application |
 | PHP maison | `integrations/php/ibig-article-inbox.php` : HMAC-SHA256, anti-rejeu, stockage hors racine web |
 | Sans back-office | Fichier HTML dans `exports/articles/<site>/` |
+
+## Agent Veille et reporting
+
+Lecture seule : il mesure et alerte, n'agit sur aucun canal. Chaque action de l'agent
+liée à un mail porte la référence de ce mail (`ref` dans le journal), ce qui permet de
+mesurer les délais de réponse.
+
+**Indicateurs** (page « Indicateurs », `ibig-agent indicateurs`, envoi à la direction
+chaque lundi) :
+
+| Indicateur (section 3) | Mesure | Cible |
+|---|---|---|
+| Ne rien laisser passer | Mails lus et classés | 100 % |
+| Répondre vite | Médiane du délai de première réponse, en heures ouvrées (lun.–ven. 8 h–18 h), accusés de réception exclus | < 2 h |
+| Publier régulièrement | Publications par pôle et par semaine | 3 minimum |
+| Convertir | Prospects transmis | à fixer |
+| Rester fiable | Contenus envoyés malgré une alerte factuelle | 0 |
+| Garder la main | Actions de niveau 2 ou 3 exécutées sans décision humaine | 0 |
+| R-08 | Brouillons validés sans modification | 80 % |
+
+**Alertes** (toutes les heures, une fois par type et par élément, à la direction et au
+valideur du pôle, toujours visibles au tableau de bord) :
+
+* pic de messages : au moins 10 mails dans l'heure et 3 fois la moyenne horaire de la semaine ;
+* message mécontent (sentiment négatif, hors spam et mails suspects) ;
+* mail sans réponse au-delà de 2 h ouvrées (prospects, clients, support).
+
+Seuils réglables : `IBIG_BUSINESS_OPEN_HOUR`, `IBIG_BUSINESS_CLOSE_HOUR`,
+`IBIG_RESPONSE_TARGET_HOURS`, `IBIG_SPIKE_MIN_MESSAGES`, `IBIG_SPIKE_FACTOR`.

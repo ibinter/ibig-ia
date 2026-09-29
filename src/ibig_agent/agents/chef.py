@@ -30,6 +30,7 @@ class DailyReport:
     validations_en_retard: int = 0
     dossiers_humains: int = 0
     echecs: int = 0
+    alertes_veille: int = 0
     depense_ia_mois_usd: float | None = None
 
     def as_text(self) -> str:
@@ -47,6 +48,7 @@ class DailyReport:
              f"(dont {self.validations_en_retard} de plus de 24 h)"),
             f"Dossiers réservés à un humain (niveau 3) : {self.dossiers_humains}",
             f"Actions en échec (24 h) : {self.echecs}",
+            f"Alertes de veille (24 h) : {self.alertes_veille}",
         ]
         if self.depense_ia_mois_usd is not None:
             lines.append(f"Dépense IA du mois : {self.depense_ia_mois_usd:.2f} USD")
@@ -93,6 +95,9 @@ class ChefAgent:
                 PendingAction).where(PendingAction.status == "prepared")) or 0
             rep.echecs = s.scalar(select(func.count()).select_from(JournalEntry).where(
                 JournalEntry.created_at >= since, JournalEntry.status == "failed")) or 0
+            rep.alertes_veille = s.scalar(select(func.count()).select_from(JournalEntry).where(
+                JournalEntry.created_at >= since,
+                JournalEntry.action_type == "veille.alert")) or 0
         if self.llm is not None:
             rep.depense_ia_mois_usd = self.llm.month_spend(now)
         return rep

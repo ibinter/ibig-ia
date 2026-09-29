@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Indicateurs de réussite</h2>
+<p class="muted">Cibles de la section 3 du cahier des charges.
+  Période : {% for j in (7, 30, 90) %}<a href="?jours={{ j }}">{{ j }} jours</a>{% if not loop.last %} · {% endif %}{% endfor %}
+  (actuelle : {{ jours }} jours, du {{ report.debut.strftime('%d/%m/%Y') }} au {{ report.fin.strftime('%d/%m/%Y') }})</p>
+<div class="card scroll"><table>
+<tr><th>Indicateur</th><th>Valeur</th><th>Cible</th><th>État</th><th>Détail</th></tr>
+{% for i in report.items %}
+<tr><td>{{ i.nom }}</td><td><b>{{ i.valeur }}</b></td><td>{{ i.cible }}</td>
+<td>{% if i.etat == 'ok' %}<span class="tag l1">atteint</span>{% elif i.etat == 'alerte' %}<span class="tag l3">sous la cible</span>{% else %}<span class="tag">à mesurer</span>{% endif %}</td>
+<td class="muted">{{ i.detail }}</td></tr>
+{% endfor %}
+</table></div>
+<h2>Dernières alertes de veille</h2>
+{% if not alerts %}<p class="muted">Aucune alerte.</p>{% endif %}
+{% for a in alerts %}
+<div class="card">
+  <div class="row"><span class="tag l3">{{ a.details.get('kind', '') }}</span>{% if a.pole %}<span class="tag">{{ a.pole }}</span>{% endif %}
+    <span class="muted">{{ a.created_at.strftime('%d/%m %H:%M') }}</span></div>
+  <h3>{{ a.summary }}</h3>
+  <details><summary class="muted">Détail</summary><pre>{{ a.details.get('texte', '') }}</pre></details>
+</div>
+{% endfor %}
+{% endblock %}

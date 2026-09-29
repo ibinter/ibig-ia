@@ -48,6 +48,11 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     sched.add_job(_safe("calendrier éditorial",
                         lambda: rt.communication.weekly_calendar(next_monday(tz=tz))),
                   "cron", day_of_week="mon", hour=7, minute=0, id="weekly_calendar")
+    # Veille : alertes toutes les heures, indicateurs de la semaine chaque lundi à 8 h 15.
+    sched.add_job(_safe("alertes de veille", rt.veille.check_alerts), "interval", hours=1,
+                  id="watch_alerts", max_instances=1, coalesce=True)
+    sched.add_job(_safe("indicateurs de la semaine", rt.veille.weekly_report), "cron",
+                  day_of_week="mon", hour=8, minute=15, id="weekly_indicators")
     # Contenus web : 2 articles par mois et par site actif (1er et 15 du mois).
     sched.add_job(_safe("articles web", rt.contenus_web.run), "cron", day="1,15", hour=7,
                   minute=30, id="web_articles")

@@ -119,6 +119,9 @@ class ActionRequest:
     account: str = ""
     pole: str = ""
     escalate_to: Level | None = None  # un agent peut durcir, jamais assouplir
+    # Élément traité (ex. Message-ID du mail auquel on répond) : relie l'action à sa
+    # source dans le journal, pour mesurer les délais de réponse (agent Veille).
+    ref: str = ""
 
     @property
     def level(self) -> Level:
@@ -231,7 +234,7 @@ class Governor:
                 account=req.account,
                 pole=req.pole,
                 title=req.title,
-                payload=req.payload,
+                payload={**req.payload, "ref": req.ref} if req.ref else req.payload,
                 status=status,
             )
             s.add(pa)
@@ -359,7 +362,8 @@ class Governor:
                     pole=pa.pole,
                     status=status,
                     summary=pa.title if not error else f"{pa.title} — échec : {error}",
-                    details={"pending_id": pa.id, "result": result or {}},
+                    details={"pending_id": pa.id, "result": result or {},
+                             **({"ref": pa.payload["ref"]} if pa.payload.get("ref") else {})},
                     decided_by=by,
                 )
             )
@@ -376,7 +380,7 @@ class Governor:
             pole=req.pole,
             status=status,
             summary=summary,
-            details=details or {},
+            details={**(details or {}), **({"ref": req.ref} if req.ref else {})},
         )
 
     def _journal(self, req: ActionRequest, level: Level, status: str, summary: str,

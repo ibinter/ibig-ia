@@ -44,6 +44,7 @@
 <header>
   <strong>Agent IA IBIG</strong>
   <a href="/">Accueil</a><a href="/validations">Validations</a><a href="/journal">Journal</a>
+  <a href="/indicateurs">Indicateurs</a>
   <a href="/prospects">Prospects</a><a href="/arret">Bouton d'arrêt</a>
   {% if user.role == 'admin' %}<a href="/utilisateurs">Comptes</a>{% endif %}
   <span class="who">{{ user.name }} · {{ user.role }}{% if user.poles %} · {{ user.poles | join(', ') }}{% endif %}

@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     mail_poll_minutes: int = 5
     daily_report_hour: int = 8
     approval_timeout_hours: int = 24
+    # Veille : heures ouvrées (lundi–vendredi), cible de réponse, seuils de pic
+    business_open_hour: int = 8
+    business_close_hour: int = 18
+    response_target_hours: float = 2.0
+    spike_min_messages: int = 10
+    spike_factor: float = 3.0
 
 
 @lru_cache

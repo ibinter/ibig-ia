@@ -213,6 +213,7 @@ class MessagerieAgent:
         if injection_hits or triage.consigne_suspecte:
             self._label(msg, mailbox, triage.pole, [*labels, "IBIG/SUSPECT"])
             self.gov.submit(ActionRequest(
+                ref=msg.message_id,
                 agent=AGENT, action_type="security.suspicious_message", channel="mail",
                 account=mailbox.adresse, pole=triage.pole,
                 title=f"Mail suspect signalé : {msg.subject[:120]}",
@@ -232,6 +233,7 @@ class MessagerieAgent:
             action = "legal" if triage.categorie == "juridique" else "complaint.serious"
             draft, alerts = self._draft(msg, mailbox, triage)
             self.gov.submit(ActionRequest(
+                ref=msg.message_id,
                 agent=AGENT, action_type=action, channel="mail", account=mailbox.adresse,
                 pole=triage.pole, title=f"[Direction] {msg.subject[:150]}",
                 payload={**self._reply_payload(msg, mailbox, draft), "resume": triage.resume,
@@ -245,6 +247,7 @@ class MessagerieAgent:
             entry = self.kb.faq_by_id(triage.faq_id)
             body = f"Bonjour,\n\n{entry.answer}\n\n{AUTO_NOTICE}"
             self.gov.submit(ActionRequest(
+                ref=msg.message_id,
                 agent=AGENT, action_type="mail.faq_reply", channel="mail",
                 account=mailbox.adresse, pole=triage.pole,
                 title=f"Réponse FAQ ({entry.id}) : {msg.subject[:120]}",
@@ -275,6 +278,7 @@ class MessagerieAgent:
         # 6. Autres : transfert au responsable du pôle.
         if mailbox.responsable:
             self.gov.submit(ActionRequest(
+                ref=msg.message_id,
                 agent=AGENT, action_type="mail.forward_internal", channel="mail",
                 account=mailbox.adresse, pole=triage.pole,
                 title=f"Transfert à {mailbox.responsable} : {msg.subject[:120]}",
@@ -312,6 +316,7 @@ class MessagerieAgent:
 
     def _label(self, msg: MailMessage, mailbox: Mailbox, pole: str, labels: list[str]) -> None:
         self.gov.submit(ActionRequest(
+            ref=msg.message_id,
             agent=AGENT, action_type="mail.label", channel="mail", account=mailbox.adresse,
             pole=pole, title=f"Étiquetage : {', '.join(labels)}",
             payload={"mailbox": mailbox.adresse, "ref": msg.ref, "labels": labels},
@@ -324,6 +329,7 @@ class MessagerieAgent:
             f"délais.\n\n{AUTO_NOTICE}"
         )
         self.gov.submit(ActionRequest(
+            ref=msg.message_id,
             agent=AGENT, action_type="mail.ack", channel="mail", account=mailbox.adresse,
             pole=triage.pole, title=f"Accusé de réception : {msg.subject[:120]}",
             payload=self._reply_payload(msg, mailbox, body),
@@ -359,6 +365,7 @@ class MessagerieAgent:
     def _queue_draft(self, msg: MailMessage, mailbox: Mailbox, triage: Triage) -> None:
         draft, alerts = self._draft(msg, mailbox, triage)
         self.gov.submit(ActionRequest(
+            ref=msg.message_id,
             agent=AGENT, action_type="mail.reply", channel="mail", account=mailbox.adresse,
             pole=triage.pole,
             title=f"Réponse à {msg.sender} : {msg.subject[:120]}",
@@ -370,6 +377,7 @@ class MessagerieAgent:
 
     def _prepare_manual(self, msg: MailMessage, mailbox: Mailbox, reason: str) -> None:
         self.gov.submit(ActionRequest(
+            ref=msg.message_id,
             agent=AGENT, action_type="mail.manual_triage", channel="mail",
             account=mailbox.adresse, pole=mailbox.pole,
             title=f"À traiter à la main : {msg.subject[:150]}",
