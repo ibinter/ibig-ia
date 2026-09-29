@@ -16,7 +16,7 @@ import json
 import re
 import smtplib
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage, Message
 from email.utils import getaddresses, make_msgid, parsedate_to_datetime
 from typing import Protocol
@@ -130,7 +130,7 @@ class ImapSmtpConnector:
         return conn
 
     def fetch_recent(self, days: int = 3) -> list[MailMessage]:
-        since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%d-%b-%Y")
+        since = (datetime.now(UTC) - timedelta(days=days)).strftime("%d-%b-%Y")
         conn = self._imap()
         try:
             status, data = conn.uid("SEARCH", None, f"(SINCE {since})")

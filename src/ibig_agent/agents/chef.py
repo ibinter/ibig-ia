@@ -43,8 +43,8 @@ class DailyReport:
             "Par pôle : " + (", ".join(f"{k} {v}" for k, v in
                                       sorted(self.mails_par_pole.items())) or "—"),
             f"Mails suspects signalés : {self.suspects}",
-            f"Validations en attente : {self.validations_en_attente} "
-            f"(dont {self.validations_en_retard} de plus de 24 h)",
+            (f"Validations en attente : {self.validations_en_attente} "
+             f"(dont {self.validations_en_retard} de plus de 24 h)"),
             f"Dossiers réservés à un humain (niveau 3) : {self.dossiers_humains}",
             f"Actions en échec (24 h) : {self.echecs}",
         ]

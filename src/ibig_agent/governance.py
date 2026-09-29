@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import IntEnum
 
 from sqlalchemy import select
@@ -140,7 +140,7 @@ Executor = Callable[[dict], dict | None]
 
 def as_utc(dt: datetime) -> datetime:
     # SQLite rend des dates naïves : on les considère en UTC.
-    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 class Governor:

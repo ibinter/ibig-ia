@@ -38,7 +38,7 @@ _PATTERNS = [
 _REGEX = [re.compile(p, re.IGNORECASE) for p in _PATTERNS]
 
 # Caractères invisibles souvent utilisés pour cacher une consigne.
-_INVISIBLE = {"​", "‌", "‍", "⁠", "﻿", "‮"}
+_INVISIBLE = {"\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\u202e"}
 
 
 def _normalize(text: str) -> str:

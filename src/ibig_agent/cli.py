@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> None:
 
         from .scheduler import next_monday
 
-        week = date.fromisoformat(args.semaine) if args.semaine else next_monday()
+        week = date.fromisoformat(args.semaine) if args.semaine else next_monday(tz=rt.settings.timezone)
         print(rt.communication.weekly_calendar(week))
     elif args.cmd == "serve":
         import uvicorn

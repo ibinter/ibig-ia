@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -17,14 +18,14 @@ def _safe(name: str, fn):
         try:
             result = fn()
             log.info("%s : %s", name, result)
-        except Exception:  # noqa: BLE001 — une tâche en échec ne doit pas arrêter les autres
+        except Exception:  # une tâche en échec ne doit pas arrêter les autres
             log.exception("Tâche %s en échec", name)
 
     return run
 
 
-def next_monday(today: date | None = None) -> date:
-    today = today or date.today()
+def next_monday(today: date | None = None, tz: str = "Africa/Abidjan") -> date:
+    today = today or datetime.now(ZoneInfo(tz)).date()
     return today + timedelta(days=(7 - today.weekday()) % 7 or 7)
 
 
@@ -41,6 +42,6 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     # Chaque lundi matin : calendrier éditorial de la semaine suivante, pour laisser
     # le temps aux valideurs de relire.
     sched.add_job(_safe("calendrier éditorial",
-                        lambda: rt.communication.weekly_calendar(next_monday())),
+                        lambda: rt.communication.weekly_calendar(next_monday(tz=tz))),
                   "cron", day_of_week="mon", hour=7, minute=0, id="weekly_calendar")
     return sched
