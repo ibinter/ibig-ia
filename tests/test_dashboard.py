@@ -307,3 +307,10 @@ def test_configuration_pages_render_each_form_once(rt, accounts):
     for path in ("/rapports", "/indicateurs", "/objectifs", "/connaissances", "/publications"):
         assert c.get(path).status_code == 200
     assert "Validation par pôle" in client(rt, "admin@ibig.test").get("/utilisateurs").text
+
+
+def test_sidebar_is_collapsible_and_marks_current_page(rt, accounts):
+    page = client(rt, "dg@ibig.test").get("/journal").text
+    assert 'id="side-toggle"' in page and 'id="nav-q"' in page
+    assert '<a href="/journal" class="on ' in page and 'aria-current="page"' in page
+    assert page.count('aria-current="page"') == 1
