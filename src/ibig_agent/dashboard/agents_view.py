@@ -117,14 +117,16 @@ def agent_cards(rt: Runtime, now: datetime | None = None) -> list[AgentCard]:
             ["Chaque lundi : 3 sujets par pôle pour la semaine suivante",
              "Chaque sujet réécrit pour chaque réseau (Facebook, LinkedIn, Instagram, TikTok…)",
              "Brief visuel pour chaque publication",
-             "Publication après validation ; à la main pour les groupes et TikTok"],
+             "Publication après validation ; à la main pour les groupes et TikTok",
+             "Campagnes mail (newsletters) envoyées par Brevo après validation"],
             "Chaque lundi à 7 h",
             True, (f"calendrier prêt pour : {', '.join(ready_poles)}" if ready_poles
                    else "publications à la demande ; calendrier dès qu'une fiche pôle "
                         "sera complète"),
             [AgentAction("calendrier", "Préparer le calendrier de la semaine", "calendar",
                          bool(ready_poles), "" if ready_poles else "fiches pôles à compléter")],
-            [("#publication", "Rédiger une publication maintenant")]),
+            [("#publication", "Rédiger une publication maintenant"),
+             ("/campagnes", "Campagnes mail")]),
         AgentCard(
             "contenus_web", "Agent Contenus web", "globe", "green",
             "Écrit des articles de blog à partir des vraies questions des clients.",

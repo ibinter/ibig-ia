@@ -102,6 +102,7 @@ CHANNELS = [
     "tiktok",
     "x",
     "web",
+    "emailing",
 ]
 ALL_CHANNELS = "*"
 

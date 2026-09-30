@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Campagnes mail{% endblock %}
+{% block heading %}Campagnes mail{% endblock %}
+{% block lead %}<p class="lead">L'agent rédige la campagne à partir de la base de connaissances, vous la validez, puis Brevo l'envoie à la liste choisie. Désinscription et consentement sont gérés par Brevo.</p>{% endblock %}
+{% block content %}
+{% if not configured %}
+<div class="card"><div class="empty"><div class="bubble" style="background:var(--warn-soft);color:var(--warn)">{{ icon('mail') }}</div><b>Brevo n'est pas encore raccordé</b>Ajoutez la clé API et l'adresse d'expédition dans le menu <a href="/services">Services</a>.</div></div>
+{% else %}
+<div class="grid g-main">
+  <div class="card">
+    <div class="card-head"><div><h2>Campagnes</h2><div class="sub">Les 30 dernières</div></div></div>
+    {% if not history %}<div class="empty"><div class="bubble">{{ icon('mail') }}</div><b>Aucune campagne</b>Rédigez la première avec le formulaire.</div>{% endif %}
+    {% for c in history %}
+    <div class="switch-row">
+      <div class="name"><span class="ico">{{ icon('mail') }}</span>
+        <div><b>{{ c.payload.get('subject', c.title) }}</b><div class="muted">{{ c.pole }} · liste « {{ c.payload.get('liste', '') }} » · {{ c.created_at | quand }}</div></div></div>
+      <span class="pill {{ {'pending': 'amber', 'executed': 'green', 'rejected': 'red', 'failed': 'red'}.get(c.status, '') }}">{{ c.status | statut }}</span>
+      {% if c.status == 'pending' %}<a class="btn sm" href="/validations">Relire</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <form class="card" method="post" action="/campagnes" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Nouvelle campagne</h2><div class="sub">Expéditeur : {{ sender_name or '—' }} &lt;{{ sender_email or 'à régler dans Services' }}&gt;</div></div></div>
+    {% if error %}<div class="alert">{{ icon('alert') }}<span>{{ error }}</span></div>{% endif %}
+    <label class="field"><span>Liste de contacts Brevo</span>
+      <select name="liste" style="width:100%" required>{% for l in lists %}<option value="{{ l.id }}|{{ l.name }}">{{ l.name }} ({{ l.subscribers }} contacts)</option>{% endfor %}</select></label>
+    <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : nos formations certifiantes d'octobre"></label>
+    <button class="btn primary lg" {{ 'disabled' if not lists }} onclick="this.innerHTML='Rédaction en cours…'">{{ icon('sparkles') }} Rédiger la campagne</button>
+    <p class="muted small" style="margin:10px 0 0">Rien ne part avant votre validation (niveau 2).</p>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

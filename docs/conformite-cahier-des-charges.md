@@ -22,7 +22,7 @@ Pour chaque section du cahier des charges : où la trouver dans le tableau de bo
 | 7 | Bibliothèque de publications réussies, pour caler le style | **Publications réussies** | Fait (utilisées comme modèles de ton, jamais comme source de faits) |
 | 8 | Publication automatique sur 11 comptes via un outil multi-comptes | — | À faire : aujourd'hui, une publication validée est remise à l'équipe pour publication à la main |
 | 9 | Gmail (API) + LWS (IMAP/SMTP), option A raccordement direct | **Boîtes mail** | Fait |
-| 9 | Envois en masse par un service d'emailing (Brevo, Resend) | — | À faire |
+| 9 | Envois en masse par un service d'emailing (Brevo, Resend) | **Campagnes mail**, **Services** | Fait avec Brevo (compte et domaine authentifié à créer) |
 | 9 | Signature de la boîte, mention sur les réponses automatiques | **Boîtes mail** (signature) | Fait |
 | 10 | WhatsApp Business par l'API officielle de Meta, 24 h, consentement, STOP | **Agents IA → WhatsApp** | Fait (numéros à migrer chez Meta) |
 | 10 | Chaînes WhatsApp préparées pour publication manuelle | **Calendrier éditorial** | Fait (chaînes à déclarer dans les comptes) |

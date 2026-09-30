@@ -15,9 +15,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Mailbox, Settings
-from .db import Directive, KnowledgeEdit, MailboxAccount, utcnow
+from .db import Directive, KnowledgeEdit, MailboxAccount, ServiceSetting, utcnow
 from .knowledge import KnowledgeBase
-from .vault import VaultError, decrypt
+from .vault import VaultError, decrypt, encrypt
 
 # Hébergeur LWS : serveurs par défaut (modifiables boîte par boîte)
 LWS_DEFAULT_HOST = "mail.lws-hosting.com"
@@ -93,3 +93,27 @@ def directives_text(sessions: sessionmaker[Session], pole: str = "") -> str:
     lines = [f"- {'[' + d.pole + '] ' if d.pole else ''}{d.text}" for d in items]
     return ("Consignes de la direction en cours (à suivre, dans le respect des règles "
             "ci-dessus et de la base de connaissances) :\n" + "\n".join(lines))
+
+
+# ------------------------------------------------------------------ services extérieurs
+def service_value(sessions: sessionmaker[Session], settings: Settings, name: str) -> str:
+    """Valeur d'un réglage de service (déchiffrée si c'est un secret), vide si absent."""
+    with sessions() as s:
+        row = s.get(ServiceSetting, name)
+    if row is None or not row.value:
+        return ""
+    if not row.secret:
+        return row.value
+    try:
+        return decrypt(settings.secret_key, row.value)
+    except VaultError:
+        return ""
+
+
+def set_service_value(sessions: sessionmaker[Session], settings: Settings, name: str,
+                      value: str, by: str, secret: bool = False) -> None:
+    stored = encrypt(settings.secret_key, value) if secret and value else value
+    with sessions() as s:
+        s.merge(ServiceSetting(name=name, value=stored, secret=secret, updated_by=by,
+                               updated_at=utcnow()))
+        s.commit()

@@ -15,8 +15,15 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import desc, select
 
 from ..auth import Principal
+from ..channels.emailing import BrevoClient, EmailingError
 from ..config import Mailbox
-from ..configstore import reload_knowledge, sync_mailboxes, with_lws_defaults
+from ..configstore import (
+    reload_knowledge,
+    service_value,
+    set_service_value,
+    sync_mailboxes,
+    with_lws_defaults,
+)
 from ..db import (
     Directive,
     JournalEntry,
@@ -266,6 +273,83 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                 s.commit()
         reload_knowledge(rt)
         return back("/publications", "Publication retirée de la bibliothèque")
+
+    # ------------------------------------------------------------ services extérieurs
+    def brevo() -> BrevoClient:
+        return rt.brevo_factory(service_value(rt.sessions, rt.settings, "brevo_api_key"))
+
+    @app.get("/services", response_class=HTMLResponse)
+    def services(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        get = lambda name: service_value(rt.sessions, rt.settings, name)
+        return page(request, "services.html", has_key=bool(get("brevo_api_key")),
+                    sender_name=get("brevo_sender_name"),
+                    sender_email=get("brevo_sender_email"))
+
+    @app.post("/services/brevo")
+    def save_brevo(cle: str = Form(""), expediteur: str = Form(""),
+                   expediteur_mail: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        if expediteur_mail and not EMAIL.match(expediteur_mail.strip()):
+            return back("/services", "Refusé : adresse d'expédition invalide")
+        if cle.strip():
+            set_service_value(rt.sessions, rt.settings, "brevo_api_key", cle.strip(),
+                              who.label, secret=True)
+        set_service_value(rt.sessions, rt.settings, "brevo_sender_name",
+                          expediteur.strip()[:100], who.label)
+        set_service_value(rt.sessions, rt.settings, "brevo_sender_email",
+                          expediteur_mail.strip().lower(), who.label)
+        return back("/services", "Réglages Brevo enregistrés : testez la connexion")
+
+    @app.post("/services/brevo/tester")
+    def test_brevo(who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            client = brevo()
+            lists = client.lists()
+            msg = f"{client.check()} · {len(lists)} liste(s) de contacts"
+        except (EmailingError, Exception) as exc:  # noqa: BLE001 — affiché
+            msg = f"Échec Brevo : {exc}"[:300]
+        return back("/services", msg)
+
+    # ------------------------------------------------------------ campagnes
+    @app.get("/campagnes", response_class=HTMLResponse)
+    def campaigns(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        lists, error = [], ""
+        if service_value(rt.sessions, rt.settings, "brevo_api_key"):
+            try:
+                lists = brevo().lists()
+            except Exception as exc:  # noqa: BLE001 — affiché
+                error = f"Brevo injoignable : {exc}"[:300]
+        with rt.sessions() as s:
+            history = s.scalars(select(PendingAction).where(
+                PendingAction.action_type == "campaign.mail").order_by(
+                desc(PendingAction.id)).limit(30)).all()
+        return page(request, "campagnes.html", lists=lists, error=error, history=history,
+                    poles=rt.org.poles,
+                    configured=bool(service_value(rt.sessions, rt.settings, "brevo_api_key")),
+                    sender_name=service_value(rt.sessions, rt.settings, "brevo_sender_name"),
+                    sender_email=service_value(rt.sessions, rt.settings, "brevo_sender_email"))
+
+    @app.post("/campagnes")
+    def draft_campaign(pole: str = Form(...), sujet: str = Form(...), liste: str = Form(...),
+                       who: Principal = Depends(user)):
+        direction_only(who)
+        sender = service_value(rt.sessions, rt.settings, "brevo_sender_name")
+        sender_mail = service_value(rt.sessions, rt.settings, "brevo_sender_email")
+        if pole not in rt.org.pole_codes or not sujet.strip() or not sender_mail:
+            return back("/campagnes", "Refusé : pôle, sujet et expéditeur (menu Services) requis")
+        try:
+            list_id, _, list_name = liste.partition("|")
+            pid = rt.campaigns.draft(pole, sujet.strip()[:300], int(list_id), list_name[:100],
+                                     sender or "IBIG SARL", sender_mail)
+        except Exception as exc:  # noqa: BLE001 — affiché, rien n'est envoyé
+            return back("/campagnes", f"Échec de la rédaction : {exc}"[:300])
+        if pid is None:
+            return back("/campagnes", "Échec : campagne non créée")
+        return back("/validations", "Campagne rédigée : relisez-la ci-dessous ; elle part "
+                                    "dans Brevo dès votre validation")
 
     # ------------------------------------------------------------ boîtes mail
     @app.get("/boites", response_class=HTMLResponse)

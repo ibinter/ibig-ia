@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from .agents.campagnes import CampaignWriter
 from .agents.chef import ChefAgent
 from .agents.commercial import CommercialAgent
 from .agents.communication import CommunicationAgent
@@ -130,6 +131,7 @@ class Runtime:
     # Boîtes raccordées depuis le tableau de bord, et fabrique de leurs connecteurs
     dashboard_boxes: set[str] = field(default_factory=set)
     connector_factory: Callable = field(default=None)
+    brevo_factory: Callable = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -155,6 +157,11 @@ class Runtime:
     def contenus_web(self) -> ContenusWebAgent:
         return ContenusWebAgent(self.org, self.kb, self.llm, self.governor, self.sessions,
                                 directives=self.directives_for)
+
+    @property
+    def campaigns(self) -> CampaignWriter:
+        return CampaignWriter(self.org, self.kb, self.llm, self.governor,
+                              directives=self.directives_for)
 
     @property
     def planner(self) -> WeeklyPlanner:
@@ -195,6 +202,30 @@ class Runtime:
                          dashboard_url=self.settings.dashboard_url)
 
 
+def emailing_executors(sessions, settings: Settings,
+                       client_factory: Callable | None = None) -> dict[str, Executor]:
+    # client_factory : fabrique du client (remplacée par un faux client dans les tests)
+    """Envoi d'une campagne validée par Brevo ; la clé est relue à chaque envoi (coffre)."""
+    from .agents.campagnes import UNSUBSCRIBE_FOOTER
+    from .channels.emailing import BrevoClient
+    from .configstore import service_value
+
+    def send(payload: dict) -> dict:
+        key = service_value(sessions, settings, "brevo_api_key")
+        client = (client_factory or BrevoClient)(key)
+        html = sanitize_html(payload["contenu_html"])
+        preheader = payload.get("pre_entete", "")
+        if preheader:
+            html = (f'<div style="display:none;max-height:0;overflow:hidden">{preheader}</div>'
+                    + html)
+        return client.send_campaign(
+            name=payload["subject"], subject=payload["subject"],
+            html=html + UNSUBSCRIBE_FOOTER, sender_name=payload["expediteur"],
+            sender_email=payload["expediteur_mail"], list_ids=[int(payload["liste_id"])])
+
+    return {"campaign.mail": send}
+
+
 def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                   connectors: dict[str, MailConnector] | None = None,
                   with_llm: bool = True,
@@ -213,13 +244,16 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
         whatsapp_clients = {n.phone_number_id: WhatsAppClient(n, settings.whatsapp_api_version)
                             for n in org.whatsapp}
     executors = {**mail_executors(connectors), **web_executors(web_connectors),
-                 **whatsapp_executors(whatsapp_clients, sessions), **manual_social_executors()}
+                 **whatsapp_executors(whatsapp_clients, sessions), **manual_social_executors(),
+                 **emailing_executors(sessions, settings)}
     governor = Governor(sessions, executors,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
+    from .channels.emailing import BrevoClient
+
     rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
-                 whatsapp_clients, connector_factory=connector_for)
+                 whatsapp_clients, connector_factory=connector_for, brevo_factory=BrevoClient)
     if from_config:
         sync_mailboxes(rt)
     return rt

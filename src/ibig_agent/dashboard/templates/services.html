@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Services{% endblock %}
+{% block heading %}Services extérieurs{% endblock %}
+{% block lead %}<p class="lead">Les comptes que l'agent utilise chez des services extérieurs. Les clés sont chiffrées dans le coffre de l'agent et ne sont jamais réaffichées.</p>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <form class="card" method="post" action="/services/brevo" autocomplete="off">
+    <div class="card-head">
+      <div><h2>{{ icon('mail') }} Brevo — campagnes mail</h2><div class="sub">Section 9 : les newsletters ne partent jamais des boîtes LWS ou Gmail.</div></div>
+      {% if has_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
+    </div>
+    <label class="field"><span>Clé API Brevo {% if has_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
+      <input type="password" name="cle" autocomplete="new-password" placeholder="xkeysib-…"></label>
+    <div class="grid g-2" style="gap:12px">
+      <label class="field"><span>Nom de l'expéditeur</span><input type="text" name="expediteur" value="{{ sender_name }}" placeholder="IBIG SARL"></label>
+      <label class="field"><span>Adresse d'expédition</span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigsoft.com"></label>
+    </div>
+    <div class="actions">
+      <button class="btn primary">{{ icon('check') }} Enregistrer</button>
+    </div>
+  </form>
+  <div class="stack">
+    <div class="card">
+      <h3 style="margin-bottom:10px">Tester</h3>
+      <form method="post" action="/services/brevo/tester"><button class="btn" {{ 'disabled' if not has_key }}>{{ icon('shield-check') }} Tester la connexion Brevo</button></form>
+      <p class="muted small" style="margin:10px 0 0">Vérifie la clé et compte les listes de contacts, sans rien envoyer.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:8px">Avant le premier envoi</h3>
+      <ul class="agent-does">
+        <li>{{ icon('check') }}<span>Créer un compte sur brevo.com et une clé API (menu SMTP &amp; API).</span></li>
+        <li>{{ icon('check') }}<span>Authentifier le domaine d'envoi dans Brevo (SPF, DKIM, DMARC).</span></li>
+        <li>{{ icon('check') }}<span>Importer les contacts qui ont accepté de recevoir vos messages, en listes (par pôle par exemple).</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

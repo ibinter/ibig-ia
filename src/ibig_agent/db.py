@@ -260,6 +260,18 @@ class Directive(Base):
     created_by: Mapped[str] = mapped_column(String(300), default="")
 
 
+class ServiceSetting(Base):
+    """Réglage d'un service extérieur saisi au tableau de bord (clé chiffrée ou valeur)."""
+
+    __tablename__ = "service_settings"
+
+    name: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    secret: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 def make_engine(url: str) -> Engine:
     kwargs = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
     return create_engine(url, **kwargs)

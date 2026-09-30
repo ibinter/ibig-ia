@@ -33,6 +33,7 @@
       {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
       <div class="nav-title">Activité</div>
       {{ nav('/calendrier', 'calendar', 'Calendrier éditorial') }}
+      {% if user.role != 'valideur' %}{{ nav('/campagnes', 'mail', 'Campagnes mail') }}{% endif %}
       {{ nav('/prospects', 'target', 'Prospects') }}
       {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
       {{ nav('/journal', 'list', 'Journal') }}
@@ -43,7 +44,7 @@
       {{ nav('/objectifs', 'target', 'Objectifs') }}
       {{ nav('/connaissances', 'book', 'Base de connaissances') }}
       {{ nav('/publications', 'sparkles', 'Publications réussies') }}
-      {% if user.role != 'valideur' %}{{ nav('/boites', 'inbox', 'Boîtes mail') }}{% endif %}
+      {% if user.role != 'valideur' %}{{ nav('/boites', 'inbox', 'Boîtes mail') }}{{ nav('/services', 'globe', 'Services') }}{% endif %}
       {% if user.role == 'admin' %}{{ nav('/utilisateurs', 'users', 'Comptes') }}{% endif %}
       {{ nav('/arret', 'power', "Bouton d'arrêt", cls='stop') }}
       {% if user.role == 'valideur' or not badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Guide') }}{% endif %}

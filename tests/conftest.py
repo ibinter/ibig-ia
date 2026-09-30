@@ -43,6 +43,10 @@ class FakeLLM:
         self.calls.append(purpose)
         if purpose == "social.calendar":
             return self.calendar
+        if purpose == "campaign.mail":
+            return {"objet": "Nos formations d'octobre", "pre_entete": "Inscriptions ouvertes",
+                    "contenu_html": "<h2>Octobre</h2><p>Formations certifiantes.</p>"
+                                    "<script>alert(1)</script>"}
         if purpose == "social.post":
             return {"texte": "La rentrée approche avec IBIG School.", "brief_visuel": "Classe"}
         if purpose == "support.answer":
