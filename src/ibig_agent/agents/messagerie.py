@@ -300,6 +300,39 @@ class MessagerieAgent:
         self._finish(msg, "classe", triage)
         return "classe"
 
+    # ------------------------------------------------------------ essai
+    def simulate(self, msg: MailMessage, mailbox: Mailbox) -> dict:
+        """Ce que l'agent ferait de ce message, SANS rien envoyer, classer ni enregistrer.
+
+        Sert à la page « Essayer l'agent » du tableau de bord (formation, démonstration).
+        """
+        hits = detect_injection(f"{msg.subject}\n{msg.body}")
+        triage = self.triage(msg, mailbox)
+        out: dict = {"triage": triage, "motifs": hits, "draft": "", "alerts": [],
+                     "faq": None}
+        if hits or triage.consigne_suspecte:
+            out.update(decision="signale", level=3)
+            return out
+        if triage.categorie == "spam":
+            out.update(decision="spam", level=1)
+            return out
+        if triage.categorie == "juridique" or triage.reclamation_grave:
+            out.update(decision="direction", level=3)
+        elif triage.faq_id and triage.sentiment != "negatif":
+            entry = self.kb.faq_by_id(triage.faq_id)
+            out.update(decision="faq", level=1, faq=entry,
+                       draft=f"Bonjour,\n\n{entry.answer}\n\n{AUTO_NOTICE}")
+            return out
+        elif triage.categorie == "prospect":
+            out.update(decision="prospect", level=2)
+        elif triage.categorie in ("client", "support"):
+            out.update(decision="brouillon", level=2)
+        else:
+            out.update(decision="transfere" if mailbox.responsable else "classe", level=1)
+            return out
+        out["draft"], out["alerts"] = self._draft(msg, mailbox, triage)
+        return out
+
     # --------------------------------------------------------------- actions
     @staticmethod
     def _ref(msg: MailMessage) -> dict:

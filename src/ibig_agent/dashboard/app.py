@@ -22,10 +22,13 @@ from markupsafe import Markup
 from sqlalchemy import desc, select
 
 from ..auth import Principal, UserStore, make_session, read_session
+from ..channels.mail import MailMessage
 from ..channels.web import sanitize_html
+from ..config import Mailbox
 from ..db import JournalEntry, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
+from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
 
 HERE = Path(__file__).parent
@@ -133,6 +136,9 @@ def create_app(rt: Runtime) -> FastAPI:
         if who is not None:
             with rt.sessions() as s:
                 badges = nav_counts(s, who)
+            if who.role != "valideur":
+                done, total = progress(setup_steps(rt))
+                badges["demarrage"] = total - done
         return TEMPLATES.TemplateResponse(request, name, {
             "user": who, "badges": badges, "path": request.url.path,
             "msg": request.query_params.get("msg", ""), **ctx})
@@ -190,8 +196,51 @@ def create_app(rt: Runtime) -> FastAPI:
             stats = home_stats(s, who, rt.settings.monthly_ai_budget_usd)
         # La synthèse couvre tous les pôles (expéditeurs compris) : réservée à la direction.
         report = None if scoped else rt.chef.build_daily_report().as_text()
+        steps = [] if scoped else setup_steps(rt)
         return page(request, "index.html", stats=stats, states=rt.governor.channel_states(),
-                    channels=CHANNELS, report=report)
+                    channels=CHANNELS, report=report, steps=steps,
+                    setup=progress(steps) if steps else (0, 0))
+
+    trials: dict[int, deque[float]] = defaultdict(deque)
+
+    @app.get("/essai", response_class=HTMLResponse)
+    def trial_form(request: Request, who: Principal = Depends(user)):
+        return page(request, "essai.html", poles=rt.org.poles, result=None, form={})
+
+    @app.post("/essai", response_class=HTMLResponse)
+    def trial(request: Request, message: str = Form(...), objet: str = Form(""),
+              expediteur: str = Form(""), pole: str = Form("SOFT"),
+              who: Principal = Depends(user)):
+        form = {"message": message[:6000], "objet": objet[:300],
+                "expediteur": expediteur[:200], "pole": pole}
+        ctx = {"poles": rt.org.poles, "form": form, "result": None, "error": ""}
+        now, calls = time.monotonic(), trials[who.id]
+        while calls and now - calls[0] > 3600:
+            calls.popleft()
+        if pole not in rt.org.pole_codes or not message.strip():
+            ctx["error"] = "Choisissez un pôle et collez un message."
+        elif rt.llm is None:
+            ctx["error"] = "L'intelligence artificielle n'est pas branchée (clé API manquante)."
+        elif len(calls) >= 30:
+            ctx["error"] = "Limite de 30 essais par heure atteinte : réessayez plus tard."
+        else:
+            calls.append(now)
+            box = Mailbox(adresse=f"essai-{pole.lower()}@tableau-de-bord", hebergeur="lws",
+                          pole=pole)
+            msg = MailMessage(mailbox=box.adresse, message_id="<essai>", ref="essai",
+                              sender=form["expediteur"] or "client@exemple.ci",
+                              sender_name="", subject=form["objet"] or "(sans objet)",
+                              body=form["message"])
+            try:
+                ctx["result"] = rt.messagerie.simulate(msg, box)
+            except Exception as exc:  # noqa: BLE001 — affiché à l'utilisateur, rien d'envoyé
+                ctx["error"] = f"L'essai n'a pas abouti : {exc}"
+        return page(request, "essai.html", **ctx)
+
+    @app.get("/demarrage", response_class=HTMLResponse)
+    def getting_started(request: Request, who: Principal = Depends(user)):
+        steps = setup_steps(rt)
+        return page(request, "demarrage.html", steps=steps, setup=progress(steps))
 
     @app.get("/validations", response_class=HTMLResponse)
     def validations(request: Request, who: Principal = Depends(user)):

@@ -16,12 +16,28 @@
   <a class="btn sm ghost-bad" href="/arret" style="margin-left:auto">Gérer</a></div>
 {% endif %}
 
+{% if steps and setup[0] < setup[1] %}
+{% set nxt = (steps | rejectattr('done') | rejectattr('optional') | first) %}
+<div class="card setup-banner" style="margin-bottom:16px">
+  <div style="flex:1;min-width:260px">
+    <div class="pill" style="background:rgba(255,255,255,.16);color:#fff">Mise en route · {{ setup[0] }} étapes sur {{ setup[1] }}</div>
+    <h2 style="margin-top:10px">Prochaine étape : {{ nxt.title | lower }}</h2>
+    <p>{{ nxt.why }}</p>
+    <div class="track"><div style="width:{{ (setup[0] / setup[1] * 100) | round(0) }}%"></div></div>
+  </div>
+  <div class="inline" style="flex-direction:column;align-items:stretch">
+    <a class="btn lg" style="width:auto" href="/demarrage">Voir quoi faire {{ icon('arrow-right') }}</a>
+    <a class="btn lg" style="width:auto;background:rgba(255,255,255,.14);color:#fff" href="/essai">{{ icon('sparkles') }} Essayer l'agent</a>
+  </div>
+</div>
+{% endif %}
+
 <div class="grid g-4">
   <a class="card kpi hero fade-in" href="/validations">
     <div class="ico">{{ icon('check-circle') }}</div>
     <div class="val">{{ stats.pending }}</div>
-    <div class="lbl">à valider (niveau 2)</div>
-    <div class="foot">{{ icon('arrow-right') }} Valider en un clic</div>
+    <div class="lbl">réponses à valider</div>
+    <div class="foot">{{ icon('arrow-right') }} Relire et envoyer</div>
   </a>
   {% if user.role == 'valideur' %}
   <a class="card kpi t-red fade-in" href="/tickets">
@@ -34,14 +50,14 @@
   <a class="card kpi t-red fade-in" href="/validations#niveau3">
     <div class="ico">{{ icon('hand') }}</div>
     <div class="val">{{ stats.prepared }}</div>
-    <div class="lbl">dossiers humains (niveau 3)</div>
-    <div class="foot">L'agent prépare, vous décidez</div>
+    <div class="lbl">dossiers sensibles pour vous</div>
+    <div class="foot">Plaintes, litiges, suspects</div>
   </a>
   {% endif %}
   <div class="card kpi t-blue fade-in">
     <div class="ico">{{ icon('mail') }}</div>
     <div class="val">{{ stats.mails_24h }}</div>
-    <div class="lbl">mails traités en 24 h</div>
+    <div class="lbl">mails lus en 24 h</div>
     <div class="foot">{{ stats.mails_total }} mails traités au total</div>
   </div>
   <a class="card kpi t-amber fade-in" href="/prospects">
@@ -67,7 +83,7 @@
       </div>
       {% endfor %}
     </div>
-    {% if not stats.activity_total %}<p class="muted" style="text-align:center;margin:14px 0 0">La courbe se remplira dès que les boîtes mail seront raccordées.</p>{% endif %}
+    {% if not stats.activity_total %}<p class="muted" style="text-align:center;margin:14px 0 0">Aucun mail pour l'instant : la courbe se remplira dès qu'une boîte mail sera raccordée{% if user.role != 'valideur' %} (<a href="/demarrage">mise en route</a>){% endif %}.</p>{% endif %}
   </div>
 
   <div class="card">
