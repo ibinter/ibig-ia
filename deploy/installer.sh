@@ -91,6 +91,15 @@ fi
 mkdir -p exports && chmod 777 exports
 
 bleu "6/7 Démarrage (base de données, agent, HTTPS)"
+# Caddy a besoin des ports 80 et 443 : un serveur web préinstallé par l'hébergeur les bloque.
+OCCUPE=$(ss -Hltnp 'sport = :80 or sport = :443' 2>/dev/null | grep -v docker-proxy || true)
+if [ -n "$OCCUPE" ]; then
+  echo "$OCCUPE"
+  PROGS=$(echo "$OCCUPE" | grep -oE 'users:\(\("[^"]+' | cut -d'"' -f2 | sort -u | tr '\n' ' ')
+  stop "Les ports 80/443 sont déjà pris par : ${PROGS:-un autre programme}. S'il n'héberge aucun
+  site utile sur ce serveur, arrêtez-le puis relancez l'installateur, par exemple :
+    systemctl disable --now apache2 nginx 2>/dev/null; bash $DIR/deploy/installer.sh"
+fi
 docker compose up -d --build
 echo -n "Attente du démarrage de l'agent"
 for _ in $(seq 1 60); do
