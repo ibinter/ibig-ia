@@ -32,6 +32,18 @@
 {% endfor %}
 </div>
 
+{% if user.role != 'valideur' %}
+<form class="card" method="post" action="/indicateurs/reference" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('clock') }} Temps passé avant l'agent</h2>
+    <div class="sub">Section 3 : « heures de communication manuelle économisées, objectif −60 % ». Indiquez combien d'heures par semaine l'équipe passait, avant l'agent, à trier les mails, répondre, rédiger les publications et les articles.</div></div></div>
+  <div class="actions">
+    <input type="text" name="heures" inputmode="decimal" value="{{ baseline }}" placeholder="Ex. : 25" style="max-width:140px"> <span class="muted">heures par semaine</span>
+    <button class="btn primary">{{ icon('check') }} Enregistrer</button>
+  </div>
+  <p class="muted small" style="margin:6px 0 0">Le temps économisé est estimé action par action (ex. : 25 min par publication rédigée, 6 min par réponse, 2 h par article), moins le temps de relecture des validations.</p>
+</form>
+{% endif %}
+
 <div class="section-title">{{ icon('alert') }}<h2>Dernières alertes de veille</h2></div>
 {% if not alerts %}
 <div class="card"><div class="empty"><div class="bubble">{{ icon('shield-check') }}</div><b>Aucune alerte</b>Pics de messages, clients insatisfaits et mails sans réponse seront signalés ici.</div></div>

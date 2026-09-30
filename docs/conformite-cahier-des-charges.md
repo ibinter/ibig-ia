@@ -9,11 +9,11 @@ Pour chaque section du cahier des charges : où la trouver dans le tableau de bo
 | 1, 5 | Un agent chef qui coordonne 6 agents, une base de connaissances commune | Menu **Agents IA** | Fait |
 | 5 | Les humains n'interviennent qu'au tableau de bord : objectifs, validation, suivi | **Objectifs**, **Validations**, **Accueil** | Fait |
 | 2 | 8 pôles | Partout (filtres, fiches, valideurs) | Fait |
-| 3 | Indicateurs de réussite et cibles | **Indicateurs** | Fait (heures économisées : à mesurer) |
+| 3 | Indicateurs de réussite et cibles | **Indicateurs** | Fait, y compris les heures de travail manuel économisées (estimées action par action, en % du temps passé avant l'agent, saisi par la direction ; cible −60 %) |
 | 4 | Cartographie des 14 comptes rattachés aux pôles | **Agents IA → Rédiger une publication** (liste des comptes) | Fait |
 | 6 | Agent chef : plan de la semaine, rapport quotidien, alertes | **Objectifs** (plan), **Rapports**, **Agents IA** | Fait |
 | 6 | Communication : calendrier du lundi, déclinaison par réseau, briefs visuels, publications à la main | **Calendrier éditorial**, **Agents IA** | Fait |
-| 6 | Contenus web : articles en brouillon (WordPress, PHP, HTML) | **Agents IA**, **Validations** | Fait (pages produits : à faire) |
+| 6 | Contenus web : articles, pages produits, SEO, en brouillon (WordPress, PHP, HTML) | **Agents IA → Rédiger un article ou une page produit**, **Validations** | Fait (WordPress avec compte « Auteur » : la page produit arrive en article brouillon, à passer en page) |
 | 6 | Messagerie : relève 5 min, classement, FAQ, brouillons, transferts, synthèse | **Boîtes mail**, **Essayer l'agent**, **Journal** | Fait |
 | 6 | Commercial : qualification, relances J+3/7/14, démos et essais | **Prospects**, **Agents IA** | Fait |
 | 6 | Support + SARA : réponses documentées, tickets | **Support**, **Base de connaissances → Guides** | Fait |

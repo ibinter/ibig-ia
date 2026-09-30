@@ -225,3 +225,27 @@ def test_publication_on_demand_goes_to_validation(rt, accounts):
         pa = s.query(PendingAction).one()
     assert pa.action_type == "social.manual_post" and pa.status == "pending"
     assert pa.payload["texte"].startswith("La rentrée")
+
+
+def test_time_saved_baseline_form(rt, accounts):
+    from urllib.parse import unquote
+
+    c = client(rt, "dg@ibig.test")
+    assert "Temps passé avant l'agent" in c.get("/indicateurs").text
+    r = c.post("/indicateurs/reference", data={"heures": "25,5"}, follow_redirects=False)
+    assert "Référence enregistrée" in unquote(r.headers["location"])
+    assert 'value="25.5"' in c.get("/indicateurs").text
+    r = c.post("/indicateurs/reference", data={"heures": "beaucoup"}, follow_redirects=False)
+    assert "Refusé" in unquote(r.headers["location"])
+    assert client(rt, "awa@ibig.test").post("/indicateurs/reference",
+                                            data={"heures": "1"}).status_code == 403
+
+
+def test_web_content_form_requires_ready_site(rt, accounts):
+    from urllib.parse import unquote
+
+    c = client(rt, "dg@ibig.test")
+    assert "Rédiger un article ou une page produit" in c.get("/agents").text
+    r = c.post("/agents/contenu-web", data={"site": 0, "genre": "page", "sujet": "X"},
+               follow_redirects=False)
+    assert "Refusé" in unquote(r.headers["location"])  # sites inactifs par défaut

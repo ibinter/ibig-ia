@@ -219,8 +219,34 @@ def create_app(rt: Runtime) -> FastAPI:
     def agents(request: Request, who: Principal = Depends(user)):
         accounts = [(i, a) for i, a in enumerate(rt.org.social_accounts)
                     if a.pole in rt.org.pole_codes]
+        sites = [(i, st) for i, st in enumerate(rt.org.sites)
+                 if rt.contenus_web.why_skipped(st) is None]
         return page(request, "agents.html", cards=agent_cards(rt), accounts=accounts,
-                    running=running, can_run=who.role != "valideur")
+                    running=running, can_run=who.role != "valideur", sites=sites,
+                    products=rt.kb.products())
+
+    @app.post("/agents/contenu-web")
+    def write_web_content(site: int = Form(...), genre: str = Form("article"),
+                          sujet: str = Form(""), who: Principal = Depends(user)):
+        if who.role == "valideur":
+            return back("/agents", "Refusé : réservé à la direction")
+        sites = rt.org.sites
+        if not 0 <= site < len(sites) or rt.llm is None:
+            return back("/agents", "Refusé : choisissez un site")
+        target, sujet = sites[site], sujet.strip()[:300]
+        reason = rt.contenus_web.why_skipped(target)
+        if reason:
+            return back("/agents", f"Refusé : {target.nom} — {reason}")
+        if genre == "page" and not sujet:
+            return back("/agents", "Refusé : indiquez le produit de la page")
+        try:
+            if genre == "page":
+                rt.contenus_web.write_product_page(target, sujet)
+            else:
+                rt.contenus_web.write_article(target, sujet)
+        except Exception as exc:  # noqa: BLE001 — affiché, rien n'est publié
+            return back("/agents", f"Échec de la rédaction : {exc}"[:300])
+        return back("/validations", "Brouillon rédigé : relisez-le ci-dessous puis validez")
 
     @app.post("/agents/lancer/{key}")
     def run_agent(key: str, tasks: BackgroundTasks, who: Principal = Depends(user)):
@@ -639,8 +665,29 @@ def create_app(rt: Runtime) -> FastAPI:
                 .limit(30)).all()
         if who.role == "valideur":
             alerts = [a for a in alerts if not a.pole or a.pole in who.poles]
+        from ..agents.veille import BASELINE_SETTING
+
         return page(request, "indicateurs.html", jours=jours,
-                    report=rt.veille.indicators(jours), alerts=alerts)
+                    report=rt.veille.indicators(jours), alerts=alerts,
+                    baseline=service_value(rt.sessions, rt.settings, BASELINE_SETTING))
+
+    @app.post("/indicateurs/reference")
+    def set_baseline(heures: str = Form(""), who: Principal = Depends(user)):
+        from ..agents.veille import BASELINE_SETTING
+        from ..configstore import set_service_value
+
+        if who.role == "valideur":
+            raise HTTPException(403)
+        try:
+            value = float(heures.replace(",", ".")) if heures.strip() else 0.0
+        except ValueError:
+            return back("/indicateurs", "Refusé : indiquez un nombre d'heures")
+        if not 0 <= value <= 1000:
+            return back("/indicateurs", "Refusé : entre 0 et 1000 heures")
+        set_service_value(rt.sessions, rt.settings, BASELINE_SETTING,
+                          f"{value:g}" if value else "", who.label)
+        return back("/indicateurs", "Référence enregistrée : le pourcentage d'heures "
+                                    "économisées est calculé")
 
     @app.get("/utilisateurs", response_class=HTMLResponse)
     def accounts(request: Request, who: Principal = Depends(user)):

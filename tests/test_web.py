@@ -196,3 +196,32 @@ def test_static_check(tmp_path):
     site = Site(nom="S", url="https://s.test", pole="SOFT", technologie="statique",
                 export_dir=str(tmp_path / "x"))
     assert "écriture" in StaticExportConnector(site).check()
+
+
+def test_wordpress_product_page_falls_back_to_post_for_author_role(monkeypatch):
+    monkeypatch.setenv("WP_TEST_PWD", "app pass word")
+    calls = []
+
+    def handler(request: httpx.Request):
+        calls.append((request.url.path, json.loads(request.content)["title"]))
+        if request.url.path.endswith("/pages"):
+            return httpx.Response(403, json={"code": "rest_cannot_create"})
+        return httpx.Response(201, json={"id": 7, "status": "draft", "link": "l"})
+
+    conn = WordPressConnector(wp_site(), httpx.Client(transport=httpx.MockTransport(handler)))
+    out = conn.create_draft({**ARTICLE, "type_contenu": "page"})
+    assert [c[0] for c in calls] == ["/wp-json/wp/v2/pages", "/wp-json/wp/v2/posts"]
+    assert calls[1][1].startswith("Page produit — ") and "note" in out
+
+
+def test_wordpress_product_page_as_page_when_allowed(monkeypatch):
+    monkeypatch.setenv("WP_TEST_PWD", "app pass word")
+    paths = []
+
+    def handler(request: httpx.Request):
+        paths.append(request.url.path)
+        return httpx.Response(201, json={"id": 8, "status": "draft", "link": "l"})
+
+    conn = WordPressConnector(wp_site(), httpx.Client(transport=httpx.MockTransport(handler)))
+    out = conn.create_draft({**ARTICLE, "type_contenu": "page"})
+    assert paths == ["/wp-json/wp/v2/pages"] and out["type"] == "pages"

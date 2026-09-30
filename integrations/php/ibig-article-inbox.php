@@ -130,6 +130,8 @@ function ibig_handle(): void
         'meta_description' => is_string($data['meta_description'] ?? null)
             ? $data['meta_description'] : '',
         'mot_cle' => is_string($data['mot_cle'] ?? null) ? $data['mot_cle'] : '',
+        // « article » (blog) ou « page » (page produit)
+        'type' => (($data['type'] ?? '') === 'page') ? 'page' : 'article',
         'contenu_html' => $data['contenu_html'],
     ];
 

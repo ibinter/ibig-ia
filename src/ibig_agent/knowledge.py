@@ -283,6 +283,28 @@ class KnowledgeBase:
         kw = {p.id: self._kw_score(q, f"{p.doc.titre} {p.heading} {p.text}") for p in items}
         return self._rank([(p.id, p) for p in items], kw, self._sense(query), k)
 
+    def products(self, pole: str | None = None) -> list[str]:
+        """Solutions, formations et offres des catalogues (colonne « Solution »,
+        « Formation », « Produit » ou « Offre »), sans les lignes à compléter."""
+        names: list[str] = []
+        for d in self.documents:
+            if d.type != "catalogue" or (pole and d.pole not in (pole, "GROUPE")):
+                continue
+            col = None
+            for line in d.body.splitlines():
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if not line.strip().startswith("|") or set("".join(cells)) <= set("-: "):
+                    continue
+                if col is None:
+                    col = next((i for i, c in enumerate(cells) if _strip_accents(c).lower()
+                                in ("solution", "formation", "produit", "offre")), None)
+                    if col is None:
+                        break
+                    continue
+                if col < len(cells) and cells[col] and not is_placeholder(cells[col]):
+                    names.append(cells[col])
+        return list(dict.fromkeys(names))
+
     def passage(self, passage_id: str) -> Passage | None:
         return next((p for p in self.passages if p.id == passage_id), None)
 

@@ -7,8 +7,8 @@ Autonomie : lecture seule. Il mesure et alerte, il n'agit jamais sur un canal.
   restés sans réponse au-delà de la cible (2 h ouvrées). Chaque élément n'est signalé
   qu'une fois.
 
-Sources de cette version : les mails et le journal de l'agent. Les commentaires et avis
-des réseaux sociaux s'ajouteront quand l'outil multi-comptes sera raccordé.
+Sources : les mails, le journal de l'agent et les commentaires des pages Facebook
+raccordées (agents/commentaires.py).
 """
 
 from __future__ import annotations
@@ -31,6 +31,18 @@ REPLY_ACTIONS = ("mail.faq_reply", "mail.reply", "support.answer", "whatsapp.rep
                  "whatsapp.faq_reply", "whatsapp.support_answer")  # l'accusé de réception ne compte pas
 NOT_CLASSIFIED = ("en_cours", "erreur", "a_trier_manuel")
 SOCIAL_ACTIONS = ("social.post", "social.manual_post")
+# Temps de travail manuel évité par action réalisée (minutes, estimation prudente à
+# ajuster) : lire et classer un mail, rédiger une réponse, une publication, un article…
+TIME_SAVED_MINUTES = {
+    "mail.label": 1, "mail.ack": 2, "mail.faq_reply": 5, "support.answer": 8,
+    "sara.answer": 5, "whatsapp.ack": 1, "whatsapp.faq_reply": 4,
+    "whatsapp.support_answer": 6, "whatsapp.reply": 4, "mail.reply": 6,
+    "mail.forward_internal": 2, "commercial.followup": 6, "social.post": 25,
+    "social.manual_post": 20, "social.schedule_approved": 5, "web.article_draft": 120,
+    "campaign.mail": 60, "report.publish": 15,
+}
+REVIEW_MINUTES = 1.5  # temps humain de relecture d'un élément validé
+BASELINE_SETTING = "heures_manuelles_semaine"
 
 
 # ------------------------------------------------------------------ heures ouvrées
@@ -209,7 +221,37 @@ class VeilleAgent:
         else:
             out.items.append(Indicator("Brouillons de réponse validés sans modification", "—",
                                        "80 %", "a_mesurer"))
+        out.items.insert(0, self._time_saved(journal, executed, weeks))
         return out
+
+    def _time_saved(self, journal: list[JournalEntry], executed: list[PendingAction],
+                    weeks: float) -> Indicator:
+        """Soulager l'équipe (section 3) : heures de travail manuel évitées, nettes du
+        temps de relecture, comparées au temps passé avant l'agent s'il est renseigné."""
+        from ..configstore import service_value
+
+        done = [e for e in journal if e.status == "executed"
+                and e.action_type in TIME_SAVED_MINUTES]
+        minutes = sum(TIME_SAVED_MINUTES[e.action_type] for e in done)
+        minutes -= REVIEW_MINUTES * len(executed)
+        hours = max(minutes, 0) / 60
+        per_week = hours / weeks
+        try:
+            baseline = float(service_value(self._sessions, self.settings,
+                                           BASELINE_SETTING).replace(",", ".") or 0)
+        except ValueError:
+            baseline = 0.0
+        name = "Heures de travail manuel économisées"
+        detail = (f"{per_week:.1f} h par semaine · {len(done)} action(s) de l'agent, "
+                  f"relecture de {len(executed)} validation(s) déduite")
+        if baseline <= 0:
+            return Indicator(name, f"{hours:.1f} h", "−60 % (à mesurer)", "a_mesurer",
+                             detail + " · indiquez le temps passé avant l'agent pour "
+                                      "calculer le pourcentage")
+        pct = 100 * per_week / baseline
+        return Indicator(name, f"−{pct:.0f} % ({hours:.1f} h)", "−60 %",
+                         "ok" if pct >= 60 else "alerte",
+                         detail + f" · référence : {baseline:g} h par semaine avant l'agent")
 
     def weekly_report(self, now: datetime | None = None) -> Indicators:
         report = self.indicators(7, now)

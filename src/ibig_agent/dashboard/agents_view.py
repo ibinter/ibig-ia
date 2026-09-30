@@ -129,8 +129,9 @@ def agent_cards(rt: Runtime, now: datetime | None = None) -> list[AgentCard]:
              ("/campagnes", "Campagnes mail")]),
         AgentCard(
             "contenus_web", "Agent Contenus web", "globe", "green",
-            "Écrit des articles de blog à partir des vraies questions des clients.",
+            "Écrit des articles de blog et des pages produits, pensés pour le référencement.",
             ["2 articles par mois et par site",
+             "Pages produits des solutions et formations du catalogue, à la demande",
              "Un mot-clé, une question réelle, des liens vers vos offres",
              "Déposé en brouillon sur le site après validation (WordPress, PHP ou fichier)"],
             "Le 1er et le 15 du mois",
@@ -138,7 +139,8 @@ def agent_cards(rt: Runtime, now: datetime | None = None) -> list[AgentCard]:
             (f"sites prêts : {', '.join(s.nom for s in sites_ready)}" if sites_ready
              else "aucun site prêt (site inactif ou fiche pôle à compléter)"),
             [AgentAction("articles", "Rédiger les articles maintenant", "edit",
-                         bool(sites_ready), "" if sites_ready else "aucun site prêt")]),
+                         bool(sites_ready), "" if sites_ready else "aucun site prêt")],
+            [("#contenu-web", "Article ou page produit sur un sujet choisi")]),
         AgentCard(
             "commercial", "Agent Commercial", "target", "red",
             "Qualifie les prospects et prépare les relances pour ne perdre aucune affaire.",

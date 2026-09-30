@@ -124,23 +124,41 @@ class WordPressConnector:
             raise RuntimeError(f"rôle inattendu : {', '.join(sorted(roles)) or 'aucun'}")
         return f"WordPress OK (compte {self.site.wp_user}, rôle {', '.join(sorted(roles))})"
 
-    def create_draft(self, article: dict) -> dict:
-        resp = self.client.post(
-            f"{self.site.url.rstrip('/')}/wp-json/wp/v2/posts",
+    def _post(self, kind: str, article: dict, title: str) -> httpx.Response:
+        return self.client.post(
+            f"{self.site.url.rstrip('/')}/wp-json/wp/v2/{kind}",
             auth=(self.site.wp_user, self.site.secret()),
             json={
                 "status": "draft",  # jamais « publish » : un humain met en ligne
-                "title": article["titre"],
+                "title": title,
                 "content": article["contenu_html"],
                 "excerpt": article.get("meta_description", ""),
                 "slug": article["slug"],
             },
         )
+
+    def create_draft(self, article: dict) -> dict:
+        kind, note = "posts", ""
+        resp = None
+        if article.get("type_contenu") == "page":
+            resp = self._post("pages", article, article["titre"])
+            if resp.status_code in (401, 403):
+                # Le rôle « Auteur » (moindre privilège) ne crée pas de pages : le brouillon
+                # part en article, à transformer en page par un humain.
+                resp, note = None, "rôle Auteur : brouillon déposé en article, à passer en page"
+            else:
+                kind = "pages"
+        if resp is None:
+            title = (f"Page produit — {article['titre']}" if note else article["titre"])
+            resp = self._post("posts", article, title)
         if resp.status_code not in (200, 201):
             raise RuntimeError(f"WordPress {resp.status_code} : {resp.text[:300]}")
         data = resp.json()
         if data.get("status") != "draft":
             raise RuntimeError(f"Statut inattendu renvoyé par WordPress : {data.get('status')}")
+        if kind == "pages" or note:
+            return {"mode": "wordpress", "type": kind, "id": data.get("id"),
+                    "lien": data.get("link", ""), **({"note": note} if note else {})}
         return {"mode": "wordpress", "id": data.get("id"), "lien": data.get("link", "")}
 
 
@@ -176,6 +194,7 @@ class PhpEndpointConnector:
             "contenu_html": article["contenu_html"],
             "meta_description": article.get("meta_description", ""),
             "mot_cle": article.get("mot_cle", ""),
+            "type": article.get("type_contenu", "article"),
         }, ensure_ascii=False).encode()
         ts = str(int(time.time()))
         resp = self.client.post(
@@ -222,7 +241,8 @@ class StaticExportConnector:
         folder = Path(self.site.export_dir) / slugify(self.site.nom)
         folder.mkdir(parents=True, exist_ok=True)
         today = datetime.now(UTC).date()
-        path = folder / f"{today:%Y-%m-%d}-{slugify(article['slug'])}.html"
+        prefix = "page-" if article.get("type_contenu") == "page" else ""
+        path = folder / f"{prefix}{today:%Y-%m-%d}-{slugify(article['slug'])}.html"
         path.write_text(HTML_PAGE.format(
             titre=html.escape(article["titre"]),
             description=html.escape(article.get("meta_description", ""), quote=True),

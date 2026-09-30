@@ -128,3 +128,34 @@ def test_web_kill_switch_blocks_sending(web):
     with pytest.raises(ChannelStopped):
         rt.governor.approve(pid, by="Awa")
     assert fake.drafts == []
+
+
+def test_product_page_is_drafted_from_catalogue(web, llm, kb_dir):
+    rt, site, fake = web
+    cat = kb_dir / "catalogue-ibig-soft.md"
+    cat.write_text(cat.read_text(encoding="utf-8").replace(
+        "| 1 | À COMPLÉTER", "| 1 | Scolaby", 1), encoding="utf-8")
+    rt.kb.reload()
+    assert "Scolaby" in rt.kb.products("SOFT")
+    original = llm.structured
+
+    def structured(purpose, *a, **k):
+        if purpose == "web.product_page":
+            assert "question" not in a[3]["properties"]
+            return {"mot_cle": "logiciel de gestion scolaire", "titre": "Scolaby",
+                    "meta_description": "Gérez votre école.", "sources": [],
+                    "contenu_html": "<h2>Pour qui</h2><p>Les écoles.</p>"}
+        return original(purpose, *a, **k)
+
+    llm.structured = structured
+    pid = rt.contenus_web.write_product_page(site, "Scolaby")
+    with rt.sessions() as s:
+        pa = s.get(PendingAction, pid)
+    assert pa.status == "pending" and pa.title.startswith("Page produit")
+    assert pa.payload["type_contenu"] == "page" and pa.payload["alertes"] == []
+    rt.governor.approve(pid, by="Awa")
+    assert fake.drafts[0]["type_contenu"] == "page"
+    # Produit hors catalogue : signalé au valideur
+    pid = rt.contenus_web.write_product_page(site, "Produit inventé")
+    with rt.sessions() as s:
+        assert any("catalogue" in a for a in s.get(PendingAction, pid).payload["alertes"])

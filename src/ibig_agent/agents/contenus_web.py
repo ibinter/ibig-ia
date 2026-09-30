@@ -55,6 +55,13 @@ def article_schema() -> dict:
     }
 
 
+def product_page_schema() -> dict:
+    schema = article_schema()
+    schema["properties"].pop("question")
+    schema["required"] = [k for k in schema["required"] if k != "question"]
+    return schema
+
+
 @dataclass
 class ArticlesResult:
     brouillons: int = 0
@@ -128,6 +135,55 @@ class ContenusWebAgent:
                     result.sites_ignores[site.nom] = f"génération impossible : {exc}"
                     break
         return result
+
+    def write_product_page(self, site: Site, produit: str) -> int:
+        """Page produit (section 6 : « pages produits, SEO ») d'une solution ou formation
+        du catalogue : présentation, pour qui, fonctionnalités, questions fréquentes,
+        appel à l'action. Mêmes garde-fous qu'un article : rien hors de la base."""
+        pole = self.org.pole(site.pole)
+        passages = self.kb.search_passages(produit, site.pole, k=10)
+        extra = "\n\n".join(f"### {p.doc.titre} — {p.heading}\n{p.text}" for p in passages)
+        system = (
+            f"Tu es l'agent Contenus web d'IBIG SARL. Tu écris la PAGE PRODUIT de « {produit} » "
+            f"pour le site {site.nom} ({site.url}), pôle {pole.nom if pole else site.pole}.\n"
+            "Objectif : une page de présentation qui convertit et qui est bien référencée.\n"
+            "Structure (intertitres <h2>) : l'essentiel en une phrase ; pour qui ; ce que "
+            "cela apporte ; fonctionnalités ou programme ; tarifs et essai ; questions "
+            "fréquentes (3 à 5, <h3> par question) ; appel à l'action (contact ou essai).\n"
+            "- N'utilise QUE les informations de la base de connaissances : aucun prix, "
+            "contact, lien, date, fonctionnalité ou promesse qui n'y figure pas. Une "
+            "information absente s'écrit « À COMPLÉTER » (le valideur la complétera).\n"
+            "- Tarifs : uniquement ceux de la base, sinon « sur devis ».\n"
+            "- Tout chiffre est listé dans `sources` avec sa source.\n"
+            "- mot_cle : l'expression que tapent les clients pour trouver ce produit.\n"
+            "- 400 à 800 mots, ton du pôle ; contenu_html : uniquement <h2>, <h3>, <p>, <ul>, "
+            "<ol>, <li>, <strong>, <em>, <a href>, sans <h1>.\n"
+            "- meta_description : 150 caractères maximum.\n\n"
+            f"{self.directives(site.pole)}\n\n"
+            f"Base de connaissances :\n{self.kb.context_for(site.pole, produit)}\n\n"
+            f"Passages sur ce produit :\n{extra}"
+        )
+        data = self.llm.structured("web.product_page", "writing", system,
+                                   f"Produit : {produit}", product_page_schema(),
+                                   max_tokens=12000)
+        contenu = sanitize_html(data["contenu_html"])
+        alerts = [str(i) for i in self.kb.verify_facts(
+            f"{data['titre']}\n{data['meta_description']}\n{html_to_text(contenu)}")]
+        if len(data["meta_description"]) > 160:
+            alerts.append("meta description trop longue (> 160 caractères)")
+        if produit not in self.kb.products(site.pole):
+            alerts.append(f"« {produit} » ne figure pas dans le catalogue du pôle")
+        out = self.gov.submit(ActionRequest(
+            agent=AGENT, action_type="web.article_draft", channel="web", account=site.url,
+            pole=site.pole, title=f"Page produit {site.nom} : {data['titre'][:150]}",
+            payload={
+                "site": site.url, "technologie": site.technologie, "type_contenu": "page",
+                "produit": produit, "titre": data["titre"], "slug": slugify(data["titre"]),
+                "meta_description": data["meta_description"], "mot_cle": data["mot_cle"],
+                "sources": data["sources"], "contenu_html": contenu, "alertes": alerts,
+            },
+        ))
+        return out.pending_id
 
     def write_article(self, site: Site, sujet: str = "") -> int:
         pole = self.org.pole(site.pole)

@@ -198,3 +198,23 @@ def test_indicators_page(rt, direction):
     c2 = TestClient(create_app(rt), base_url="https://testserver")
     c2.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-1"})
     assert "mécontent" in c2.get("/indicateurs").text
+
+
+def test_time_saved_indicator_uses_baseline(rt):
+    from ibig_agent.agents.veille import BASELINE_SETTING
+    from ibig_agent.configstore import set_service_value
+    from ibig_agent.db import JournalEntry
+
+    with rt.sessions() as s:
+        for _ in range(24):  # 24 publications rédigées : 10 h
+            s.add(JournalEntry(agent="communication", action_type="social.post", level=2,
+                               channel="facebook", status="executed", summary="p"))
+        s.commit()
+    item = rt.veille.indicators(7).items[0]
+    assert item.nom.startswith("Heures") and item.etat == "a_mesurer"
+    assert item.valeur == "10.0 h"
+    set_service_value(rt.sessions, rt.settings, BASELINE_SETTING, "20", "dg")
+    item = rt.veille.indicators(7).items[0]
+    assert item.valeur == "−50 % (10.0 h)" and item.etat == "alerte"
+    set_service_value(rt.sessions, rt.settings, BASELINE_SETTING, "15", "dg")
+    assert rt.veille.indicators(7).items[0].etat == "ok"
