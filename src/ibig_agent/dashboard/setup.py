@@ -55,19 +55,21 @@ def setup_steps(rt: Runtime) -> list[Step]:
              "C'est la source du travail : l'agent lit les mails reçus, les classe et prépare "
              "les réponses. Sans boîte raccordée, il n'a rien à traiter — c'est pourquoi "
              "les compteurs sont à zéro.",
-             "Donnez la liste des boîtes (adresse, LWS ou Gmail, pôle) à la personne qui "
-             "installe l'agent. Les mots de passe se saisissent directement sur le serveur.",
+             "Menu « Boîtes mail » : adresse, LWS ou Gmail, pôle et mot de passe (chiffré), "
+             "puis « Tester la connexion ».",
              f"{len(rt.connectors)} boîte(s) raccordée(s)" if rt.connectors
              else "aucune boîte raccordée"),
         Step("fiches", "book", "Compléter les fiches des pôles", not fiches_todo,
              "L'agent ne répond qu'avec ce qui est écrit dans ces fiches : offres, prix, "
              "contacts, délais. Rien d'inventé.",
-             "Remplacer chaque « À COMPLÉTER » dans knowledge/poles/ (une fiche par pôle).",
+             "Menu « Base de connaissances » : ouvrir la fiche du pôle, remplacer chaque "
+             "« À COMPLÉTER », cocher « Fiche validée » et enregistrer.",
              "complètes" if not fiches_todo else f"à compléter : {', '.join(fiches_todo)}"),
         Step("faq", "message", "Rédiger les réponses aux questions fréquentes", bool(kb.faq),
              "Les questions simples (horaires, tarifs, inscription) reçoivent alors une "
              "réponse immédiate, sans attendre personne.",
-             "Compléter les réponses dans knowledge/faq/ (36 questions déjà préparées).",
+             "Menu « Base de connaissances » → Questions fréquentes (36 questions déjà "
+             "préparées) : écrire les réponses.",
              f"{len(kb.faq)} réponse(s) prête(s)" if kb.faq
              else f"{len(kb.faq_pending)} réponse(s) à rédiger"),
         Step("canaux", "share", "Réseaux sociaux, sites et WhatsApp", bool(channels),

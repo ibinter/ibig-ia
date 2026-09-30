@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Boîtes mail{% endblock %}
+{% block heading %}Boîtes mail{% endblock %}
+{% block lead %}<p class="lead">Les boîtes que l'agent Messagerie relève toutes les 5 minutes (section 9, option A : raccordement direct). Les mots de passe sont chiffrés dans le coffre de l'agent et ne sont jamais réaffichés.</p>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('inbox') }} Boîtes raccordées</h2><div class="sub">{{ boxes | length }} boîte(s)</div></div></div>
+    {% if not boxes %}<div class="empty"><div class="bubble" style="background:var(--warn-soft);color:var(--warn)">{{ icon('mail') }}</div><b>Aucune boîte raccordée</b>Ajoutez la première avec le formulaire : c'est elle qui donnera du travail à l'agent.</div>{% endif %}
+    {% for m, mine, row in boxes %}
+    <div class="switch-row">
+      <div class="name"><span class="ico">{{ icon('mail') }}</span>
+        <div><b>{{ m.adresse }}</b><div class="muted">{{ 'LWS' if m.hebergeur == 'lws' else 'Gmail' }} · pôle {{ m.pole }}{% if m.responsable %} · transferts à {{ m.responsable }}{% endif %}{% if not mine %} · réglée sur le serveur{% endif %}</div></div></div>
+      <form method="post" action="/boites/tester"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="btn sm">{{ icon('shield-check') }} Tester la connexion</button></form>
+      {% if mine %}<form method="post" action="/boites/retirer" onsubmit="return confirm('Retirer {{ m.adresse }} ? L\'agent ne la lira plus.')"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  <form class="card" method="post" action="/boites" autocomplete="off">
+    <div class="card-head"><div><h2>{{ icon('mail') }} Ajouter une boîte</h2><div class="sub">Idéalement un accès dédié à l'agent (section 13).</div></div></div>
+    <label class="field"><span>Adresse mail</span><input type="email" name="adresse" required placeholder="contact@ibigsoft.com"></label>
+    <div class="grid g-2" style="gap:12px">
+      <label class="field"><span>Hébergeur</span><select name="hebergeur" id="heb" style="width:100%" onchange="sw()"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+      <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    </div>
+    <label class="field" id="f-pass"><span>Mot de passe de la boîte</span><input type="password" name="secret" id="secret" required autocomplete="new-password"></label>
+    <div id="f-gmail" style="display:none" class="alert amber">{{ icon('alert') }}<span>Gmail : collez ci-dessus le jeton produit par <code>ibig-agent gmail-jeton</code> (jamais le mot de passe du compte). Voir le guide de mise en service.</span></div>
+    <details><summary>Options</summary><div class="inner">
+      <label class="field"><span>Transférer les messages « autres » à (facultatif)</span><input type="email" name="responsable" placeholder="responsable@ibigsoft.com"></label>
+      <label class="field"><span>Signature des réponses</span><textarea name="signature" style="min-height:80px" placeholder="L'équipe IBIG SOFT&#10;www.ibigsoft.com"></textarea></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Serveur IMAP (LWS)</span><input type="text" name="imap_host" placeholder="mail.lws-hosting.com"></label>
+        <label class="field"><span>Serveur SMTP (LWS)</span><input type="text" name="smtp_host" placeholder="mail.lws-hosting.com"></label>
+      </div></div></details>
+    <button class="btn primary lg">{{ icon('check') }} Raccorder la boîte</button>
+    <p class="muted small" style="margin:10px 0 0">Ensuite, cliquez sur « Tester la connexion ». Rien n'est lu ni envoyé pendant le test.</p>
+  </form>
+</div>
+<script>function sw(){var g=document.getElementById('heb').value==='gmail';document.getElementById('f-gmail').style.display=g?'flex':'none';document.querySelector('#f-pass span').textContent=g?'Jeton Gmail (JSON)':'Mot de passe de la boîte';}</script>
+{% endblock %}

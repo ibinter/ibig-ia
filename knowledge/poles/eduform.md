@@ -32,7 +32,7 @@ Exemples de formulations (3) : À COMPLÉTER.
 ## Comptes
 - Page Facebook : IBIG EduForm
 - Sites : https://ibig-eduform.com, https://ibiglearn.com
-- Boîtes mail et numéros WhatsApp du pôle : voir config/mailboxes.yaml et config/whatsapp.yaml
+- Boîtes mail et numéros WhatsApp du pôle : raccordés dans le tableau de bord (menu Boîtes mail)
 
 ## Rythme
 3 publications par semaine minimum (objectif de la section 3), déclinées par réseau.
@@ -42,4 +42,4 @@ Proposition à valider : jamais de promesse d'emploi ou d'insertion garantie ; j
 Voir aussi interdits.md (règles du groupe).
 
 ## Contact humain
-Valideur, suppléant, commercial et support : adresses dans config/poles.yaml (À COMPLÉTER).
+La direction reçoit les escalades du pôle tant qu'aucun valideur n'est désigné.

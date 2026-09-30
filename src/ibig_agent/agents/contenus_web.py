@@ -12,6 +12,7 @@ et de la FAQ du pôle. Un pôle dont la fiche n'est pas complète n'a pas d'arti
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -62,12 +63,14 @@ class ArticlesResult:
 
 class ContenusWebAgent:
     def __init__(self, org: OrgConfig, kb: KnowledgeBase, llm: LLM, governor: Governor,
-                 session_factory: sessionmaker[Session]) -> None:
+                 session_factory: sessionmaker[Session],
+                 directives: Callable[[str], str] | None = None) -> None:
         self.org = org
         self.kb = kb
         self.llm = llm
         self.gov = governor
         self._sessions = session_factory
+        self.directives = directives or (lambda pole: "")
 
     # ---------------------------------------------------------------- éligibilité
     def pole_ready(self, pole: str) -> bool:
@@ -147,6 +150,7 @@ class ContenusWebAgent:
             "- contenu_html : uniquement <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, "
             "<a href>, sans <h1> (le titre est à part).\n"
             "- meta_description : 150 caractères maximum.\n\n"
+            f"{self.directives(site.pole)}\n\n"
             f"Base de connaissances :\n{self.kb.context_for(site.pole)}"
         )
         user = (

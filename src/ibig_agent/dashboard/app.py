@@ -29,6 +29,7 @@ from ..db import JournalEntry, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
+from . import config_routes
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
@@ -286,6 +287,8 @@ def create_app(rt: Runtime) -> FastAPI:
             except Exception as exc:  # noqa: BLE001 — affiché à l'utilisateur, rien d'envoyé
                 ctx["error"] = f"L'essai n'a pas abouti : {exc}"
         return page(request, "essai.html", **ctx)
+
+    config_routes.register(app, rt, user, page, back)
 
     @app.get("/demarrage", response_class=HTMLResponse)
     def getting_started(request: Request, who: Principal = Depends(user)):

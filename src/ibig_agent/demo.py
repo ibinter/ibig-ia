@@ -141,9 +141,22 @@ class DemoLLM:
                                     "Nouvel élève puis enregistrez la fiche.</p>"
                                     "<h2>Essayer</h2><p>Essai gratuit de 14 jours.</p>",
                     "sources": []}
+        if purpose == "social.post":
+            return {"texte": "C'est la rentrée ! Avec IBIG School, inscriptions, notes et "
+                             "bulletins au même endroit. Essai gratuit de 14 jours.",
+                    "brief_visuel": "Élèves souriants devant l'école, logo IBIG SOFT"}
         raise ValueError(f"Pas de réponse de démonstration pour {purpose}")
 
     def write(self, purpose, system, user, max_tokens=4000):
+        if purpose == "chef.weekly_plan":
+            return ("Plan de la semaine (démonstration)\n\nPriorités\n"
+                    "1. Rentrée IBIG School : c'est la consigne de la direction.\n"
+                    "2. Traiter les validations en attente avant mercredi.\n\n"
+                    "Communication : 3 publications SOFT sur la rentrée (Facebook, LinkedIn).\n"
+                    "Contenus web : un article « inscrire un élève » sur ibigsoft.com.\n"
+                    "Commercial : relancer le prospect chaud et confirmer sa démonstration.\n"
+                    "Support : répondre au ticket ouvert à partir du guide IBIG School.\n\n"
+                    "Attendu des humains : compléter les fiches des 7 autres pôles.")
         if purpose == "commercial.followup":
             return ("Bonjour,\n\nJe reviens vers vous au sujet de votre projet de logiciel de "
                     "gestion scolaire. Seriez-vous disponible pour une démonstration de 30 "

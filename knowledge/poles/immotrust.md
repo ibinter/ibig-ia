@@ -32,7 +32,7 @@ Exemples de formulations (3) : À COMPLÉTER.
 - Page Facebook : IBIG ImmoTrust
 - Groupe Facebook : IBIG ImmoTrust (publication manuelle)
 - TikTok : @ibig.immo.trust (publication manuelle)
-- Boîtes mail et numéros WhatsApp du pôle : voir config/mailboxes.yaml et config/whatsapp.yaml
+- Boîtes mail et numéros WhatsApp du pôle : raccordés dans le tableau de bord (menu Boîtes mail)
 
 ## Rythme
 3 publications par semaine minimum (objectif de la section 3), déclinées par réseau.
@@ -42,4 +42,4 @@ Proposition à valider : jamais de promesse de rendement, de plus-value ou de d�
 Voir aussi interdits.md (règles du groupe).
 
 ## Contact humain
-Valideur, suppléant, commercial et support : adresses dans config/poles.yaml (À COMPLÉTER).
+La direction reçoit les escalades du pôle tant qu'aucun valideur n'est désigné.

@@ -11,6 +11,7 @@ contenu (section 7).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -78,7 +79,9 @@ class CalendarResult:
 
 class CommunicationAgent:
     def __init__(self, org: OrgConfig, kb: KnowledgeBase, llm: LLM, governor: Governor,
-                 posts_per_pole: int = 3) -> None:
+                 posts_per_pole: int = 3,
+                 directives: Callable[[str], str] | None = None) -> None:
+        self.directives = directives or (lambda pole: "")
         self.org = org
         self.kb = kb
         self.llm = llm
@@ -126,6 +129,7 @@ class CommunicationAgent:
             "- Un même sujet est réécrit pour chaque réseau selon sa règle de déclinaison.\n"
             "- Varie les sujets (offre, conseil pratique, témoignage, coulisses, question).\n"
             "- Respecte la liste des sujets interdits et des formulations à éviter.\n\n"
+            f"{self.directives(pole_code)}\n\n"
             f"Base de connaissances :\n{self.kb.context_for(pole_code)}"
         )
         user = (
@@ -180,6 +184,7 @@ class CommunicationAgent:
             "- Si une information utile manque, écris [À COMPLÉTER : ...] à sa place.\n"
             "- Respecte la liste des sujets interdits et des formulations à éviter.\n"
             "- brief_visuel : description de l'image ou de la vidéo à produire.\n\n"
+            f"{self.directives(pole_code)}\n\n"
             f"Base de connaissances :\n{self.kb.context_for(pole_code, sujet)}"
         )
         data = self.llm.structured("social.post", "writing", system,

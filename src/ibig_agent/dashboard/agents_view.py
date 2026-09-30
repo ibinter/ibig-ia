@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from ..db import JournalEntry, utcnow
 from ..governance import AGENT_AUTONOMY
 from ..runtime import Runtime
-from ..scheduler import next_monday
+from ..scheduler import next_monday, this_monday
 
 
 @dataclass
@@ -52,6 +52,8 @@ class AgentCard:
 def runners(rt: Runtime) -> dict[str, tuple]:
     tz = rt.settings.timezone
     return {
+        "plan": (lambda: rt.planner.run(this_monday(tz)),
+                 "Plan de la semaine en préparation : il apparaîtra dans Rapports."),
         "rapport": (rt.chef.run_daily, "Rapport en préparation : il apparaîtra dans Rapports."),
         "revue": (rt.revue.run, "Revue mensuelle en préparation : elle apparaîtra dans Rapports."),
         "releve": (rt.messagerie.poll, ("Relève des boîtes lancée : les mails traités "
@@ -87,14 +89,16 @@ def agent_cards(rt: Runtime, now: datetime | None = None) -> list[AgentCard]:
         AgentCard(
             "chef", "Agent chef", "bot", "blue",
             "Coordonne les agents, suit les validations en retard et rend compte à la direction.",
-            ["Rapport quotidien à 8 h (tableau de bord et mail)",
+            ["Plan de la semaine chaque lundi, d'après vos objectifs",
+             "Rapport quotidien à 8 h (tableau de bord et mail)",
              "Alerte les valideurs quand une proposition attend",
              "Revue mensuelle : bilan, erreurs, pistes d'amélioration"],
-            "Chaque jour à 8 h · alertes toutes les 15 min · revue le 1er du mois",
+            "Lundi 7 h 30 (plan) · chaque jour à 8 h · revue le 1er du mois",
             True, "actif",
-            [AgentAction("rapport", "Générer le rapport maintenant", "file"),
+            [AgentAction("plan", "Plan de la semaine", "calendar"),
+             AgentAction("rapport", "Rapport du jour", "file"),
              AgentAction("revue", "Lancer la revue mensuelle", "chart")],
-            [("/rapports", "Rapports")]),
+            [("/objectifs", "Donner des objectifs"), ("/rapports", "Rapports")]),
         AgentCard(
             "messagerie", "Agent Messagerie", "mail", "violet",
             "Lit toutes les boîtes mail, trie chaque message et prépare les réponses.",

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Objectifs{% endblock %}
+{% block heading %}Objectifs et consignes{% endblock %}
+{% block lead %}<p class="lead">Donnez vos priorités à l'agent chef (section 5 du cahier des charges) : il en tient compte dans le plan de la semaine, et les agents qui rédigent (publications, articles) les suivent — toujours dans le respect de la base de connaissances.</p>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div class="stack">
+    {% if can_edit %}
+    <form class="card" method="post" action="/objectifs">
+      <div class="card-head"><div><h2>{{ icon('target') }} Nouvel objectif</h2><div class="sub">Exemples : « Mettre en avant la rentrée d'IBIG School tout le mois d'octobre », « Annoncer le salon de l'immobilier du 15 novembre ».</div></div></div>
+      <label class="field"><span>Objectif ou consigne</span><textarea name="texte" required style="min-height:110px" placeholder="Ce que les agents doivent pousser en priorité…"></textarea></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Pôle concerné</span><select name="pole" style="width:100%"><option value="">Tout le groupe</option>{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Jusqu'au (facultatif)</span><input type="date" name="jusqu_au"></label>
+      </div>
+      <button class="btn primary">{{ icon('check') }} Enregistrer l'objectif</button>
+    </form>
+    {% endif %}
+    <div class="card">
+      <div class="card-head"><div><h2>Objectifs en cours</h2><div class="sub">{{ active | length }} objectif(s) suivis par les agents</div></div></div>
+      {% if not active %}<div class="empty"><div class="bubble">{{ icon('target') }}</div><b>Aucun objectif</b>Sans consigne, les agents suivent simplement le rythme prévu par le cahier des charges.</div>{% endif %}
+      <ul class="feed">
+      {% for d in active %}
+        <li><span class="dot lv2">{{ icon('target') }}</span>
+          <span class="txt" style="white-space:normal"><b style="white-space:normal">{{ d.text }}</b>
+            <small>{% if d.pole %}{{ d.pole }}{% else %}tout le groupe{% endif %} · {{ d.created_at | quand(false) }}{% if d.until %} · jusqu'au {{ d.until | quand(false) }}{% endif %} · {{ d.created_by.split(' <')[0] }}</small></span>
+          {% if can_edit %}<form method="post" action="/objectifs/{{ d.id }}/retirer"><button class="btn sm">{{ icon('x') }} Retirer</button></form>{% endif %}</li>
+      {% endfor %}
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('calendar') }} Plan de la semaine</h2><div class="sub">Rédigé par l'agent chef chaque lundi à 7 h 30</div></div></div>
+    {% if can_edit %}<form method="post" action="/agents/lancer/plan" style="margin-bottom:14px"><button class="btn primary sm" onclick="this.innerHTML='Préparation…'">{{ icon('sparkles') }} Préparer le plan maintenant</button></form>{% endif %}
+    {% if plan %}
+      <div class="muted small" style="margin-bottom:8px">{{ plan.summary }} · {{ plan.created_at | depuis }}</div>
+      <div class="report-text"><pre>{{ plan.details.get('texte', '') }}</pre></div>
+    {% else %}
+      <div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Pas encore de plan</b>Cliquez sur « Préparer le plan maintenant », puis rechargez la page dans une minute.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

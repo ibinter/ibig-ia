@@ -95,16 +95,18 @@ def _slug(text: str) -> str:
     return "-".join(_tokens(text))[:60] or "entree"
 
 
-def _parse(path: Path, root: Path) -> Document:
-    raw = path.read_text(encoding="utf-8")
-    meta: dict = {}
-    body = raw
+def split_front_matter(raw: str) -> tuple[dict, str]:
     if raw.startswith("---"):
         _, fm, body = raw.split("---", 2)
-        meta = yaml.safe_load(fm) or {}
+        return yaml.safe_load(fm) or {}, body
+    return {}, raw
+
+
+def parse_text(rel_path: str, raw: str) -> Document:
+    meta, body = split_front_matter(raw)
     return Document(
-        path=str(path.relative_to(root)),
-        titre=str(meta.get("titre", path.stem)),
+        path=rel_path,
+        titre=str(meta.get("titre", Path(rel_path).stem)),
         pole=str(meta.get("pole", "") or ""),
         type=str(meta.get("type", "") or ""),
         body=body.strip(),
@@ -144,19 +146,31 @@ class FactIssue:
 
 
 class KnowledgeBase:
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, overrides: dict[str, str] | None = None) -> None:
         self.root = Path(root)
+        # Documents modifiés ou créés depuis le tableau de bord (chemin relatif -> texte)
+        self.overrides = dict(overrides or {})
         self.documents: list[Document] = []
         self.faq: list[FaqEntry] = []
         self.passages: list[Passage] = []
         self.reload()
 
+    def file_text(self, rel_path: str) -> str:
+        """Texte d'origine (fichier livré avec le logiciel), vide pour un nouveau document."""
+        path = self.root / rel_path
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def raw(self, rel_path: str) -> str:
+        return self.overrides.get(rel_path) or self.file_text(rel_path)
+
     def reload(self) -> None:
-        self.documents = [
-            _parse(p, self.root)
+        texts = {
+            str(p.relative_to(self.root)): p.read_text(encoding="utf-8")
             for p in sorted(self.root.rglob("*.md"))
             if p.name != "README.md" and not p.name.startswith("_")
-        ]
+        }
+        texts.update(self.overrides)
+        self.documents = [parse_text(path, raw) for path, raw in sorted(texts.items())]
         self.faq, self.faq_pending = [], []
         for doc in self.documents:
             if doc.type == "faq":

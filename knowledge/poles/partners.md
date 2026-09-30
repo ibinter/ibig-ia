@@ -29,7 +29,7 @@ Exemples de formulations (3) : À COMPLÉTER.
 
 ## Comptes
 - Comptes propres au pôle : À COMPLÉTER (sinon, relais par les comptes du groupe)
-- Boîtes mail et numéros WhatsApp du pôle : voir config/mailboxes.yaml et config/whatsapp.yaml
+- Boîtes mail et numéros WhatsApp du pôle : raccordés dans le tableau de bord (menu Boîtes mail)
 
 ## Rythme
 3 publications par semaine minimum (objectif de la section 3), déclinées par réseau.
@@ -39,4 +39,4 @@ Proposition à valider : aucun taux de commission ni exclusivité sans contrat s
 Voir aussi interdits.md (règles du groupe).
 
 ## Contact humain
-Valideur, suppléant, commercial et support : adresses dans config/poles.yaml (À COMPLÉTER).
+La direction reçoit les escalades du pôle tant qu'aucun valideur n'est désigné.

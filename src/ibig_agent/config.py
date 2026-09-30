@@ -81,9 +81,13 @@ class Mailbox:
     smtp_port: int = 465
     password_env: str = ""
     gmail_token_env: str = ""
+    # Secret déchiffré depuis le coffre (boîte ajoutée dans le tableau de bord)
+    secret_value: str = field(default="", repr=False, compare=False)
 
     def secret(self) -> str:
-        """Lit le secret de la boîte dans l'environnement (alimenté par le coffre)."""
+        """Lit le secret de la boîte : coffre du tableau de bord, sinon environnement."""
+        if self.secret_value:
+            return self.secret_value
         name = self.password_env or self.gmail_token_env
         value = os.environ.get(name, "") if name else ""
         if not value:

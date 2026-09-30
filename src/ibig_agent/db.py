@@ -211,6 +211,55 @@ class AIUsage(Base):
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class KnowledgeEdit(Base):
+    """Document de la base de connaissances modifié depuis le tableau de bord.
+
+    Il remplace le fichier du même chemin (ou crée un document) sans toucher au dépôt :
+    les mises à jour du logiciel n'écrasent jamais le travail d'IBIG.
+    """
+
+    __tablename__ = "knowledge_edits"
+
+    path: Mapped[str] = mapped_column(String(300), primary_key=True)
+    content: Mapped[str] = mapped_column(Text)
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MailboxAccount(Base):
+    """Boîte mail raccordée depuis le tableau de bord ; secret chiffré (coffre)."""
+
+    __tablename__ = "mailbox_accounts"
+
+    adresse: Mapped[str] = mapped_column(String(300), primary_key=True)
+    hebergeur: Mapped[str] = mapped_column(String(20))
+    pole: Mapped[str] = mapped_column(String(40))
+    responsable: Mapped[str] = mapped_column(String(300), default="")
+    signature: Mapped[str] = mapped_column(Text, default="")
+    imap_host: Mapped[str] = mapped_column(String(200), default="")
+    imap_port: Mapped[int] = mapped_column(Integer, default=993)
+    smtp_host: Mapped[str] = mapped_column(String(200), default="")
+    smtp_port: Mapped[int] = mapped_column(Integer, default=465)
+    secret_enc: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Directive(Base):
+    """Objectif ou consigne donné par la direction à l'agent chef (section 5)."""
+
+    __tablename__ = "directives"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    text: Mapped[str] = mapped_column(Text)
+    pole: Mapped[str] = mapped_column(String(40), default="")  # vide : tout le groupe
+    until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+
+
 def make_engine(url: str) -> Engine:
     kwargs = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
     return create_engine(url, **kwargs)

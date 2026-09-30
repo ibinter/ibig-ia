@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Calendrier éditorial{% endblock %}
+{% block heading %}Calendrier éditorial{% endblock %}
+{% block lead %}<p class="lead">Les publications préparées par l'agent Communication, jour par jour et réseau par réseau (sections 6 et 8). Préparées chaque lundi ; rien n'est publié sans validation.</p>{% endblock %}
+{% block tools %}
+<a class="btn sm" href="?semaine={{ prev }}">← Semaine précédente</a>
+<a class="btn sm" href="/calendrier">Cette semaine</a>
+<a class="btn sm" href="?semaine={{ next }}">Semaine suivante →</a>
+{% endblock %}
+{% block content %}
+<div class="inline" style="margin-bottom:14px">
+  <b>Semaine du {{ start.strftime('%d/%m/%Y') }}</b>
+  <span class="pill amber dot">{{ counts.pending }} à valider</span>
+  <span class="pill green dot">{{ counts.executed }} validée(s)</span>
+  {% if counts.rejected %}<span class="pill red dot">{{ counts.rejected }} rejetée(s)</span>{% endif %}
+  {% if user.role != 'valideur' %}<a class="btn sm primary" href="/agents#publication" style="margin-left:auto">{{ icon('sparkles') }} Rédiger une publication</a>{% endif %}
+</div>
+<div class="cal">
+  {% for d in days %}
+  <div class="cal-day {{ 'today' if d == today }}">
+    <div class="cal-head"><b>{{ ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'][d.weekday()] }}</b><span>{{ d.strftime('%d/%m') }}</span></div>
+    {% for pa in by_day[d] %}
+    <a class="cal-post st-{{ pa.status }}" href="{{ '/validations' if pa.status == 'pending' else '/journal' }}" title="{{ pa.payload.get('texte', '')[:300] }}">
+      <span class="net">{{ channel_icon(pa.channel) }} {{ pa.payload.get('reseau', pa.channel) | replace('_', ' ') }}</span>
+      <b>{{ pa.title.split(' · ')[-1] }}</b>
+      <small>{{ pa.payload.get('compte', '') }} · {{ pa.pole }}</small>
+      <span class="st">{{ {'pending': 'à valider', 'executed': 'à publier' if not pa.payload.get('publication_auto') else 'programmée', 'approved': 'validée', 'rejected': 'rejetée', 'failed': 'échec'}.get(pa.status, pa.status) }}{% if not pa.payload.get('publication_auto') %} · à la main{% endif %}</span>
+    </a>
+    {% else %}<div class="cal-empty">—</div>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% if counts.pending + counts.executed + counts.rejected == 0 %}
+<div class="card" style="margin-top:16px"><div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Aucune publication cette semaine</b>Le calendrier se prépare chaque lundi pour les pôles dont la fiche est complète. En attendant : Agents IA → « Rédiger une publication maintenant ».</div></div>
+{% endif %}
+{% endblock %}

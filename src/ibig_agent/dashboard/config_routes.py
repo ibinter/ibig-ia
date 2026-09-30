@@ -1,0 +1,286 @@
+"""Pages de configuration : objectifs de la direction, base de connaissances, boîtes mail.
+
+Ce que le cahier des charges fait passer par le tableau de bord (section 5 : « les
+humains n'interviennent qu'à un seul endroit ») plutôt que par des fichiers du serveur.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import UTC, date, datetime, time, timedelta
+
+import yaml
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from sqlalchemy import desc, select
+
+from ..auth import Principal
+from ..config import Mailbox
+from ..configstore import reload_knowledge, sync_mailboxes, with_lws_defaults
+from ..db import (
+    Directive,
+    JournalEntry,
+    KnowledgeEdit,
+    MailboxAccount,
+    PendingAction,
+    utcnow,
+)
+from ..governance import as_utc
+from ..knowledge import PLACEHOLDER, split_front_matter
+from ..runtime import Runtime
+from ..vault import encrypt
+
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+KB_GROUPS = [
+    ("fiche_pole", "Fiches des pôles", "book",
+     "L'agent ne publie et ne répond qu'avec ce qui est écrit ici."),
+    ("faq", "Questions fréquentes", "message",
+     "Une réponse complétée part automatiquement quand un client pose la question."),
+    ("guide", "Guides des solutions", "life",
+     "Source des réponses du Support et de SARA."),
+    ("", "Charte, catalogues, contacts, interdits", "file",
+     "Règles et informations communes à tout le groupe."),
+]
+
+
+COMMENT = re.compile(r"<!--.*?-->\s*", re.DOTALL)
+
+
+def _todo_lines(text: str) -> list[str]:
+    text = COMMENT.sub("", text)
+    return [line.strip(" -#") for line in text.splitlines() if PLACEHOLDER.search(line)]
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:50] or "guide"
+
+
+def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
+    def direction_only(who: Principal) -> None:
+        if who.role == "valideur":
+            raise HTTPException(403)
+
+    # ------------------------------------------------------------ objectifs
+    @app.get("/objectifs", response_class=HTMLResponse)
+    def objectives(request: Request, who: Principal = Depends(user)):
+        with rt.sessions() as s:
+            items = s.scalars(select(Directive).order_by(desc(Directive.created_at))
+                              .limit(50)).all()
+            plan = s.scalars(select(JournalEntry).where(
+                JournalEntry.action_type == "report.publish",
+                JournalEntry.summary.like("Plan de la semaine%")).order_by(
+                desc(JournalEntry.id)).limit(1)).first()
+        now = utcnow()
+        active = [d for d in items if d.active and (d.until is None or as_utc(d.until) >= now)]
+        return page(request, "objectifs.html", active=active,
+                    past=[d for d in items if d not in active], plan=plan,
+                    poles=rt.org.poles, can_edit=who.role != "valideur")
+
+    @app.post("/objectifs")
+    def add_objective(texte: str = Form(...), pole: str = Form(""), jusqu_au: str = Form(""),
+                      who: Principal = Depends(user)):
+        direction_only(who)
+        texte = texte.strip()[:1000]
+        if not texte or (pole and pole not in rt.org.pole_codes):
+            return back("/objectifs", "Refusé : écrivez un objectif")
+        until = None
+        if jusqu_au:
+            until = datetime.combine(date.fromisoformat(jusqu_au), time(23, 59), UTC)
+        with rt.sessions() as s:
+            s.add(Directive(text=texte, pole=pole, until=until, created_by=who.label))
+            s.commit()
+        return back("/objectifs", "Objectif enregistré : les agents en tiennent compte "
+                                  "dès leur prochaine rédaction")
+
+    @app.post("/objectifs/{did}/retirer")
+    def remove_objective(did: int, who: Principal = Depends(user)):
+        direction_only(who)
+        with rt.sessions() as s:
+            d = s.get(Directive, did)
+            if d is None:
+                raise HTTPException(404)
+            d.active = False
+            s.commit()
+        return back("/objectifs", "Objectif retiré")
+
+    # ------------------------------------------------------------ calendrier éditorial
+    @app.get("/calendrier", response_class=HTMLResponse)
+    def calendar(request: Request, semaine: str = "", who: Principal = Depends(user)):
+        today = datetime.now(UTC).date()
+        try:
+            start = date.fromisoformat(semaine) if semaine else today
+        except ValueError:
+            start = today
+        start -= timedelta(days=start.weekday())
+        days = [start + timedelta(days=i) for i in range(7)]
+        with rt.sessions() as s:
+            posts = s.scalars(select(PendingAction).where(
+                PendingAction.action_type.in_(("social.post", "social.manual_post")),
+                PendingAction.created_at >= datetime.combine(start - timedelta(days=45),
+                                                             time(0), UTC))).all()
+        by_day: dict[date, list] = {d: [] for d in days}
+        for pa in posts:
+            if who.role == "valideur" and pa.pole not in who.poles:
+                continue
+            try:
+                day = date.fromisoformat(str(pa.payload.get("date", ""))[:10])
+            except ValueError:
+                continue
+            if day in by_day:
+                by_day[day].append(pa)
+        counts = {st: sum(pa.status == st for lst in by_day.values() for pa in lst)
+                  for st in ("pending", "executed", "rejected")}
+        return page(request, "calendrier.html", days=days, by_day=by_day, counts=counts,
+                    prev=(start - timedelta(days=7)).isoformat(),
+                    next=(start + timedelta(days=7)).isoformat(), start=start, today=today)
+
+    # ------------------------------------------------------------ base de connaissances
+    @app.get("/connaissances", response_class=HTMLResponse)
+    def knowledge(request: Request, who: Principal = Depends(user)):
+        groups = []
+        for kind, title, icon, why in KB_GROUPS:
+            known = {k for k, *_ in KB_GROUPS if k}
+            docs = [d for d in rt.kb.documents
+                    if (d.type == kind if kind else d.type not in known)]
+            rows = [(d, len(_todo_lines(d.body)), d.path in rt.kb.overrides) for d in docs]
+            groups.append((title, icon, why, kind, rows))
+        return page(request, "connaissances.html", groups=groups,
+                    can_edit=who.role != "valideur", poles=rt.org.poles,
+                    faq_ready=len(rt.kb.faq), faq_todo=len(rt.kb.faq_pending))
+
+    def _doc_or_404(path: str):
+        if ".." in path or not path.endswith(".md"):
+            raise HTTPException(404)
+        raw = rt.kb.raw(path)
+        if not raw:
+            raise HTTPException(404)
+        return raw
+
+    @app.get("/connaissances/document", response_class=HTMLResponse)
+    def knowledge_doc(request: Request, chemin: str, who: Principal = Depends(user)):
+        raw = _doc_or_404(chemin)
+        meta, body = split_front_matter(raw)
+        return page(request, "connaissance_edit.html", path=chemin, meta=meta,
+                    body=COMMENT.sub("", body).strip(), todo=_todo_lines(body),
+                    edited=chemin in rt.kb.overrides, can_edit=who.role != "valideur")
+
+    @app.post("/connaissances/document")
+    def knowledge_save(chemin: str = Form(...), contenu: str = Form(...),
+                       valide: str = Form(""), reponses_auto: str = Form(""),
+                       who: Principal = Depends(user)):
+        direction_only(who)
+        meta, _ = split_front_matter(_doc_or_404(chemin))
+        contenu = contenu.replace("\r\n", "\n").strip() + "\n"
+        todo = _todo_lines(contenu)
+        if meta.get("type") == "fiche_pole":
+            # Fiche utilisable par les agents seulement si validée ET sans « À COMPLÉTER »
+            if valide and not todo:
+                meta.pop("statut", None)
+            else:
+                meta["statut"] = "a_completer"
+        if meta.get("type") == "guide":
+            meta["reponses_auto"] = bool(reponses_auto)
+        raw = "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n" + contenu
+        with rt.sessions() as s:
+            s.merge(KnowledgeEdit(path=chemin, content=raw, updated_by=who.label,
+                                  updated_at=utcnow()))
+            s.commit()
+        reload_knowledge(rt)
+        msg = "Enregistré" + (f" : il reste {len(todo)} « À COMPLÉTER »" if todo else
+                              " : document complet")
+        return back(f"/connaissances/document?chemin={chemin}", msg)
+
+    @app.post("/connaissances/restaurer")
+    def knowledge_restore(chemin: str = Form(...), who: Principal = Depends(user)):
+        direction_only(who)
+        with rt.sessions() as s:
+            edit = s.get(KnowledgeEdit, chemin)
+            if edit is not None:
+                s.delete(edit)
+                s.commit()
+        reload_knowledge(rt)
+        exists = bool(rt.kb.file_text(chemin))
+        return back(f"/connaissances/document?chemin={chemin}" if exists else "/connaissances",
+                    "Version d'origine rétablie" if exists else "Document supprimé")
+
+    @app.post("/connaissances/guide")
+    def knowledge_new_guide(titre: str = Form(...), pole: str = Form("SOFT"),
+                            who: Principal = Depends(user)):
+        direction_only(who)
+        titre = titre.strip()[:150]
+        if not titre or pole not in rt.org.pole_codes:
+            return back("/connaissances", "Refusé : donnez un titre et un pôle")
+        path = f"guides/{_slug(titre)}.md"
+        if rt.kb.raw(path):
+            return back("/connaissances", "Un guide porte déjà ce titre")
+        meta = {"titre": titre, "pole": pole, "type": "guide", "reponses_auto": False}
+        body = (f"# {titre}\n\n## Présentation\nÀ COMPLÉTER\n\n## Étapes\n1. À COMPLÉTER\n\n"
+                "## Questions fréquentes\nÀ COMPLÉTER\n")
+        raw = "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n" + body
+        with rt.sessions() as s:
+            s.add(KnowledgeEdit(path=path, content=raw, updated_by=who.label))
+            s.commit()
+        reload_knowledge(rt)
+        return back(f"/connaissances/document?chemin={path}", "Guide créé : rédigez-le")
+
+    # ------------------------------------------------------------ boîtes mail
+    @app.get("/boites", response_class=HTMLResponse)
+    def mailboxes(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        with rt.sessions() as s:
+            stored = {r.adresse: r for r in s.scalars(select(MailboxAccount)).all()}
+        boxes = [(m, m.adresse in rt.dashboard_boxes, stored.get(m.adresse))
+                 for m in rt.org.mailboxes]
+        return page(request, "boites.html", boxes=boxes, poles=rt.org.poles,
+                    check=request.query_params.get("test", ""))
+
+    @app.post("/boites")
+    def add_mailbox(adresse: str = Form(...), hebergeur: str = Form("lws"),
+                    pole: str = Form(...), secret: str = Form(...),
+                    responsable: str = Form(""), signature: str = Form(""),
+                    imap_host: str = Form(""), smtp_host: str = Form(""),
+                    who: Principal = Depends(user)):
+        direction_only(who)
+        adresse = adresse.strip().lower()
+        if not EMAIL.match(adresse) or hebergeur not in ("lws", "gmail") \
+                or pole not in rt.org.pole_codes or not secret.strip():
+            return back("/boites", "Refusé : adresse, hébergeur, pôle et mot de passe requis")
+        if adresse in {m.adresse for m in rt.org.mailboxes} - rt.dashboard_boxes:
+            return back("/boites", "Refusé : cette boîte est déjà réglée sur le serveur")
+        box = with_lws_defaults(Mailbox(adresse=adresse, hebergeur=hebergeur, pole=pole,
+                                        imap_host=imap_host.strip(),
+                                        smtp_host=smtp_host.strip()))
+        with rt.sessions() as s:
+            s.merge(MailboxAccount(
+                adresse=adresse, hebergeur=hebergeur, pole=pole,
+                responsable=responsable.strip().lower(), signature=signature.strip(),
+                imap_host=box.imap_host, smtp_host=box.smtp_host,
+                secret_enc=encrypt(rt.settings.secret_key, secret.strip()),
+                active=True, updated_by=who.label, updated_at=utcnow()))
+            s.commit()
+        sync_mailboxes(rt)
+        return back("/boites", f"{adresse} raccordée : testez la connexion ci-dessous")
+
+    @app.post("/boites/tester")
+    def test_mailbox(adresse: str = Form(...), who: Principal = Depends(user)):
+        direction_only(who)
+        conn = rt.connectors.get(adresse)
+        if conn is None or not hasattr(conn, "check"):
+            return back("/boites", "Boîte introuvable")
+        try:
+            result = f"{adresse} : {conn.check()}"
+        except Exception as exc:  # noqa: BLE001 — affiché à l'utilisateur
+            result = f"Échec {adresse} : {type(exc).__name__} : {exc}"[:300]
+        return back("/boites", result)
+
+    @app.post("/boites/retirer")
+    def remove_mailbox(adresse: str = Form(...), who: Principal = Depends(user)):
+        direction_only(who)
+        with rt.sessions() as s:
+            row = s.get(MailboxAccount, adresse)
+            if row is None:
+                return back("/boites", "Seules les boîtes ajoutées ici se retirent ici")
+            s.delete(row)
+            s.commit()
+        sync_mailboxes(rt)
+        return back("/boites", f"{adresse} retirée : l'agent ne la lit plus")

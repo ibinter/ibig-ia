@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -14,6 +15,7 @@ from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
 from .agents.messagerie import MessagerieAgent
 from .agents.notifications import ValidatorNotifier
+from .agents.plan import WeeklyPlanner
 from .agents.revue import MonthlyReviewer
 from .agents.support import SupportAgent
 from .agents.veille import VeilleAgent
@@ -22,6 +24,7 @@ from .channels.mail import MailConnector, connector_for
 from .channels.web import WebConnector, sanitize_html, web_connector_for
 from .channels.whatsapp import WINDOW_HOURS, WhatsAppClient
 from .config import OrgConfig, Settings, get_settings, load_org_config
+from .configstore import directives_text, knowledge_overrides, sync_mailboxes
 from .db import WhatsAppContact, make_engine, open_db, utcnow
 from .governance import Executor, Governor, as_utc
 from .knowledge import KnowledgeBase
@@ -124,6 +127,9 @@ class Runtime:
     connectors: dict[str, MailConnector] = field(default_factory=dict)
     web_connectors: dict[str, WebConnector] = field(default_factory=dict)
     whatsapp_clients: dict[str, WhatsAppClient] = field(default_factory=dict)
+    # Boîtes raccordées depuis le tableau de bord, et fabrique de leurs connecteurs
+    dashboard_boxes: set[str] = field(default_factory=set)
+    connector_factory: Callable = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -142,11 +148,20 @@ class Runtime:
 
     @property
     def communication(self) -> CommunicationAgent:
-        return CommunicationAgent(self.org, self.kb, self.llm, self.governor)
+        return CommunicationAgent(self.org, self.kb, self.llm, self.governor,
+                                  directives=self.directives_for)
 
     @property
     def contenus_web(self) -> ContenusWebAgent:
-        return ContenusWebAgent(self.org, self.kb, self.llm, self.governor, self.sessions)
+        return ContenusWebAgent(self.org, self.kb, self.llm, self.governor, self.sessions,
+                                directives=self.directives_for)
+
+    @property
+    def planner(self) -> WeeklyPlanner:
+        return WeeklyPlanner(self.org, self.kb, self.llm, self.governor, self.sessions)
+
+    def directives_for(self, pole: str) -> str:
+        return directives_text(self.sessions, pole)
 
     @property
     def notifier(self) -> ValidatorNotifier:
@@ -188,7 +203,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     settings = settings or get_settings()
     org = load_org_config(settings.config_dir, settings.valideur_defaut)
     sessions = open_db(make_engine(settings.database_url))
-    kb = KnowledgeBase(settings.knowledge_dir)
+    kb = KnowledgeBase(settings.knowledge_dir, knowledge_overrides(sessions))
+    from_config = connectors is None
     if connectors is None:
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}
     if web_connectors is None:
@@ -202,5 +218,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
-    return Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
-                   whatsapp_clients)
+    rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
+                 whatsapp_clients, connector_factory=connector_for)
+    if from_config:
+        sync_mailboxes(rt)
+    return rt
