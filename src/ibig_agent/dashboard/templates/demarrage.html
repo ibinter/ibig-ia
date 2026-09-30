@@ -49,6 +49,7 @@
         {% if not s.done %}
         <div class="why"><b>Pourquoi :</b> {{ s.why }}</div>
         <div class="how">{{ icon('arrow-right') }}<span><b>Comment :</b> {{ s.how }}</span></div>
+        {% if s.link and user.role != 'valideur' %}<a class="btn sm {{ 'primary' if s.key == ns.next }}" href="{{ s.link }}" style="margin-top:10px">{{ icon('arrow-right') }} Y aller</a>{% endif %}
         {% endif %}
       </div>
     </li>

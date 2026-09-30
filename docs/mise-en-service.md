@@ -201,7 +201,9 @@ validées restent remises à l'équipe (publication manuelle).
 Menu **Services** :
 
 * **Voyage AI** (dash.voyageai.com) : collez la clé, l'agent indexe aussitôt la base de
-  connaissances dans PostgreSQL (pgvector). Le Support retrouve alors une réponse même
+  connaissances dans PostgreSQL (pgvector). Données envoyées à Voyage : le texte de la base
+  et, pour la recherche, la question posée au Support (section 13 : à mentionner dans la
+  politique de confidentialité, ou ne pas activer). Le Support retrouve alors une réponse même
   quand le client emploie d'autres mots. Sans clé : recherche par mots-clés, comme avant.
 * **OpenAI** (platform.openai.com, compte vérifié) : bouton « Générer une photo » sur
   chaque publication à valider. Environ 0,04 à 0,06 USD par image, comptés dans le

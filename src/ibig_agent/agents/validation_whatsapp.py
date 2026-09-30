@@ -123,8 +123,8 @@ class WhatsAppValidation:
 
     def notify(self, now: datetime | None = None) -> int:
         """Signale chaque nouvel élément de niveau 2 aux valideurs qui ont un numéro."""
-        if not self.number_id:
-            return 0
+        if not self.number_id or self.gov.is_stopped("whatsapp"):
+            return 0  # canal suspendu : on réessaiera à sa réactivation, sans remplir le journal
         now = now or utcnow()
         done = self._already_sent(now - timedelta(days=14))
         with self._sessions() as s:

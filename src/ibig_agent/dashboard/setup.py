@@ -22,6 +22,7 @@ class Step:
     how: str
     detail: str = ""
     optional: bool = False
+    link: str = ""  # page du tableau de bord où se fait l'étape
 
 
 def setup_steps(rt: Runtime) -> list[Step]:
@@ -41,7 +42,14 @@ def setup_steps(rt: Runtime) -> list[Step]:
 
     auto_on = sum(is_connected(rt.sessions, rt.settings, a.reseau, a.compte)
                   for a in org.social_accounts if a.publication_auto)
-    return [
+    from ..agents.veille import BASELINE_SETTING
+    from ..configstore import service_value
+    from ..db import User
+
+    get = lambda name: service_value(rt.sessions, rt.settings, name)
+    with rt.sessions() as s:
+        phones = [u for u in s.query(User).filter(User.active.is_(True)).all() if u.phone]
+    steps = [
         Step("install", "shield-check", "Installer le tableau de bord", True,
              "C'est ici que vous suivez et validez tout ce que fait l'agent.",
              "Fait : vous êtes connecté.", "installé, en HTTPS"),
@@ -88,8 +96,45 @@ def setup_steps(rt: Runtime) -> list[Step]:
              "Menu « Réseaux sociaux » : pour chaque page ou compte, coller les accès "
              "fournis par Meta, LinkedIn ou X, puis « Tester la connexion ».",
              f"{auto_on} compte(s) en publication automatique" if auto_on
-             else "publication manuelle pour l'instant", optional=True),
+             else "publication manuelle pour l'instant", optional=True, link="/reseaux"),
+        Step("reference", "clock", "Indiquer le temps passé avant l'agent",
+             bool(get(BASELINE_SETTING)),
+             "Pour mesurer l'objectif « −60 % d'heures de communication manuelle » "
+             "(section 3).",
+             "Menu « Indicateurs » : heures par semaine passées à trier les mails, répondre, "
+             "rédiger les publications et les articles.",
+             f"{get(BASELINE_SETTING)} h par semaine" if get(BASELINE_SETTING)
+             else "non renseigné", optional=True, link="/indicateurs"),
+        Step("whatsapp_validation", "message", "Valider depuis WhatsApp", bool(phones),
+             "Les valideurs répondent « OK 123 » depuis leur téléphone, sans ouvrir le "
+             "tableau de bord.",
+             "Raccorder un numéro WhatsApp Business (Meta), puis menu « Comptes » : "
+             "numéro WhatsApp de chaque valideur.",
+             f"{len(phones)} valideur(s) avec un numéro" if phones else "aucun numéro",
+             optional=True, link="/utilisateurs"),
+        Step("recherche", "book", "Activer la recherche par le sens", bool(get("voyage_api_key")),
+             "Le Support retrouve la bonne réponse même quand le client emploie d'autres "
+             "mots que la base.",
+             "Menu « Services » → Voyage AI : coller la clé (dash.voyageai.com).",
+             "active" if get("voyage_api_key") else "mots-clés seuls", optional=True,
+             link="/services"),
+        Step("photos", "sparkles", "Activer les photos par IA", bool(get("openai_api_key")),
+             "Une photo réaliste pour chaque publication, habillée aux couleurs IBIG.",
+             "Menu « Services » → Photos par IA : coller la clé OpenAI.",
+             "active" if get("openai_api_key") else "visuels aux couleurs IBIG seuls",
+             optional=True, link="/services"),
+        Step("brevo", "mail", "Envoyer des campagnes mail", bool(get("brevo_api_key")),
+             "Newsletters et annonces aux contacts qui l'ont accepté, par un service "
+             "d'emailing (section 9).",
+             "Menu « Services » → Brevo : clé API, expéditeur, domaine authentifié.",
+             "configuré" if get("brevo_api_key") else "non configuré", optional=True,
+             link="/services"),
     ]
+    links = {"mails": "/boites", "fiches": "/connaissances", "faq": "/connaissances",
+             "canaux": "/reseaux"}
+    for st in steps:
+        st.link = st.link or links.get(st.key, "")
+    return steps
 
 
 def progress(steps: list[Step]) -> tuple[int, int]:
