@@ -244,7 +244,8 @@ def create_app(rt: Runtime) -> FastAPI:
             return back("/agents", "Refusé : choisissez un compte et un sujet")
         account = accounts[compte]
         try:
-            day = date.fromisoformat(jour) if jour else date.today() + timedelta(days=1)
+            today = datetime.now(ZoneInfo(rt.settings.timezone)).date()
+            day = date.fromisoformat(jour) if jour else today + timedelta(days=1)
             pid = rt.communication.write_post(account.pole, account, sujet.strip()[:300], day)
         except Exception as exc:  # noqa: BLE001 — affiché, rien n'est publié
             return back("/agents", f"Échec de la rédaction : {exc}")

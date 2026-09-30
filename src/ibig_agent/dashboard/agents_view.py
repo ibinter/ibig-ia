@@ -54,21 +54,21 @@ def runners(rt: Runtime) -> dict[str, tuple]:
     return {
         "rapport": (rt.chef.run_daily, "Rapport en préparation : il apparaîtra dans Rapports."),
         "revue": (rt.revue.run, "Revue mensuelle en préparation : elle apparaîtra dans Rapports."),
-        "releve": (rt.messagerie.poll, "Relève des boîtes lancée : les mails traités "
-                   "apparaîtront dans le Journal et les réponses dans Validations."),
+        "releve": (rt.messagerie.poll, ("Relève des boîtes lancée : les mails traités "
+                   "apparaîtront dans le Journal et les réponses dans Validations.")),
         "calendrier": (lambda: rt.communication.weekly_calendar(next_monday(tz=tz)),
-                       "Calendrier de la semaine en préparation : les publications "
-                       "arriveront dans Validations d'ici quelques minutes."),
-        "articles": (rt.contenus_web.run, "Articles en rédaction : ils arriveront dans "
-                     "Validations d'ici quelques minutes."),
-        "qualifier": (rt.commercial.qualify_new, "Qualification des nouveaux prospects "
-                      "lancée : scores visibles dans Prospects."),
-        "relances": (rt.commercial.run, "Relances du jour en préparation : elles "
-                     "arriveront dans Validations."),
-        "veille": (rt.veille.check_alerts, "Vérification lancée : les alertes éventuelles "
-                   "apparaîtront dans Indicateurs."),
-        "indicateurs": (rt.veille.weekly_report, "Bilan des indicateurs en préparation : "
-                        "il apparaîtra dans Rapports."),
+                       ("Calendrier de la semaine en préparation : les publications "
+                        "arriveront dans Validations d'ici quelques minutes.")),
+        "articles": (rt.contenus_web.run, ("Articles en rédaction : ils arriveront dans "
+                     "Validations d'ici quelques minutes.")),
+        "qualifier": (rt.commercial.qualify_new, ("Qualification des nouveaux prospects "
+                      "lancée : scores visibles dans Prospects.")),
+        "relances": (rt.commercial.run, ("Relances du jour en préparation : elles "
+                     "arriveront dans Validations.")),
+        "veille": (rt.veille.check_alerts, ("Vérification lancée : les alertes éventuelles "
+                   "apparaîtront dans Indicateurs.")),
+        "indicateurs": (rt.veille.weekly_report, ("Bilan des indicateurs en préparation : "
+                        "il apparaîtra dans Rapports.")),
     }
 
 
