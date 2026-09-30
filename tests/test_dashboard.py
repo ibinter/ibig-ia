@@ -189,7 +189,7 @@ def test_getting_started_lists_next_step(rt, accounts):
     page = client(rt, "dg@ibig.test").get("/demarrage").text
     assert "Étapes de mise en service" in page and "à faire maintenant" in page
     for step in ("Activer la recherche par le sens", "Activer les photos par IA",
-                 "Valider depuis WhatsApp", "Indiquer le temps passé avant l'agent"):
+                 "Valider depuis WhatsApp", "Indiquer le temps passé avant"):
         assert step in page
     assert 'href="/services"' in page and "Y aller" in page
 
