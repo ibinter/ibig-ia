@@ -788,3 +788,45 @@ textarea.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .empty-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
 .empty-actions .quick-btn:hover { text-decoration: none; }
 @media (max-width: 900px) { .empty-actions { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------ Essayer l'agent (refonte) */
+.scenarios { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.scenario { display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 14px; font: inherit; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); color: var(--ink);
+  transition: transform .15s, border-color .15s; }
+.scenario:hover { transform: translateY(-2px); border-color: var(--brand); }
+.scenario.on { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.scenario .agent-ico { width: 40px; height: 40px; border-radius: 12px; }
+.scenario .agent-ico svg { width: 19px; height: 19px; }
+.scenario b { display: block; font-size: 14.5px; }
+.scenario small { color: var(--muted); font-size: 12.5px; }
+
+.mail-mock, .mail-preview { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+.mail-row { display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--line); min-height: 44px; }
+.mail-row > span { width: 52px; flex: none; font-size: 12.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.mail-row input, .mail-row select { border: 0; background: transparent; padding: 10px 0; box-shadow: none; flex: 1; min-width: 0; }
+.mail-row input:focus, .mail-row select:focus { box-shadow: none; }
+.mail-mock textarea { border: 0; border-radius: 0; min-height: 260px; padding: 14px; box-shadow: none; }
+.mail-preview .mail-row b { font-size: 13.5px; font-weight: 600; }
+.mail-preview pre { margin: 0; padding: 16px; white-space: pre-wrap; font-family: inherit; font-size: 14.5px; color: var(--ink); background: var(--bg-soft); }
+
+.pipeline { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin: 0 0 16px; padding: 0; counter-reset: p; }
+.pipeline li { display: flex; flex-direction: column; align-items: center; gap: 6px; position: relative; font-size: 12.5px; color: var(--muted); }
+.pipeline li::before { content: ""; position: absolute; top: 17px; left: -50%; width: 100%; height: 2px; background: var(--line-2); z-index: 0; }
+.pipeline li:first-child::before { display: none; }
+.pipeline li > span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-soft);
+  color: var(--muted); z-index: 1; border: 2px solid var(--line-2); }
+.pipeline li > span svg { width: 16px; height: 16px; }
+.pipeline li.ok > span { background: var(--ok); border-color: var(--ok); color: #fff; }
+.pipeline li.ok::before { background: var(--ok); }
+.pipeline li.ok.amber > span { background: var(--warn); border-color: var(--warn); }
+.pipeline li.ok.red > span { background: var(--bad); border-color: var(--bad); }
+.pipeline li.ok.blue > span { background: var(--brand); border-color: var(--brand); }
+.pipeline li.skip > span { border-style: dashed; }
+.pipeline.idle { margin-top: 18px; opacity: .7; }
+.next-step { display: flex; gap: 10px; margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--brand-soft);
+  color: var(--ink-2); font-size: 14px; }
+.next-step svg { color: var(--brand); flex: none; margin-top: 2px; }
+@media (max-width: 1180px) { .scenarios { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .scenarios { grid-template-columns: 1fr; } }
+.grid.trial { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } @media (max-width: 960px) { .grid.trial { grid-template-columns: 1fr; } }
