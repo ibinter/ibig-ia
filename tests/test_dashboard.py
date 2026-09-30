@@ -264,3 +264,14 @@ def test_home_lists_priorities_in_plain_words(rt, accounts, connector):
     assert "mail.reply" not in page
     direction = client(rt, "dg@ibig.test").get("/").text
     assert "Réponse test MARKET" in direction
+
+
+def test_journal_timeline_and_csv_export(rt, accounts, connector):
+    queue(rt, connector, pole="SOFT")
+    queue(rt, connector, pole="MARKET")
+    c = client(rt, "awa@ibig.test")
+    page = c.get("/journal").text
+    assert "Aujourd" in page and "Réponse par mail" in page
+    csv = c.get("/journal.csv")
+    assert csv.headers["content-type"].startswith("text/csv")
+    assert "Réponse test SOFT" in csv.text and "Réponse test MARKET" not in csv.text

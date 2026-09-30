@@ -2,138 +2,158 @@
 {% from "_icons.html" import icon, channel_icon %}
 {% block title %}Réseaux sociaux{% endblock %}
 {% block heading %}Réseaux sociaux{% endblock %}
-{% block lead %}<p class="lead">Publication automatique des posts validés, à leur date, à {{ hour }} h (section 8), et veille des commentaires des pages Facebook. Rien ne part sans validation ; les accès sont chiffrés dans le coffre et ne sont jamais réaffichés.</p>{% endblock %}
-{% block tools %}
-{% set n_on = rows | selectattr('connected') | list | length %}
-<span class="pill {{ 'green' if n_on else 'amber' }} dot">{{ n_on }} compte(s) en publication automatique</span>
-{% endblock %}
+{% block lead %}<p class="lead">Publication automatique des posts validés, le jour prévu à {{ hour }} h, veille des commentaires Facebook et numéros WhatsApp. Les accès sont chiffrés dans le coffre et ne sont jamais réaffichés.</p>{% endblock %}
 {% block content %}
+{% set n_on = rows | selectattr('connected') | list | length %}
+{% set n_todo = rows | selectattr('auto') | rejectattr('connected') | list | length %}
+{% set n_manual = rows | rejectattr('auto') | list | length %}
+{% set n_prog = posts | selectattr('status', 'equalto', 'programme') | list | length %}
+{% set n_neg = comments | selectattr('sentiment', 'equalto', 'negatif') | list | length %}
 {% if not public %}<div class="alert amber" style="margin-bottom:16px">{{ icon('alert') }}<span>L'adresse du tableau de bord n'est pas en https : les visuels ne seront pas joints (Instagram exige une image). Réglez <code>IBIG_DASHBOARD_URL</code>.</span></div>{% endif %}
 
-<div class="section-title" style="margin-top:4px">{{ icon('share') }}<h2>Comptes</h2></div>
-<div class="stack">
-{% for r in rows %}
-<article class="card">
-  <div class="switch-row" style="border:0;padding:0">
-    <div class="name"><span class="ico">{{ channel_icon(r.a.reseau.split('_')[0]) }}</span>
-      <div><b>{{ r.a.compte }}</b><div class="muted">{{ r.label }} · pôle {{ r.a.pole }}</div></div></div>
-    <span class="inline" style="gap:8px">
-    {% if r.connected %}<span class="pill green dot">publication automatique</span>
-    {% elif r.auto %}<span class="pill amber dot">à raccorder</span>
-    {% else %}<span class="pill dot">publication manuelle</span>{% endif %}
-    {% if can_edit and (r.a.reseau, r.a.compte) in mine %}<form method="post" action="/reseaux/comptes/retirer" onsubmit="return confirm('Retirer ce compte ?')"><input type="hidden" name="reseau" value="{{ r.a.reseau }}"><input type="hidden" name="compte" value="{{ r.a.compte }}"><button class="icon-btn" title="Retirer" aria-label="Retirer">{{ icon('x') }}</button></form>{% endif %}
-    </span>
+<div class="cal-stats">
+  <div class="cal-stat s-green"><b>{{ n_on }}</b><span>en publication automatique</span></div>
+  <div class="cal-stat s-amber"><b>{{ n_todo }}</b><span>à raccorder</span></div>
+  <div class="cal-stat s-violet"><b>{{ n_manual }}</b><span>publiés à la main</span></div>
+  <div class="cal-stat s-blue"><b>{{ n_prog }}</b><span>publications programmées</span></div>
+  <div class="cal-stat s-red"><b>{{ n_neg }}</b><span>commentaires négatifs</span></div>
+</div>
+
+<div class="card">
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab on" data-tab="t-comptes">{{ icon('share') }} Comptes <span class="pill">{{ rows | length }}</span></button>
+    <button type="button" class="tab" data-tab="t-prog">{{ icon('calendar') }} Programmées <span class="pill">{{ posts | length }}</span></button>
+    <button type="button" class="tab" data-tab="t-comm">{{ icon('eye') }} Commentaires <span class="pill {{ 'red' if n_neg }}">{{ comments | length }}</span></button>
+    <button type="button" class="tab" data-tab="t-wa">{{ icon('message') }} WhatsApp <span class="pill">{{ numbers | length }}</span></button>
   </div>
-  {% if not r.auto %}
-    <p class="muted small" style="margin:10px 0 0">Pas d'API de publication ouverte pour ce type de compte : l'agent prépare le texte et le visuel, l'équipe publie.</p>
-  {% elif can_edit %}
-  <details {{ '' if r.connected else 'open' if loop.index <= 1 else '' }}><summary>{{ icon('shield') }} Accès {{ r.label }}</summary><div class="inner">
-    <p class="muted small" style="margin:0 0 10px">{{ r.howto }}</p>
-    <form method="post" action="/reseaux/{{ r.i }}/acces" autocomplete="off">
-      <div class="grid g-2" style="gap:12px">
-      {% for k, lab, has in r.fields %}
-        <label class="field"><span>{{ lab }}{% if has %} <span class="pill green">enregistré</span>{% endif %}</span>
-          <input type="{{ 'text' if k.endswith('_id') else 'password' }}" name="{{ k }}" autocomplete="new-password" placeholder="{{ 'laisser vide pour garder' if has else '' }}"></label>
-      {% endfor %}
+
+  {# ------------------------------------------------ comptes #}
+  <div class="tab-panel" id="t-comptes">
+    <div class="acc-grid">
+    {% for r in rows | sort(attribute='connected') | sort(attribute='auto', reverse=true) %}
+    <article class="acc {{ 'on' if r.connected else ('todo' if r.auto else 'manual') }}">
+      <div class="acc-head">
+        <span class="acc-ico net-{{ r.a.reseau }}">{{ channel_icon(r.a.reseau.split('_')[0]) }}</span>
+        <div class="acc-name"><b>{{ r.a.compte }}</b><small>{{ r.label }} · {{ r.a.pole }}</small></div>
+        {% if can_edit and (r.a.reseau, r.a.compte) in mine %}<form method="post" action="/reseaux/comptes/retirer" onsubmit="return confirm('Retirer ce compte ?')"><input type="hidden" name="reseau" value="{{ r.a.reseau }}"><input type="hidden" name="compte" value="{{ r.a.compte }}"><button class="icon-btn" title="Retirer" aria-label="Retirer">{{ icon('x') }}</button></form>{% endif %}
       </div>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
+      {% if r.connected %}<span class="pill green dot">publication automatique</span>
+      {% elif r.auto %}<span class="pill amber dot">à raccorder</span>
+      {% else %}<span class="pill dot">publication à la main</span>
+        <p class="muted small" style="margin:0">Pas d'API ouverte : l'agent prépare texte et visuel, l'équipe publie.</p>{% endif %}
+      {% if r.auto and can_edit %}
+      <details><summary>{{ icon('shield') }} {{ 'Accès enregistrés' if r.connected else 'Raccorder ce compte' }}</summary><div class="inner">
+        <p class="muted small" style="margin:0 0 10px">{{ r.howto }}</p>
+        <form method="post" action="/reseaux/{{ r.i }}/acces" autocomplete="off">
+          {% for k, lab, has in r.fields %}
+            <label class="field"><span>{{ lab }}{% if has %} <span class="pill green">enregistré</span>{% endif %}</span>
+              <input type="{{ 'text' if k.endswith('_id') else 'password' }}" name="{{ k }}" autocomplete="new-password" placeholder="{{ 'laisser vide pour garder' if has else '' }}"></label>
+          {% endfor %}
+          <button class="btn sm primary">{{ icon('check') }} Enregistrer</button>
+        </form>
+        <div class="actions">
+          <form method="post" action="/reseaux/{{ r.i }}/tester"><button class="btn sm" {{ 'disabled' if not r.connected }}>{{ icon('shield-check') }} Tester</button></form>
+          {% if r.connected %}<form method="post" action="/reseaux/{{ r.i }}/retirer" onsubmit="return confirm('Retirer les accès ? Les publications repasseront en manuel.')"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer les accès</button></form>{% endif %}
+        </div>
+      </div></details>
+      {% endif %}
+    </article>
+    {% endfor %}
+    {% if can_edit %}
+    <form class="acc acc-new" method="post" action="/reseaux/comptes">
+      <div class="acc-head"><span class="acc-ico">{{ icon('share') }}</span><div class="acc-name"><b>Ajouter un compte</b><small>Page, groupe, compte ou chaîne WhatsApp</small></div></div>
+      <select name="reseau">{% for k, v in labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      <input type="text" name="compte" required placeholder="Nom du compte (ex. : IBIG EduForm)">
+      <select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select>
+      <button class="btn sm primary">{{ icon('check') }} Ajouter</button>
     </form>
-    <div class="actions">
-      <form method="post" action="/reseaux/{{ r.i }}/tester"><button class="btn sm" {{ 'disabled' if not r.connected }}>{{ icon('shield-check') }} Tester la connexion</button></form>
-      {% if r.connected %}<form method="post" action="/reseaux/{{ r.i }}/retirer" onsubmit="return confirm('Retirer les accès ? Les publications repasseront en manuel.')"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer les accès</button></form>{% endif %}
+    {% endif %}
     </div>
-  </div></details>
-  {% endif %}
-</article>
-{% endfor %}
-</div>
-
-{% if can_edit %}
-<form class="card" method="post" action="/reseaux/comptes" style="margin-top:16px">
-  <div class="card-head"><div><h2>{{ icon('share') }} Ajouter un compte ou une chaîne WhatsApp</h2>
-    <div class="sub">Page, groupe, compte ou chaîne rattaché à un pôle : l'agent Communication en tient compte dès le prochain calendrier.</div></div></div>
-  <div class="grid g-3" style="gap:12px">
-    <label class="field"><span>Réseau</span><select name="reseau" style="width:100%">{% for k, v in labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
-    <label class="field"><span>Nom du compte</span><input type="text" name="compte" required placeholder="Ex. : IBIG EduForm, @ibigdigital, Chaîne IBIG SOFT"></label>
-    <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
   </div>
-  <button class="btn primary">{{ icon('check') }} Ajouter</button>
-</form>
-{% endif %}
 
-<div class="section-title">{{ icon('message') }}<h2>Numéros WhatsApp Business</h2><span class="pill">API officielle de Meta</span></div>
-<div class="card">
-  {% if not numbers %}<div class="empty"><div class="bubble">{{ icon('message') }}</div><b>Aucun numéro raccordé</b>Réponses aux clients (fenêtre de 24 h, consentement, STOP) et validation « OK 123 » par les valideurs.</div>{% endif %}
-  {% for n, mine_n in numbers %}
-  <div class="switch-row">
-    <div class="name"><span class="ico">{{ icon('message') }}</span><div><b>{{ n.nom }}</b><div class="muted">+{{ n.numero }} · pôle {{ n.pole }}{% if not mine_n %} · réglé sur le serveur{% endif %}</div></div></div>
-    {% if can_edit %}<span class="inline" style="gap:8px">
-      <form method="post" action="/reseaux/whatsapp/tester"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm">{{ icon('shield-check') }} Tester</button></form>
-      {% if mine_n %}<form method="post" action="/reseaux/whatsapp/retirer" onsubmit="return confirm('Retirer ce numéro ?')"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>{% endif %}
-    </span>{% endif %}
+  {# ------------------------------------------------ publications programmées #}
+  <div class="tab-panel" id="t-prog" hidden>
+    {% if not posts %}<div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Aucune publication programmée</b>Une publication validée pour un compte raccordé apparaît ici, puis part seule à sa date.</div>
+    {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Compte</th><th>Publication</th><th>État</th><th></th></tr></thead>
+      <tbody>
+      {% for p in posts %}
+      <tr>
+        <td class="nowrap">{{ p.publish_at | quand }}</td>
+        <td><b>{{ p.compte }}</b><span class="sub">{{ labels.get(p.reseau, p.reseau) }} · {{ p.pole }}</span></td>
+        <td><b>{{ p.titre }}</b><span class="sub">{{ p.texte[:140] }}{{ '…' if p.texte | length > 140 }}</span>
+          {% if p.status == 'echec' %}<div class="alert" style="margin-top:6px">{{ icon('alert') }}<span>{{ p.result.get('erreur', '') }}</span></div>{% endif %}</td>
+        <td>{% if p.status == 'publie' %}<span class="pill green dot">publiée</span>
+          {% elif p.status == 'programme' %}<span class="pill blue dot">programmée</span>
+          {% elif p.status == 'en_cours' %}<span class="pill amber dot">en cours</span>
+          {% elif p.status == 'annule' %}<span class="pill">annulée</span>
+          {% else %}<span class="pill red dot">échec</span>{% endif %}</td>
+        <td>{% if p.status == 'programme' %}<form method="post" action="/reseaux/programme/{{ p.id }}/annuler" onsubmit="return confirm('Annuler cette publication ?')"><button class="btn sm ghost-bad">{{ icon('x') }} Annuler</button></form>
+          {% elif p.status == 'echec' %}<form method="post" action="/reseaux/programme/{{ p.id }}/reessayer"><button class="btn sm">{{ icon('arrow-right') }} Réessayer</button></form>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% endif %}
   </div>
-  {% endfor %}
-  {% if can_edit %}
-  <details {{ 'open' if not numbers }}><summary>{{ icon('shield') }} Raccorder un numéro</summary><div class="inner">
-    <p class="muted small" style="margin:0 0 10px">Meta Business → WhatsApp Manager → API : l'identifiant du numéro (Phone number ID) et un jeton d'accès permanent (utilisateur système, droits whatsapp_business_messaging). Le webhook se règle sur <code>/webhooks/whatsapp</code>.</p>
-    <form method="post" action="/reseaux/whatsapp" autocomplete="off">
-      <div class="grid g-2" style="gap:12px">
-        <label class="field"><span>Nom</span><input type="text" name="nom" required placeholder="IBIG EDUFORM — accueil"></label>
-        <label class="field"><span>Numéro</span><input type="tel" name="numero" required placeholder="+225 07 00 00 00 00"></label>
-        <label class="field"><span>Identifiant du numéro (Phone number ID)</span><input type="text" name="phone_number_id" required inputmode="numeric"></label>
-        <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
-      </div>
-      <label class="field"><span>Jeton d'accès permanent</span><input type="password" name="jeton" autocomplete="new-password" placeholder="EAAG…"></label>
-      <button class="btn primary">{{ icon('check') }} Raccorder le numéro</button>
-    </form>
-  </div></details>
-  {% endif %}
-</div>
 
-<div class="section-title">{{ icon('calendar') }}<h2>Publications programmées</h2></div>
-<div class="card">
-  {% if not posts %}<div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Aucune publication programmée</b>Une publication validée pour un compte raccordé apparaît ici, puis part seule à sa date.</div>
-  {% else %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>Date</th><th>Compte</th><th>Publication</th><th>État</th><th></th></tr></thead>
-    <tbody>
-    {% for p in posts %}
-    <tr>
-      <td class="nowrap">{{ p.publish_at | quand }}</td>
-      <td><b>{{ p.compte }}</b><span class="sub">{{ labels.get(p.reseau, p.reseau) }} · {{ p.pole }}</span></td>
-      <td><b>{{ p.titre }}</b><span class="sub">{{ p.texte[:140] }}{{ '…' if p.texte | length > 140 }}</span>
-        {% if p.status == 'echec' %}<div class="alert" style="margin-top:6px">{{ icon('alert') }}<span>{{ p.result.get('erreur', '') }}</span></div>{% endif %}</td>
-      <td>{% if p.status == 'publie' %}<span class="pill green dot">publiée</span>
-        {% elif p.status == 'programme' %}<span class="pill blue dot">programmée</span>
-        {% elif p.status == 'en_cours' %}<span class="pill amber dot">en cours</span>
-        {% elif p.status == 'annule' %}<span class="pill">annulée</span>
-        {% else %}<span class="pill red dot">échec</span>{% endif %}</td>
-      <td>{% if p.status == 'programme' %}<form method="post" action="/reseaux/programme/{{ p.id }}/annuler" onsubmit="return confirm('Annuler cette publication ?')"><button class="btn sm ghost-bad">{{ icon('x') }} Annuler</button></form>
-        {% elif p.status == 'echec' %}<form method="post" action="/reseaux/programme/{{ p.id }}/reessayer"><button class="btn sm">{{ icon('arrow-right') }} Réessayer</button></form>{% endif %}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-  {% endif %}
-</div>
+  {# ------------------------------------------------ commentaires #}
+  <div class="tab-panel" id="t-comm" hidden>
+    {% if not comments %}<div class="empty"><div class="bubble">{{ icon('message') }}</div><b>Aucun commentaire relevé</b>Dès qu'une page Facebook est raccordée, ses commentaires sont relus chaque heure ; un commentaire négatif déclenche une alerte à la direction et au valideur du pôle.</div>
+    {% else %}
+    <ul class="comment-list">
+      {% for c in comments %}
+      <li class="{{ c.sentiment }}">
+        <span class="avatar">{{ (c.author or 'A') | initiales }}</span>
+        <div><b>{{ c.author or 'Anonyme' }}</b> <span class="muted small">sur {{ c.compte }} · {{ c.seen_at | depuis }}</span>
+          <p>« {{ c.text[:400] }} »</p>{% if c.summary %}<small class="muted">{{ c.summary }}</small>{% endif %}</div>
+        {% if c.sentiment == 'negatif' %}<span class="pill red dot">négatif</span>{% elif c.sentiment == 'positif' %}<span class="pill green dot">positif</span>{% else %}<span class="pill">neutre</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
 
-<div class="section-title">{{ icon('eye') }}<h2>Veille des commentaires</h2><span class="pill">toutes les heures</span></div>
-<div class="card">
-  {% if not comments %}<div class="empty"><div class="bubble">{{ icon('message') }}</div><b>Aucun commentaire relevé</b>Dès qu'une page Facebook est raccordée, ses commentaires sont relus chaque heure ; un commentaire négatif déclenche une alerte à la direction et au valideur du pôle.</div>
-  {% else %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>Relevé</th><th>Page</th><th>Commentaire</th><th>Ton</th></tr></thead>
-    <tbody>
-    {% for c in comments %}
-    <tr>
-      <td class="nowrap">{{ c.seen_at | quand }}</td>
-      <td><b>{{ c.compte }}</b><span class="sub">{{ c.pole }}</span></td>
-      <td><b>{{ c.author or 'Anonyme' }}</b><span class="sub">« {{ c.text[:220] }} »{% if c.summary %} — {{ c.summary }}{% endif %}</span></td>
-      <td>{% if c.sentiment == 'negatif' %}<span class="pill red dot">négatif</span>{% elif c.sentiment == 'positif' %}<span class="pill green dot">positif</span>{% else %}<span class="pill">neutre</span>{% endif %}</td>
-    </tr>
+  {# ------------------------------------------------ WhatsApp #}
+  <div class="tab-panel" id="t-wa" hidden>
+    {% if not numbers %}<div class="empty"><div class="bubble">{{ icon('message') }}</div><b>Aucun numéro raccordé</b>Réponses aux clients (fenêtre de 24 h, consentement, STOP) et validation « OK 123 » par les valideurs.</div>{% endif %}
+    {% for n, mine_n in numbers %}
+    <div class="switch-row">
+      <div class="name"><span class="ico">{{ icon('message') }}</span><div><b>{{ n.nom }}</b><div class="muted">+{{ n.numero }} · pôle {{ n.pole }}{% if not mine_n %} · réglé sur le serveur{% endif %}</div></div></div>
+      {% if can_edit %}<span class="inline" style="gap:8px">
+        <form method="post" action="/reseaux/whatsapp/tester"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm">{{ icon('shield-check') }} Tester</button></form>
+        {% if mine_n %}<form method="post" action="/reseaux/whatsapp/retirer" onsubmit="return confirm('Retirer ce numéro ?')"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>{% endif %}
+      </span>{% endif %}
+    </div>
     {% endfor %}
-    </tbody>
-  </table></div>
-  {% endif %}
+    {% if can_edit %}
+    <details {{ 'open' if not numbers }}><summary>{{ icon('shield') }} Raccorder un numéro WhatsApp Business</summary><div class="inner">
+      <p class="muted small" style="margin:0 0 10px">Meta Business → WhatsApp Manager → API : l'identifiant du numéro (Phone number ID) et un jeton d'accès permanent (utilisateur système, droits whatsapp_business_messaging). Webhook à régler sur <code>/webhooks/whatsapp</code>.</p>
+      <form method="post" action="/reseaux/whatsapp" autocomplete="off">
+        <div class="grid g-2" style="gap:12px">
+          <label class="field"><span>Nom</span><input type="text" name="nom" required placeholder="IBIG EDUFORM — accueil"></label>
+          <label class="field"><span>Numéro</span><input type="tel" name="numero" required placeholder="+225 07 00 00 00 00"></label>
+          <label class="field"><span>Identifiant du numéro (Phone number ID)</span><input type="text" name="phone_number_id" required inputmode="numeric"></label>
+          <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+        </div>
+        <label class="field"><span>Jeton d'accès permanent</span><input type="password" name="jeton" autocomplete="new-password" placeholder="EAAG…"></label>
+        <button class="btn primary">{{ icon('check') }} Raccorder le numéro</button>
+      </form>
+    </div></details>
+    {% endif %}
+  </div>
 </div>
+<script>
+(function () {
+  function open(name) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.tab === name); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = p.id !== name; });
+    try { sessionStorage.setItem('reseaux-tab', name); } catch (e) {}
+  }
+  document.querySelectorAll('.tab').forEach(function (t) { t.addEventListener('click', function () { open(t.dataset.tab); }); });
+  var saved = null; try { saved = sessionStorage.getItem('reseaux-tab'); } catch (e) {}
+  if (saved && document.getElementById(saved)) open(saved);
+})();
+</script>
 {% endblock %}

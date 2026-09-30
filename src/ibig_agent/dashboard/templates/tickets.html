@@ -2,30 +2,47 @@
 {% from "_icons.html" import icon, channel_icon %}
 {% block title %}Support{% endblock %}
 {% block heading %}Support{% endblock %}
-{% block lead %}<p class="lead">Questions que l'agent Support et SARA n'ont pas traitées seuls, avec une proposition de réponse sourcée.</p>{% endblock %}
+{% block lead %}<p class="lead">Les questions que l'agent Support et SARA n'ont pas pu traiter seuls, avec une proposition de réponse sourcée quand la base le permet.</p>{% endblock %}
 {% block tools %}
 <div class="seg"><a href="/tickets" class="{{ 'on' if not tous }}">Ouverts</a><a href="?tous=1" class="{{ 'on' if tous }}">Tous</a></div>
 {% endblock %}
 {% block content %}
+<div class="cal-stats" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+  <div class="cal-stat s-red"><b>{{ n_open }}</b><span>ticket{{ 's' if n_open > 1 }} ouvert{{ 's' if n_open > 1 }}</span></div>
+  <div class="cal-stat s-green"><b>{{ n_done }}</b><span>résolu{{ 's' if n_done > 1 }}</span></div>
+</div>
 {% if not rows %}
-<div class="card"><div class="empty"><div class="bubble">{{ icon('life') }}</div><b>Aucun ticket</b>{{ 'Aucun ticket ouvert : le support est à jour.' if not tous else 'Aucun ticket pour le moment.' }}</div></div>
+<div class="card"><div class="empty"><div class="bubble" style="background:var(--ok-soft);color:var(--ok)">{{ icon('check') }}</div><b>{{ 'Aucun ticket ouvert' if not tous else 'Aucun ticket pour le moment' }}</b>Quand l'agent ne trouve pas la réponse dans les guides, la question arrive ici avec ce qu'il a pu préparer.</div></div>
 {% endif %}
 <div class="stack">
 {% for t in rows %}
-<article class="card item {{ 'l3' if t.status == 'ouvert' else '' }} fade-in">
-  <div class="meta">
-    <span class="pill {{ 'red dot' if t.status == 'ouvert' else 'green' }}">{{ t.status | statut }}</span>
-    <span class="pill blue">{{ channel_icon(t.channel) }} {{ t.channel }}</span>
-    {% if t.pole %}<span class="pill violet">{{ t.pole }}</span>{% endif %}
-    <span class="muted">n° {{ t.id }} · {{ t.created_at | quand }} · contact : {{ t.contact or 'non communiqué' }}</span>
+{% set CH = {'sara': 'Chat SARA', 'mail': 'Mail', 'whatsapp': 'WhatsApp'} %}
+<article class="card vitem {{ 'human' if t.status == 'ouvert' else 'done' }} fade-in">
+  <header class="vhead">
+    <span class="vico">{{ channel_icon(t.channel) }}</span>
+    <div class="vtitle">
+      <div class="vkind">Ticket n° {{ t.id }} · {{ CH.get(t.channel, t.channel) }}{% if t.pole %} · <b>{{ t.pole }}</b>{% endif %} · {{ t.contact or 'contact non communiqué' }}</div>
+      <h3>{{ t.question.split('\n')[0][:140] }}</h3>
+    </div>
+    <div class="vwhen">{% if t.status == 'ouvert' %}<span class="pill red dot">ouvert</span>{% else %}<span class="pill green">résolu</span>{% endif %}<span class="muted small">{{ t.created_at | depuis }}</span></div>
+  </header>
+  <blockquote class="question">{{ t.question }}</blockquote>
+  {% if t.reason %}<div class="vfacts"><span>{{ icon('hand') }} Pourquoi un humain : {{ t.reason }}</span></div>{% endif %}
+  {% if t.draft %}
+  <div class="draft-box">
+    <div class="draft-head"><b>{{ icon('sparkles') }} Proposition de réponse (à vérifier)</b>
+      <button type="button" class="btn sm" onclick="navigator.clipboard.writeText(this.closest('.draft-box').querySelector('pre').innerText);this.textContent='Copié ✓'">Copier</button></div>
+    <pre>{{ t.draft }}</pre>
+    {% for src in t.sources %}<div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>{% endfor %}
   </div>
-  <div class="summary"><pre>{{ t.question }}</pre></div>
-  {% if t.reason %}<p class="muted">{{ icon('hand') }} Pourquoi un humain : {{ t.reason }}</p>{% endif %}
-  {% if t.draft %}<details><summary>{{ icon('sparkles') }} Proposition de réponse (à vérifier)</summary><div class="inner"><pre>{{ t.draft }}</pre>
-    {% for src in t.sources %}<div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>{% endfor %}</div></details>{% endif %}
+  {% endif %}
   {% if t.status == 'ouvert' %}
-  <form method="post" action="/tickets/{{ t.id }}/resolu" class="actions"><button class="btn ok">{{ icon('check') }} Marquer comme résolu</button></form>
-  {% else %}<p class="muted">{{ icon('check-circle') }} Résolu par {{ t.resolved_by }}{% if t.resolved_at %} · {{ t.resolved_at | quand }}{% endif %}</p>{% endif %}
+  <div class="vactions">
+    <form method="post" action="/tickets/{{ t.id }}/resolu"><button class="btn ok">{{ icon('check') }} Marquer comme résolu</button></form>
+    {% if '@' in (t.contact or '') %}<a class="btn" href="mailto:{{ t.contact }}?subject={{ ('Votre question : ' ~ t.question.split('\n')[0][:80]) | urlencode }}&body={{ (t.draft or '') | urlencode }}">{{ icon('mail') }} Répondre par mail</a>{% endif %}
+    {% if user.role != 'valideur' %}<a class="btn ghost" href="/connaissances" title="Ajoutez la réponse dans un guide : l'agent répondra seul la prochaine fois">{{ icon('book') }} Compléter un guide</a>{% endif %}
+  </div>
+  {% else %}<p class="muted small" style="margin:0">{{ icon('check-circle') }} Résolu par {{ t.resolved_by }}{% if t.resolved_at %} · {{ t.resolved_at | quand }}{% endif %}</p>{% endif %}
 </article>
 {% endfor %}
 </div>

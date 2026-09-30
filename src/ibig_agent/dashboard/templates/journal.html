@@ -2,41 +2,75 @@
 {% from "_icons.html" import icon, channel_icon %}
 {% block title %}Journal{% endblock %}
 {% block heading %}Journal des actions{% endblock %}
-{% block lead %}<p class="lead">Chaque action de chaque agent, avec son niveau, son statut et qui l'a décidée.</p>{% endblock %}
-{% block tools %}<input type="text" id="q" placeholder="Rechercher…" style="width:240px" oninput="filtre(this.value)">{% endblock %}
+{% block lead %}<p class="lead">Tout ce que font les agents, avec le niveau de chaque action, son résultat et la personne qui l'a décidée (section 12).</p>{% endblock %}
+{% block tools %}<a class="btn" href="/journal.csv">{{ icon('file') }} Exporter (CSV)</a>{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="card-head">
-    <div class="pills"><span class="pill green dot">niveau 1 · automatique</span><span class="pill amber dot">niveau 2 · validation</span><span class="pill red dot">niveau 3 · humain</span></div>
-    <span class="sub">{{ rows | length }} dernières entrées</span>
+{% set GROUP = {'executed': 'ok', 'approved': 'ok', 'handled': 'ok', 'pending': 'wait', 'queued': 'wait', 'prepared': 'wait',
+                'failed': 'ko', 'rejected': 'ko', 'blocked': 'ko', 'flagged': 'alert'} %}
+<div class="filter-bar">
+  <div class="chips">
+    <button type="button" class="chip on" data-f="">Tout <span>{{ rows | length }}</span></button>
+    <button type="button" class="chip" data-f="auto">Automatique</button>
+    <button type="button" class="chip" data-f="human">Décidé par un humain</button>
+    <button type="button" class="chip" data-f="ko">Échecs et blocages</button>
+    <button type="button" class="chip" data-f="alert">Alertes</button>
   </div>
-  {% if rows %}
-  <div class="table-wrap"><table id="t">
-    <thead><tr><th>Quand</th><th>Action</th><th>Niveau</th><th>Canal</th><th>Statut</th><th>Résumé</th><th>Par</th></tr></thead>
-    <tbody>
-    {% for r in rows %}
-    <tr>
-      <td style="white-space:nowrap"><b>{{ r.created_at | quand }}</b><span class="sub">{{ r.created_at | depuis }}</span></td>
-      <td><b>{{ r.action_type }}</b><span class="sub">agent {{ r.agent }}{% if r.pole %} · {{ r.pole }}{% endif %}</span></td>
-      <td><span class="pill {{ {1: 'green', 2: 'amber', 3: 'red'}.get(r.level, '') }}">{{ r.level }}</span></td>
-      <td><span class="inline" style="gap:6px">{{ channel_icon(r.channel) }}{{ r.channel }}</span><span class="sub">{{ r.account }}</span></td>
-      <td><span class="pill {{ {'executed': 'green', 'approved': 'green', 'handled': 'green', 'pending': 'amber', 'prepared': 'violet', 'failed': 'red', 'rejected': 'red', 'blocked': 'red', 'flagged': 'amber'}.get(r.status, '') }}">{{ r.status | statut }}</span></td>
-      <td style="min-width:260px">{{ r.summary }}</td>
-      <td class="muted">{{ r.decided_by }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table></div>
-  {% else %}
-  <div class="empty"><div class="bubble">{{ icon('list') }}</div><b>Journal vide</b>La première action de l'agent s'inscrira ici.</div>
-  {% endif %}
+  <div class="inline" style="gap:8px">
+    {% if agents | length > 1 %}<select id="f-agent" aria-label="Agent"><option value="">Tous les agents</option>{% for a in agents %}<option>{{ a }}</option>{% endfor %}</select>{% endif %}
+    <input type="search" id="q" placeholder="Rechercher…" style="width:200px">
+  </div>
 </div>
+
+{% if rows %}
+<div class="card timeline">
+  {% set ns = namespace(day='') %}
+  {% for r in rows %}
+    {% set d = r.created_at | jour_titre %}
+    {% if d != ns.day %}{% set ns.day = d %}<h3 class="tl-day">{{ d }}</h3>{% endif %}
+    {% set g = GROUP.get(r.status, '') %}
+    <div class="tl-row" data-agent="{{ r.agent }}"
+         data-f="{{ 'auto' if r.level == 1 and not r.decided_by else '' }} {{ 'human' if r.decided_by else '' }} {{ g }}">
+      <span class="tl-time">{{ r.created_at | heure }}</span>
+      <span class="tl-dot lv{{ r.level }}">{{ icon(r.action_type | action_icon) }}</span>
+      <div class="tl-body">
+        <b>{{ (r.summary | lisible) or (r.action_type | action_label) }}</b>
+        <small>{{ r.action_type | action_label }} · agent {{ r.agent }}{% if r.pole %} · {{ r.pole }}{% endif %}{% if r.account %} · {{ r.account | lisible }}{% endif %}{% if r.decided_by %} · <b class="who">décidé par {{ r.decided_by }}</b>{% endif %}</small>
+      </div>
+      <span class="pill {{ {'ok': 'green', 'wait': 'amber', 'ko': 'red', 'alert': 'amber'}.get(g, '') }}">{{ r.status | statut }}</span>
+    </div>
+  {% endfor %}
+  <p class="muted filter-empty" hidden style="text-align:center">Aucune entrée pour ce filtre.</p>
+</div>
+<p class="muted small" style="text-align:center">{{ rows | length }} dernières entrées · <span class="pill green dot">niveau 1 · automatique</span> <span class="pill amber dot">niveau 2 · validation</span> <span class="pill red dot">niveau 3 · humain</span></p>
+{% else %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('list') }}</div><b>Journal vide</b>La première action de l'agent s'inscrira ici.</div></div>
+{% endif %}
 <script>
-function filtre(v) {
-  v = v.toLowerCase();
-  document.querySelectorAll('#t tbody tr').forEach(function (tr) {
-    tr.style.display = tr.textContent.toLowerCase().indexOf(v) === -1 ? 'none' : '';
+(function () {
+  var f = '', agent = '', q = '';
+  var rows = document.querySelectorAll('.tl-row');
+  function apply() {
+    var shown = 0;
+    rows.forEach(function (el) {
+      var ok = (!f || el.dataset.f.split(' ').indexOf(f) !== -1) && (!agent || el.dataset.agent === agent)
+        && (!q || el.textContent.toLowerCase().indexOf(q) !== -1);
+      el.hidden = !ok; if (ok) shown++;
+    });
+    document.querySelectorAll('.tl-day').forEach(function (h) {
+      var n = h.nextElementSibling, any = false;
+      while (n && !n.classList.contains('tl-day')) { if (n.classList.contains('tl-row') && !n.hidden) any = true; n = n.nextElementSibling; }
+      h.hidden = !any;
+    });
+    var e = document.querySelector('.filter-empty'); if (e) e.hidden = shown > 0;
+  }
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); f = b.dataset.f; apply();
+    });
   });
-}
+  var sel = document.getElementById('f-agent'); if (sel) sel.addEventListener('change', function () { agent = sel.value; apply(); });
+  document.getElementById('q').addEventListener('input', function () { q = this.value.toLowerCase(); apply(); });
+})();
 </script>
 {% endblock %}

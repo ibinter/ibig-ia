@@ -206,7 +206,7 @@ def login(rt, email):
 def test_networks_page_saves_encrypted_access(rt, meta, accounts):
     c = login(rt, "dg@ibig.test")
     page = c.get("/reseaux").text
-    assert "IBIG Soft" in page and "publication manuelle" in page  # groupes, TikTok
+    assert "IBIG Soft" in page and "publication à la main" in page  # groupes, TikTok
     idx = next(i for i, a in enumerate(rt.org.social_accounts)
                if a.reseau == "facebook_page" and a.compte == "IBIG Soft")
     r = c.post(f"/reseaux/{idx}/acces", data={"page_id": "4242", "token": "jeton-secret"},

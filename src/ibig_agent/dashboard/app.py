@@ -26,7 +26,7 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 
 from ..auth import Principal, UserStore, make_session, read_action_token, read_session
 from ..channels.mail import MailMessage
@@ -61,11 +61,21 @@ ACTION_LABELS = {
     "legal": "Juridique", "contract": "Contrat", "refund": "Remboursement",
     "payment": "Paiement", "discount": "Remise", "pricing.unpublished": "Tarif hors grille",
     "media.reply": "Presse", "crisis": "Crise",
+    "support.ticket": "Ticket de support", "commercial.alert": "Alerte commerciale",
+    "commercial.qualify": "Prospect qualifié", "commercial.handoff": "Transmis au Commercial",
+    "prospect.gagne": "Prospect gagné", "prospect.perdu": "Prospect perdu",
+    "prospect.stop": "Relances arrêtées", "prospect.reprise": "Relances reprises",
+    "channel.stop": "Canal suspendu", "channel.resume": "Canal réactivé",
+    "kb.import": "Import depuis les sites", "approval.stale": "Validation en retard (24 h)",
+    "killswitch.stop": "Bouton d'arrêt", "mail.manual_triage": "Mail à trier à la main",
+    "privacy.erase": "Effacement de données", "privacy.purge": "Purge des données",
+    "prospect.opt_out": "Désinscription", "support.resolve": "Ticket résolu",
 }
 ACTION_ICONS = {"mail": "mail", "support": "life", "sara": "bot", "whatsapp": "message",
                 "social": "share", "web": "globe", "campaign": "mail", "commercial": "target",
                 "notify": "users", "report": "file", "veille": "eye", "budget": "wallet",
-                "security": "shield", "complaint": "alert", "channel": "power",
+                "security": "shield", "complaint": "alert", "channel": "power", "killswitch": "power",
+                "approval": "clock", "privacy": "lock", "prospect": "target", "kb": "book",
                 "legal": "hand", "contract": "hand", "refund": "wallet", "payment": "wallet",
                 "discount": "wallet", "pricing": "wallet", "media": "alert", "crisis": "alert"}
 
@@ -129,6 +139,20 @@ def install_filters(tz: ZoneInfo) -> None:
     def jour_court(dt: datetime) -> str:
         return f"{JOURS[dt.weekday()][:3]}. {dt.day}"
 
+    def jour_titre(dt: datetime | None) -> str:
+        """Titre de journée : « Aujourd'hui », « Hier » ou « mardi 29 sept. »."""
+        if not dt:
+            return ""
+        d, today = local(dt).date(), datetime.now(tz).date()
+        if d == today:
+            return "Aujourd'hui"
+        if d == today - timedelta(days=1):
+            return "Hier"
+        return f"{JOURS[d.weekday()]} {d.day} {MOIS[d.month - 1]}"
+
+    def heure(dt: datetime | None) -> str:
+        return f"{local(dt):%H:%M}" if dt else ""
+
     def jour_iso(value: str) -> str:
         """« 2026-10-06 » → « mardi 6 oct. »"""
         try:
@@ -148,7 +172,7 @@ def install_filters(tz: ZoneInfo) -> None:
                "resolu": "résolu", "en_cours": "en cours"}
     env.filters["statut"] = lambda v: statuts.get(v, (v or "").replace("_", " "))
     env.filters.update(local=local, quand=quand, depuis=depuis, jour_court=jour_court,
-                       initiales=initiales, jour_iso=jour_iso,
+                       initiales=initiales, jour_iso=jour_iso, jour_titre=jour_titre, heure=heure,
                        action_label=lambda t: ACTION_LABELS.get(t, (t or "").replace(".", " ")),
                        action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"),
                        lisible=lisible,
@@ -542,7 +566,32 @@ def create_app(rt: Runtime) -> FastAPI:
             q = q.where(JournalEntry.pole.in_(who.poles))
         with rt.sessions() as s:
             rows = s.scalars(q).all()
-        return page(request, "journal.html", rows=rows)
+        return page(request, "journal.html", rows=rows,
+                    agents=sorted({r.agent for r in rows if r.agent}))
+
+    @app.get("/journal.csv")
+    def journal_csv(who: Principal = Depends(user)):
+        """Export du journal (audit, section 12) : 5 000 dernières entrées de ses pôles."""
+        import csv
+        import io
+
+        q = select(JournalEntry).order_by(desc(JournalEntry.id)).limit(5000)
+        if who.role == "valideur":
+            q = q.where(JournalEntry.pole.in_(who.poles))
+        with rt.sessions() as s:
+            rows = s.scalars(q).all()
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=";")
+        w.writerow(["date", "agent", "action", "niveau", "canal", "compte", "pole", "statut",
+                    "resume", "decide_par"])
+        for r in rows:
+            w.writerow([_aware(r.created_at).isoformat(), r.agent, r.action_type, r.level,
+                        r.channel, r.account, r.pole, r.status,
+                        # Pas de formule exécutable à l'ouverture dans un tableur
+                        ("'" + r.summary) if (r.summary or "")[:1] in "=+-@" else r.summary,
+                        r.decided_by])
+        return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": "attachment; filename=journal-ibig.csv"})
 
     @app.get("/arret", response_class=HTMLResponse)
     def stop_page(request: Request, who: Principal = Depends(user)):
@@ -578,9 +627,14 @@ def create_app(rt: Runtime) -> FastAPI:
             if not tous:
                 q = q.where(Ticket.status == "ouvert")
             rows = s.scalars(q).all()
+            cq = select(Ticket.status, func.count()).group_by(Ticket.status)
+            if who.role == "valideur":
+                cq = cq.where(Ticket.pole.in_(who.poles))
+            counts = dict(s.execute(cq).all())
         if who.role == "valideur":
             rows = [t for t in rows if t.pole in who.poles]
-        return page(request, "tickets.html", rows=rows, tous=tous)
+        return page(request, "tickets.html", rows=rows, tous=tous,
+                    n_open=counts.get("ouvert", 0), n_done=counts.get("resolu", 0))
 
     @app.post("/tickets/{tid}/resolu")
     def ticket_resolved(tid: int, who: Principal = Depends(user)):
