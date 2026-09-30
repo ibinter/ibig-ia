@@ -188,3 +188,40 @@ def test_trial_blocks_injection_before_drafting(rt, accounts, llm):
 def test_getting_started_lists_next_step(rt, accounts):
     page = client(rt, "dg@ibig.test").get("/demarrage").text
     assert "Étapes de mise en service" in page and "à faire maintenant" in page
+
+
+def test_agents_page_lists_every_agent(rt, accounts):
+    page = client(rt, "dg@ibig.test").get("/agents").text
+    for name in ("Agent chef", "Agent Messagerie", "Agent Communication",
+                 "Agent Contenus web", "Agent Commercial", "Agent Support et SARA",
+                 "Agent Veille", "WhatsApp Business"):
+        assert name in page
+    assert "Relever les mails maintenant" in page
+
+
+def test_only_direction_can_launch_agents(rt, accounts):
+    from ibig_agent.db import JournalEntry
+
+    r = client(rt, "awa@ibig.test").post("/agents/lancer/rapport", follow_redirects=False)
+    assert "Refus" in r.headers["location"]
+    r = client(rt, "dg@ibig.test").post("/agents/lancer/rapport", follow_redirects=False)
+    assert r.status_code == 303 and "Refus" not in r.headers["location"]
+    with rt.sessions() as s:  # la tâche d'arrière-plan a publié le rapport
+        assert s.query(JournalEntry).filter_by(action_type="report.publish").count() == 1
+    assert client(rt, "dg@ibig.test").post("/agents/lancer/inconnu").status_code == 404
+
+
+def test_publication_on_demand_goes_to_validation(rt, accounts):
+    from ibig_agent.config import SocialAccount
+    from ibig_agent.db import PendingAction
+
+    rt.org.social_accounts.append(SocialAccount(reseau="linkedin", compte="IBIG Soft",
+                                                pole="SOFT", publication_auto=False))
+    idx = len(rt.org.social_accounts) - 1
+    r = client(rt, "dg@ibig.test").post("/agents/publication", data={
+        "compte": idx, "sujet": "Rentrée", "jour": "2026-10-05"}, follow_redirects=False)
+    assert r.headers["location"].startswith("/validations")
+    with rt.sessions() as s:
+        pa = s.query(PendingAction).one()
+    assert pa.action_type == "social.manual_post" and pa.status == "pending"
+    assert pa.payload["texte"].startswith("La rentrée")

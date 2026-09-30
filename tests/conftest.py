@@ -43,6 +43,8 @@ class FakeLLM:
         self.calls.append(purpose)
         if purpose == "social.calendar":
             return self.calendar
+        if purpose == "social.post":
+            return {"texte": "La rentrée approche avec IBIG School.", "brief_visuel": "Classe"}
         if purpose == "support.answer":
             self.last_support_user = user
             return dict(self.support_answer)

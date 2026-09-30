@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=4">
+<link rel="stylesheet" href="/static/app.css?v=5">
 </head>
 <body>
 {% if user %}
@@ -29,6 +29,7 @@
       {% if user.role != 'valideur' and badges.get('demarrage') %}{{ nav('/demarrage', 'book', 'Mise en route', badges.get('demarrage'), cls='setup') }}{% endif %}
       {{ nav('/', 'home', 'Accueil') }}
       {{ nav('/validations', 'check-circle', 'Validations', badges.get('validations', 0)) }}
+      {{ nav('/agents', 'bot', 'Agents IA') }}
       {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
       <div class="nav-title">Activité</div>
       {{ nav('/prospects', 'target', 'Prospects') }}

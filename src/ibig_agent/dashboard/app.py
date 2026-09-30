@@ -9,7 +9,7 @@ from __future__ import annotations
 import secrets
 import time
 from collections import defaultdict, deque
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -28,6 +28,8 @@ from ..config import Mailbox
 from ..db import JournalEntry, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
+from ..scheduler import _safe
+from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
 
@@ -202,6 +204,53 @@ def create_app(rt: Runtime) -> FastAPI:
                     setup=progress(steps) if steps else (0, 0))
 
     trials: dict[int, deque[float]] = defaultdict(deque)
+    running: set[str] = set()
+
+    @app.get("/agents", response_class=HTMLResponse)
+    def agents(request: Request, who: Principal = Depends(user)):
+        accounts = [(i, a) for i, a in enumerate(rt.org.social_accounts)
+                    if a.pole in rt.org.pole_codes]
+        return page(request, "agents.html", cards=agent_cards(rt), accounts=accounts,
+                    running=running, can_run=who.role != "valideur")
+
+    @app.post("/agents/lancer/{key}")
+    def run_agent(key: str, tasks: BackgroundTasks, who: Principal = Depends(user)):
+        jobs = runners(rt)
+        if key not in jobs:
+            raise HTTPException(404)
+        if who.role == "valideur":
+            return back("/agents", "Refusé : les agents se lancent depuis un compte direction")
+        if key in running:
+            return back("/agents", "Déjà en cours : patientez quelques instants")
+        fn, msg = jobs[key]
+
+        def job():
+            running.add(key)
+            try:
+                _safe(f"{key} (tableau de bord, {who.email})", fn)()
+            finally:
+                running.discard(key)
+
+        tasks.add_task(job)
+        return back("/agents", msg)
+
+    @app.post("/agents/publication")
+    def write_post(compte: int = Form(...), sujet: str = Form(...), jour: str = Form(""),
+                   who: Principal = Depends(user)):
+        if who.role == "valideur":
+            return back("/agents", "Refusé : réservé à la direction")
+        accounts = rt.org.social_accounts
+        if not 0 <= compte < len(accounts) or not sujet.strip() or rt.llm is None:
+            return back("/agents", "Refusé : choisissez un compte et un sujet")
+        account = accounts[compte]
+        try:
+            day = date.fromisoformat(jour) if jour else date.today() + timedelta(days=1)
+            pid = rt.communication.write_post(account.pole, account, sujet.strip()[:300], day)
+        except Exception as exc:  # noqa: BLE001 — affiché, rien n'est publié
+            return back("/agents", f"Échec de la rédaction : {exc}")
+        if pid is None:
+            return back("/agents", "Échec : publication non créée")
+        return back("/validations", "Publication rédigée : relisez-la ci-dessous puis validez")
 
     @app.get("/essai", response_class=HTMLResponse)
     def trial_form(request: Request, who: Principal = Depends(user)):

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Agents IA{% endblock %}
+{% block heading %}Les agents IA{% endblock %}
+{% block lead %}<p class="lead">L'équipe d'agents du cahier des charges (section 6) : ce que fait chacun, quand il agit, et ce que vous pouvez lui demander tout de suite. Tout ce qu'ils préparent passe par <a href="/validations">Validations</a>.</p>{% endblock %}
+{% block tools %}
+{% set ready = cards | selectattr('ready') | list | length %}
+<span class="pill green dot">{{ ready }} actif{{ 's' if ready > 1 }}</span>
+<span class="pill amber dot">{{ cards | length - ready }} en attente</span>
+{% endblock %}
+{% block content %}
+<div class="agents">
+{% for c in cards %}
+<article class="card agent fade-in">
+  <div class="agent-head">
+    <span class="agent-ico c-{{ c.color }}">{{ icon(c.icon) }}</span>
+    <div style="flex:1;min-width:0">
+      <h2>{{ c.name }}</h2>
+      <div class="muted">{{ c.autonomy }}</div>
+    </div>
+    {% if c.key in running %}<span class="pill blue dot">en cours…</span>
+    {% elif c.ready %}<span class="pill green dot">actif</span>
+    {% else %}<span class="pill amber dot">en attente</span>{% endif %}
+  </div>
+  <p class="agent-mission">{{ c.mission }}</p>
+  <ul class="agent-does">{% for d in c.does %}<li>{{ icon('check') }}<span>{{ d }}</span></li>{% endfor %}</ul>
+  <div class="agent-meta">
+    <div><span>Quand</span><b>{{ c.when }}</b></div>
+    <div><span>État</span><b>{{ c.status }}</b></div>
+    <div><span>Dernière action</span><b>{{ c.last | depuis if c.last else 'aucune pour l\'instant' }}</b></div>
+    <div><span>Actions (30 j)</span><b>{{ c.count_30d }}</b></div>
+  </div>
+  {% if c.actions or c.links %}
+  <div class="actions">
+    {% for a in c.actions %}
+      {% if can_run and a.enabled %}
+      <form method="post" action="/agents/lancer/{{ a.key }}"><button class="btn sm {{ 'primary' if loop.first }}" onclick="this.innerHTML='Lancement…'">{{ icon(a.icon) }} {{ a.label }}</button></form>
+      {% else %}
+      <button class="btn sm" disabled title="{{ a.reason or 'Réservé à la direction' }}" style="opacity:.55;cursor:not-allowed">{{ icon(a.icon) }} {{ a.label }}</button>
+      {% endif %}
+    {% endfor %}
+    {% for href, label in c.links %}<a class="btn sm" href="{{ href }}">{{ label }} {{ icon('arrow-right') }}</a>{% endfor %}
+  </div>
+  {% set off = c.actions | rejectattr('enabled') | list %}
+  {% if off %}<p class="muted small" style="margin:8px 0 0">{{ icon('clock') }} {{ off | map(attribute='label') | join(', ') }} : {{ off[0].reason }}.</p>{% endif %}
+  {% endif %}
+</article>
+{% endfor %}
+</div>
+
+<div class="card" id="publication" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('share') }} Rédiger une publication maintenant</h2>
+    <div class="sub">L'agent Communication écrit le texte et le brief visuel pour le compte choisi ; la publication arrive dans Validations.</div></div></div>
+  {% if can_run %}
+  <form method="post" action="/agents/publication">
+    <div class="grid g-3" style="gap:12px">
+      <label class="field"><span>Compte</span>
+        <select name="compte" style="width:100%">{% for i, a in accounts %}<option value="{{ i }}">{{ a.compte }} — {{ a.reseau | replace('_', ' ') }} ({{ a.pole }})</option>{% endfor %}</select></label>
+      <label class="field"><span>Date de publication</span><input type="date" name="jour"></label>
+      <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : la rentrée scolaire avec IBIG School"></label>
+    </div>
+    <button class="btn primary" onclick="this.innerHTML='Rédaction en cours (20 à 40 s)…'">{{ icon('sparkles') }} Rédiger la publication</button>
+    <span class="muted" style="margin-left:10px">Rien n'est publié sans votre validation.</span>
+  </form>
+  {% else %}<p class="muted">Réservé aux comptes de direction.</p>{% endif %}
+</div>
+{% endblock %}

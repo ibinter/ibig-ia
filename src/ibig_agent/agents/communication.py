@@ -60,6 +60,15 @@ def calendar_schema() -> dict:
     }
 
 
+def post_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {"texte": {"type": "string"}, "brief_visuel": {"type": "string"}},
+        "required": ["texte", "brief_visuel"],
+        "additionalProperties": False,
+    }
+
+
 @dataclass
 class CalendarResult:
     poles_traites: list[str]
@@ -151,3 +160,41 @@ class CommunicationAgent:
             ))
             count += 1
         return count
+
+    def write_post(self, pole_code: str, account: SocialAccount, sujet: str,
+                   day: date) -> int | None:
+        """Une publication à la demande (tableau de bord), soumise à validation.
+
+        Contrairement au calendrier, elle est permise même si la fiche du pôle est
+        incomplète : l'information manquante est marquée « À COMPLÉTER », ce qui bloque
+        la validation tant qu'un humain ne l'a pas remplacée.
+        """
+        pole = self.org.pole(pole_code)
+        system = (
+            f"Tu es l'agent Communication d'IBIG SARL, pôle {pole.nom if pole else pole_code}.\n"
+            f"Tu rédiges UNE publication pour {account.reseau} « {account.compte} ».\n"
+            f"Règle de ce réseau : {self.org.declinaison.get(account.reseau, '')}\n"
+            "Règles :\n"
+            "- N'utilise QUE les informations de la base de connaissances. Aucun prix, "
+            "contact, lien, date ou promesse qui n'y figure pas.\n"
+            "- Si une information utile manque, écris [À COMPLÉTER : ...] à sa place.\n"
+            "- Respecte la liste des sujets interdits et des formulations à éviter.\n"
+            "- brief_visuel : description de l'image ou de la vidéo à produire.\n\n"
+            f"Base de connaissances :\n{self.kb.context_for(pole_code, sujet)}"
+        )
+        data = self.llm.structured("social.post", "writing", system,
+                                   f"Sujet demandé : {sujet}", post_schema(), max_tokens=4000)
+        alerts = [str(i) for i in self.kb.verify_facts(data["texte"])]
+        out = self.gov.submit(ActionRequest(
+            agent=AGENT,
+            action_type="social.post" if account.publication_auto else "social.manual_post",
+            channel=NETWORK_CHANNEL.get(account.reseau, account.reseau),
+            account=account.compte, pole=pole_code,
+            title=f"{JOURS[day.weekday()].capitalize()} {day:%d/%m} · {account.reseau} · "
+                  f"{sujet[:100]}",
+            payload={"reseau": account.reseau, "compte": account.compte,
+                     "date": day.isoformat(), "texte": data["texte"],
+                     "brief_visuel": data["brief_visuel"], "alertes": alerts,
+                     "publication_auto": account.publication_auto},
+        ))
+        return out.pending_id
