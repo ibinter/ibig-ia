@@ -42,6 +42,32 @@ from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
 from .visuals import first_sentence, render_png, render_svg
 
+# Libellés et icônes des actions de l'agent, pour les listes lisibles par tous
+ACTION_LABELS = {
+    "mail.label": "Mail classé", "mail.ack": "Accusé de réception",
+    "mail.faq_reply": "Réponse FAQ envoyée", "mail.reply": "Réponse par mail",
+    "mail.forward_internal": "Transfert en interne", "support.answer": "Réponse du Support",
+    "sara.answer": "Réponse de SARA", "whatsapp.reply": "Réponse WhatsApp",
+    "whatsapp.ack": "Accusé WhatsApp", "whatsapp.faq_reply": "Réponse FAQ WhatsApp",
+    "whatsapp.support_answer": "Réponse Support WhatsApp", "social.post": "Publication",
+    "social.manual_post": "Publication (à la main)", "social.schedule_approved":
+    "Publication programmée", "web.article_draft": "Article ou page web",
+    "campaign.mail": "Campagne mail", "commercial.followup": "Relance commerciale",
+    "notify.internal": "Message à l'équipe", "notify.whatsapp": "Alerte WhatsApp",
+    "report.publish": "Rapport", "veille.alert": "Alerte de veille",
+    "budget.alert": "Alerte budget", "security.suspicious_message": "Message suspect",
+    "complaint.serious": "Réclamation grave", "whatsapp.manual": "WhatsApp à traiter",
+    "legal": "Juridique", "contract": "Contrat", "refund": "Remboursement",
+    "payment": "Paiement", "discount": "Remise", "pricing.unpublished": "Tarif hors grille",
+    "media.reply": "Presse", "crisis": "Crise",
+}
+ACTION_ICONS = {"mail": "mail", "support": "life", "sara": "bot", "whatsapp": "message",
+                "social": "share", "web": "globe", "campaign": "mail", "commercial": "target",
+                "notify": "users", "report": "file", "veille": "eye", "budget": "wallet",
+                "security": "shield", "complaint": "alert", "channel": "power",
+                "legal": "hand", "contract": "hand", "refund": "wallet", "payment": "wallet",
+                "discount": "wallet", "pricing": "wallet", "media": "alert", "crisis": "alert"}
+
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 # Aperçu des articles : toujours re-nettoyé (le HTML a pu être modifié par un valideur).
@@ -99,7 +125,9 @@ def install_filters(tz: ZoneInfo) -> None:
                "resolu": "résolu", "en_cours": "en cours"}
     env.filters["statut"] = lambda v: statuts.get(v, (v or "").replace("_", " "))
     env.filters.update(local=local, quand=quand, depuis=depuis, jour_court=jour_court,
-                       initiales=initiales)
+                       initiales=initiales,
+                       action_label=lambda t: ACTION_LABELS.get(t, (t or "").replace(".", " ")),
+                       action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"))
     env.globals["aujourdhui"] = lambda: (
         f"{JOURS[datetime.now(tz).weekday()]} {datetime.now(tz).day} "
         f"{MOIS[datetime.now(tz).month - 1].rstrip('.')} {datetime.now(tz).year}")

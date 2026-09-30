@@ -19,6 +19,7 @@ from ..db import (
     PendingAction,
     ProcessedMessage,
     Prospect,
+    ScheduledPost,
     Ticket,
     utcnow,
 )
@@ -48,6 +49,10 @@ class HomeStats:
     by_pole: list[tuple[str, int]] = field(default_factory=list)
     decisions: list[tuple[str, int]] = field(default_factory=list)
     recent: list[JournalEntry] = field(default_factory=list)
+    # À traiter en priorité, publications à venir, alertes de veille
+    priority: list[PendingAction] = field(default_factory=list)
+    upcoming: list[ScheduledPost] = field(default_factory=list)
+    alerts: list[JournalEntry] = field(default_factory=list)
 
     @property
     def activity_max(self) -> int:
@@ -125,6 +130,21 @@ def home_stats(s: Session, who: Principal, ai_budget: float,
 
     st.recent = list(s.scalars(_scope(select(JournalEntry).order_by(JournalEntry.id.desc()),
                                       JournalEntry.pole, who).limit(8)).all())
+
+    # Priorités : validations en retard d'abord, puis les plus anciennes ; niveau 3 pour
+    # la direction seulement.
+    statuses = ("pending",) if who.role == "valideur" else ("pending", "prepared")
+    items = s.scalars(_scope(select(PendingAction).where(PendingAction.status.in_(statuses)),
+                             PendingAction.pole, who)).all()
+    st.priority = sorted(items, key=lambda pa: (pa.flagged_at is None, pa.level != 3,
+                                                pa.created_at))[:6]
+    st.upcoming = list(s.scalars(_scope(select(ScheduledPost).where(
+        ScheduledPost.status.in_(("programme", "echec"))).order_by(ScheduledPost.publish_at),
+        ScheduledPost.pole, who).limit(5)).all())
+    st.alerts = list(s.scalars(_scope(select(JournalEntry).where(
+        JournalEntry.action_type == "veille.alert", JournalEntry.created_at >= now
+        - timedelta(days=7)).order_by(JournalEntry.id.desc()), JournalEntry.pole, who)
+        .limit(4)).all())
     return st
 
 

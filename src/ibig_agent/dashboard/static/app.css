@@ -631,3 +631,63 @@ td.nowrap { white-space: nowrap; }
   .setup-hero .hero-how { text-align: left; }
   .step-grid, .option-grid, .guide-groups { grid-template-columns: 1fr; }
 }
+
+/* ------------------------------------------------ Accueil (refonte) */
+.setup-strip { display: flex; align-items: center; gap: 16px; padding: 14px 18px; margin-bottom: 16px;
+  border-radius: var(--radius); color: #fff; box-shadow: var(--shadow);
+  background: radial-gradient(90% 160% at 100% 0%, rgba(14, 165, 198, .7) 0%, transparent 55%),
+              linear-gradient(135deg, #0b2a66, #1257c4); }
+.setup-strip:hover { text-decoration: none; box-shadow: var(--shadow-lg); }
+.setup-strip-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: rgba(255, 255, 255, .16); }
+.setup-strip-txt { display: flex; flex-direction: column; min-width: 0; }
+.setup-strip-txt small { opacity: .8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.setup-strip-txt b { font-size: 16px; }
+.setup-strip-bar { flex: 1; min-width: 80px; max-width: 260px; height: 8px; border-radius: 99px;
+  background: rgba(255, 255, 255, .2); overflow: hidden; margin-left: auto; }
+.setup-strip-bar span { display: block; height: 100%; background: #fff; border-radius: 99px; }
+.setup-strip .btn { background: #fff; color: #0b2a66; border-color: #fff; }
+
+.prio-list, .mini-list { list-style: none; margin: 0; padding: 0; }
+.prio-list li + li { border-top: 1px solid var(--line); }
+.prio-list a { display: flex; align-items: center; gap: 12px; padding: 12px 8px; margin: 0 -8px; border-radius: 10px;
+  color: var(--ink); }
+.prio-list a:hover { background: var(--bg-soft); text-decoration: none; }
+.todo-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none;
+  background: var(--warn-soft); color: var(--warn); }
+.todo-ico.lv3 { background: var(--bad-soft); color: var(--bad); }
+.todo-ico svg { width: 17px; height: 17px; }
+.todo-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.todo-txt b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todo-txt small { color: var(--muted); font-size: 12.5px; }
+
+.mini-h { display: flex; align-items: center; gap: 6px; font-size: 12.5px; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--muted); margin: 4px 0 8px; }
+.mini-h svg { width: 15px; height: 15px; }
+.mini-list { margin-bottom: 12px; }
+.mini-list li { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.mini-list li:last-child { border-bottom: 0; }
+.mini-date { font-size: 12px; font-weight: 700; color: var(--brand); min-width: 92px; padding-top: 1px; }
+.mini-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mini-txt b { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-txt small { color: var(--muted); font-size: 12px; }
+
+.budget-line { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.budget-line b { font-size: 28px; font-weight: 780; letter-spacing: -.02em; }
+.chan-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.chan-list .chan { padding: 8px 10px; font-size: 13.5px; }
+
+.report-card > summary { display: flex; flex-direction: column; gap: 2px; list-style: none; cursor: pointer; }
+.report-card > summary span { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; }
+.report-card[open] > summary { margin-bottom: 14px; }
+details.report-card { border: 1px solid var(--line); }
+details.report-card > summary::before { display: none; }
+
+@media (max-width: 760px) {
+  .setup-strip { flex-wrap: wrap; }
+  .setup-strip-bar { order: 3; max-width: none; flex-basis: 100%; margin-left: 0; }
+  .mini-date { min-width: 76px; }
+}
+.prio-list .pill, .mini-list .pill { flex: none; }
+.report-card > summary { align-items: flex-start; text-align: left; padding: 0; border: 0; background: none; }
+.grid > * { min-width: 0; }

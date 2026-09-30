@@ -253,3 +253,14 @@ def test_web_content_form_requires_ready_site(rt, accounts):
     r = c.post("/agents/contenu-web", data={"site": 0, "genre": "page", "sujet": "X"},
                follow_redirects=False)
     assert "Refusé" in unquote(r.headers["location"])  # sites inactifs par défaut
+
+
+def test_home_lists_priorities_in_plain_words(rt, accounts, connector):
+    queue(rt, connector, pole="SOFT")
+    queue(rt, connector, pole="MARKET")
+    page = client(rt, "awa@ibig.test").get("/").text  # valideur SOFT
+    assert "À traiter en priorité" in page and "Réponse test SOFT" in page
+    assert "Réponse test MARKET" not in page and "Réponse par mail" in page
+    assert "mail.reply" not in page
+    direction = client(rt, "dg@ibig.test").get("/").text
+    assert "Réponse test MARKET" in direction
