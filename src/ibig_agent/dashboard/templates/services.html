@@ -1,203 +1,102 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
-{% block title %}Services<div class="grid g-2" style="margin-top:16px">
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('book') }} Voyage AI — recherche par le sens</h2><div class="sub">Section 14 : PostgreSQL + pgvector.</div></div>
-      {% if voyage_key %}<span class="pill green dot">active</span>{% else %}<span class="pill amber dot">mots-clés seuls</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">L'agent retrouve un passage de la base même quand le client emploie d'autres mots (« tarif » / « combien ça coûte »). Seuls les documents de la base sont envoyés à Voyage, service recommandé par Anthropic.</p>
-    {% if voyage_key %}
-    <div class="inline" style="gap:8px;margin-bottom:12px">
-      <span class="pill blue">{{ indexed }} / {{ passages }} passages indexés</span>
-      <span class="pill {{ 'green' if pgvector else '' }}">{{ 'pgvector' if pgvector else 'calcul en Python' }}</span>
-    </div>
-    {% if sem_error %}<div class="alert amber">{{ icon('alert') }}<span>Dernière erreur : {{ sem_error }} (la recherche par mots-clés continue).</span></div>{% endif %}
-    {% endif %}
-    <form method="post" action="/services/voyage" autocomplete="off">
-      <label class="field"><span>Clé API Voyage AI {% if voyage_key %}(pour la remplacer){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="pa-…"></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer et indexer</button></div>
-    </form>
-    {% if voyage_key %}<form method="post" action="/services/voyage/indexer"><button class="btn sm">{{ icon('book') }} Réindexer maintenant</button></form>{% endif %}
-    <p class="muted small" style="margin:10px 0 0">Clé sur dash.voyageai.com. Coût : quelques centimes pour toute la base ; les passages modifiés sont réindexés seuls.</p>
-  </div>
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('sparkles') }} Photos par IA</h2><div class="sub">Section 14 : génération d'images.</div></div>
-      {% if openai_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">Bouton « Générer une photo » sur chaque publication à valider : une photo réaliste d'après le brief visuel, habillée aux couleurs IBIG (titre, marque, slogan ajoutés par l'agent). Environ 0,04 à 0,06 USD par image, compté dans le plafond mensuel.</p>
-    <form method="post" action="/services/openai" autocomplete="off">
-      <label class="field"><span>Clé API OpenAI {% if openai_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="sk-…"></label>
-      <label class="field"><span>Modèle</span><select name="modele" style="width:100%">
-        <option value="gpt-image-1" {{ 'selected' if image_model == 'gpt-image-1' }}>gpt-image-1 (meilleure qualité)</option>
-        <option value="gpt-image-1-mini" {{ 'selected' if image_model == 'gpt-image-1-mini' }}>gpt-image-1-mini (moins cher)</option>
-      </select></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
-    </form>
-    <form method="post" action="/services/openai/tester"><button class="btn sm" {{ 'disabled' if not openai_key }}>{{ icon('shield-check') }} Tester la clé</button></form>
-    <p class="muted small" style="margin:10px 0 0">Clé sur platform.openai.com (le compte doit être vérifié pour gpt-image-1).</p>
-  </div>
-</div>
-{% endblock %}
-{% block heading %}Services extérieurs<div class="grid g-2" style="margin-top:16px">
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('book') }} Voyage AI — recherche par le sens</h2><div class="sub">Section 14 : PostgreSQL + pgvector.</div></div>
-      {% if voyage_key %}<span class="pill green dot">active</span>{% else %}<span class="pill amber dot">mots-clés seuls</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">L'agent retrouve un passage de la base même quand le client emploie d'autres mots (« tarif » / « combien ça coûte »). Seuls les documents de la base sont envoyés à Voyage, service recommandé par Anthropic.</p>
-    {% if voyage_key %}
-    <div class="inline" style="gap:8px;margin-bottom:12px">
-      <span class="pill blue">{{ indexed }} / {{ passages }} passages indexés</span>
-      <span class="pill {{ 'green' if pgvector else '' }}">{{ 'pgvector' if pgvector else 'calcul en Python' }}</span>
-    </div>
-    {% if sem_error %}<div class="alert amber">{{ icon('alert') }}<span>Dernière erreur : {{ sem_error }} (la recherche par mots-clés continue).</span></div>{% endif %}
-    {% endif %}
-    <form method="post" action="/services/voyage" autocomplete="off">
-      <label class="field"><span>Clé API Voyage AI {% if voyage_key %}(pour la remplacer){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="pa-…"></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer et indexer</button></div>
-    </form>
-    {% if voyage_key %}<form method="post" action="/services/voyage/indexer"><button class="btn sm">{{ icon('book') }} Réindexer maintenant</button></form>{% endif %}
-    <p class="muted small" style="margin:10px 0 0">Clé sur dash.voyageai.com. Coût : quelques centimes pour toute la base ; les passages modifiés sont réindexés seuls.</p>
-  </div>
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('sparkles') }} Photos par IA</h2><div class="sub">Section 14 : génération d'images.</div></div>
-      {% if openai_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">Bouton « Générer une photo » sur chaque publication à valider : une photo réaliste d'après le brief visuel, habillée aux couleurs IBIG (titre, marque, slogan ajoutés par l'agent). Environ 0,04 à 0,06 USD par image, compté dans le plafond mensuel.</p>
-    <form method="post" action="/services/openai" autocomplete="off">
-      <label class="field"><span>Clé API OpenAI {% if openai_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="sk-…"></label>
-      <label class="field"><span>Modèle</span><select name="modele" style="width:100%">
-        <option value="gpt-image-1" {{ 'selected' if image_model == 'gpt-image-1' }}>gpt-image-1 (meilleure qualité)</option>
-        <option value="gpt-image-1-mini" {{ 'selected' if image_model == 'gpt-image-1-mini' }}>gpt-image-1-mini (moins cher)</option>
-      </select></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
-    </form>
-    <form method="post" action="/services/openai/tester"><button class="btn sm" {{ 'disabled' if not openai_key }}>{{ icon('shield-check') }} Tester la clé</button></form>
-    <p class="muted small" style="margin:10px 0 0">Clé sur platform.openai.com (le compte doit être vérifié pour gpt-image-1).</p>
-  </div>
-</div>
-{% endblock %}
-{% block lead %}<p class="lead">Les comptes que l'agent utilise chez des services extérieurs. Les clés sont chiffrées dans le coffre de l'agent et ne sont jamais réaffichées.</p><div class="grid g-2" style="margin-top:16px">
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('book') }} Voyage AI — recherche par le sens</h2><div class="sub">Section 14 : PostgreSQL + pgvector.</div></div>
-      {% if voyage_key %}<span class="pill green dot">active</span>{% else %}<span class="pill amber dot">mots-clés seuls</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">L'agent retrouve un passage de la base même quand le client emploie d'autres mots (« tarif » / « combien ça coûte »). Seuls les documents de la base sont envoyés à Voyage, service recommandé par Anthropic.</p>
-    {% if voyage_key %}
-    <div class="inline" style="gap:8px;margin-bottom:12px">
-      <span class="pill blue">{{ indexed }} / {{ passages }} passages indexés</span>
-      <span class="pill {{ 'green' if pgvector else '' }}">{{ 'pgvector' if pgvector else 'calcul en Python' }}</span>
-    </div>
-    {% if sem_error %}<div class="alert amber">{{ icon('alert') }}<span>Dernière erreur : {{ sem_error }} (la recherche par mots-clés continue).</span></div>{% endif %}
-    {% endif %}
-    <form method="post" action="/services/voyage" autocomplete="off">
-      <label class="field"><span>Clé API Voyage AI {% if voyage_key %}(pour la remplacer){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="pa-…"></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer et indexer</button></div>
-    </form>
-    {% if voyage_key %}<form method="post" action="/services/voyage/indexer"><button class="btn sm">{{ icon('book') }} Réindexer maintenant</button></form>{% endif %}
-    <p class="muted small" style="margin:10px 0 0">Clé sur dash.voyageai.com. Coût : quelques centimes pour toute la base ; les passages modifiés sont réindexés seuls.</p>
-  </div>
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('sparkles') }} Photos par IA</h2><div class="sub">Section 14 : génération d'images.</div></div>
-      {% if openai_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">Bouton « Générer une photo » sur chaque publication à valider : une photo réaliste d'après le brief visuel, habillée aux couleurs IBIG (titre, marque, slogan ajoutés par l'agent). Environ 0,04 à 0,06 USD par image, compté dans le plafond mensuel.</p>
-    <form method="post" action="/services/openai" autocomplete="off">
-      <label class="field"><span>Clé API OpenAI {% if openai_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="sk-…"></label>
-      <label class="field"><span>Modèle</span><select name="modele" style="width:100%">
-        <option value="gpt-image-1" {{ 'selected' if image_model == 'gpt-image-1' }}>gpt-image-1 (meilleure qualité)</option>
-        <option value="gpt-image-1-mini" {{ 'selected' if image_model == 'gpt-image-1-mini' }}>gpt-image-1-mini (moins cher)</option>
-      </select></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
-    </form>
-    <form method="post" action="/services/openai/tester"><button class="btn sm" {{ 'disabled' if not openai_key }}>{{ icon('shield-check') }} Tester la clé</button></form>
-    <p class="muted small" style="margin:10px 0 0">Clé sur platform.openai.com (le compte doit être vérifié pour gpt-image-1).</p>
-  </div>
-</div>
-{% endblock %}
+{% block title %}Services{% endblock %}
+{% block heading %}Services extérieurs{% endblock %}
+{% block lead %}<p class="lead">Les comptes que l'agent utilise chez des services extérieurs. Les clés sont chiffrées dans le coffre de l'agent et ne sont jamais réaffichées : laissez un champ vide pour garder la clé actuelle.</p>{% endblock %}
 {% block content %}
-<div class="grid g-main">
-  <form class="card" method="post" action="/services/brevo" autocomplete="off">
-    <div class="card-head">
-      <div><h2>{{ icon('mail') }} Brevo — campagnes mail</h2><div class="sub">Section 9 : les newsletters ne partent jamais des boîtes LWS ou Gmail.</div></div>
-      {% if has_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
-    </div>
-    <label class="field"><span>Clé API Brevo {% if has_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
-      <input type="password" name="cle" autocomplete="new-password" placeholder="xkeysib-…"></label>
-    <div class="grid g-2" style="gap:12px">
-      <label class="field"><span>Nom de l'expéditeur</span><input type="text" name="expediteur" value="{{ sender_name }}" placeholder="IBIG SARL"></label>
-      <label class="field"><span>Adresse d'expédition</span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigsoft.com"></label>
-    </div>
-    <div class="actions">
-      <button class="btn primary">{{ icon('check') }} Enregistrer</button>
-    </div>
-  </form>
-  <div class="stack">
-    <div class="card">
-      <h3 style="margin-bottom:10px">Tester</h3>
-      <form method="post" action="/services/brevo/tester"><button class="btn" {{ 'disabled' if not has_key }}>{{ icon('shield-check') }} Tester la connexion Brevo</button></form>
-      <p class="muted small" style="margin:10px 0 0">Vérifie la clé et compte les listes de contacts, sans rien envoyer.</p>
-    </div>
-    <div class="card">
-      <h3 style="margin-bottom:8px">Avant le premier envoi</h3>
-      <ul class="agent-does">
-        <li>{{ icon('check') }}<span>Créer un compte sur brevo.com et une clé API (menu SMTP &amp; API).</span></li>
-        <li>{{ icon('check') }}<span>Authentifier le domaine d'envoi dans Brevo (SPF, DKIM, DMARC).</span></li>
-        <li>{{ icon('check') }}<span>Importer les contacts qui ont accepté de recevoir vos messages, en listes (par pôle par exemple).</span></li>
-      </ul>
-    </div>
-  </div>
+{% set SERVICES = [
+  ('brevo', 'Brevo', 'mail', has_key, 'Campagnes mail', 'Newsletters et annonces aux contacts qui l\'ont accepté.'),
+  ('voyage', 'Voyage AI', 'book', voyage_key, 'Recherche par le sens', 'Retrouver la bonne réponse même avec d\'autres mots.'),
+  ('photos', 'OpenAI Images', 'sparkles', openai_key, 'Photos par IA', 'Une photo réaliste pour chaque publication à valider.')] %}
+{% set on = SERVICES | selectattr('3') | list | length %}
+
+<div class="svc-overview">
+  {% for key, name, ic, ok, what, why in SERVICES %}
+  <a href="#svc-{{ key }}" class="svc-tile {{ 'on' if ok }}">
+    <span class="svc-ico">{{ icon(ic) }}</span>
+    <span class="svc-txt"><small>{{ what }}</small><b>{{ name }}</b><span>{{ why }}</span>
+      {% if ok %}<span class="pill green dot">actif</span>{% else %}<span class="pill amber dot">à raccorder</span>{% endif %}</span>
+  </a>
+  {% endfor %}
 </div>
-<div class="grid g-2" style="margin-top:16px">
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('book') }} Voyage AI — recherche par le sens</h2><div class="sub">Section 14 : PostgreSQL + pgvector.</div></div>
-      {% if voyage_key %}<span class="pill green dot">active</span>{% else %}<span class="pill amber dot">mots-clés seuls</span>{% endif %}
-    </div>
+<p class="muted small" style="margin:-4px 0 16px">{{ on }} service{{ 's' if on > 1 }} sur 3 raccordé{{ 's' if on > 1 }}. Aucun n'est obligatoire : sans eux, l'agent fonctionne, avec moins de possibilités.</p>
+
+<section class="card svc" id="svc-brevo">
+  <div class="svc-side">
+    <div class="card-head"><div><h2>{{ icon('mail') }} Brevo — campagnes mail</h2><div class="sub">Section 9 : les newsletters ne partent jamais des boîtes LWS ou Gmail.</div></div>
+      {% if has_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}</div>
+    <ol class="how-list">
+      <li><b>Créer un compte</b> sur brevo.com et une clé API (menu SMTP &amp; API).</li>
+      <li><b>Authentifier le domaine</b> d'envoi dans Brevo (SPF, DKIM, DMARC).</li>
+      <li><b>Importer les contacts</b> qui ont accepté vos messages, en listes (par pôle par exemple).</li>
+      <li><b>Coller la clé</b> ici, puis tester.</li>
+    </ol>
+  </div>
+  <div class="svc-form">
+    <form method="post" action="/services/brevo" autocomplete="off">
+      <label class="field"><span>Clé API Brevo {% if has_key %}<em class="muted">(vide = garder la clé actuelle)</em>{% endif %}</span>
+        <input type="password" name="cle" autocomplete="new-password" placeholder="{{ '•••••••• enregistrée' if has_key else 'xkeysib-…' }}"></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Nom de l'expéditeur</span><input type="text" name="expediteur" value="{{ sender_name }}" placeholder="IBIG SARL"></label>
+        <label class="field"><span>Adresse d'expédition</span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigsoft.com"></label>
+      </div>
+      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
+    </form>
+    <form method="post" action="/services/brevo/tester" class="svc-test">
+      <button class="btn sm" {{ 'disabled' if not has_key }} onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester la connexion Brevo</button>
+      <span class="muted small">Vérifie la clé et compte les listes, sans rien envoyer.</span>
+    </form>
+    {% if has_key %}<a class="btn sm" href="/campagnes" style="margin-top:8px">{{ icon('arrow-right') }} Rédiger une campagne</a>{% endif %}
+  </div>
+</section>
+
+<section class="card svc" id="svc-voyage">
+  <div class="svc-side">
+    <div class="card-head"><div><h2>{{ icon('book') }} Voyage AI — recherche par le sens</h2><div class="sub">Section 14 : PostgreSQL + pgvector.</div></div>
+      {% if voyage_key %}<span class="pill green dot">active</span>{% else %}<span class="pill amber dot">mots-clés seuls</span>{% endif %}</div>
     <p class="muted" style="margin-top:0">L'agent retrouve un passage de la base même quand le client emploie d'autres mots (« tarif » / « combien ça coûte »). Seuls les documents de la base sont envoyés à Voyage, service recommandé par Anthropic.</p>
     {% if voyage_key %}
-    <div class="inline" style="gap:8px;margin-bottom:12px">
-      <span class="pill blue">{{ indexed }} / {{ passages }} passages indexés</span>
-      <span class="pill {{ 'green' if pgvector else '' }}">{{ 'pgvector' if pgvector else 'calcul en Python' }}</span>
+    {% set ipct = (100 * indexed / passages) | round | int if passages else 0 %}
+    <div class="idx">
+      <div class="idx-top"><b>{{ indexed }} / {{ passages }}</b><span class="muted small">passages indexés</span>
+        <span class="pill {{ 'green' if pgvector else '' }}">{{ 'pgvector' if pgvector else 'calcul en Python' }}</span></div>
+      <div class="lib-bar"><span style="width:{{ [ipct, 100] | min }}%"></span></div>
     </div>
     {% if sem_error %}<div class="alert amber">{{ icon('alert') }}<span>Dernière erreur : {{ sem_error }} (la recherche par mots-clés continue).</span></div>{% endif %}
     {% endif %}
-    <form method="post" action="/services/voyage" autocomplete="off">
-      <label class="field"><span>Clé API Voyage AI {% if voyage_key %}(pour la remplacer){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="pa-…"></label>
-      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer et indexer</button></div>
-    </form>
-    {% if voyage_key %}<form method="post" action="/services/voyage/indexer"><button class="btn sm">{{ icon('book') }} Réindexer maintenant</button></form>{% endif %}
-    <p class="muted small" style="margin:10px 0 0">Clé sur dash.voyageai.com. Coût : quelques centimes pour toute la base ; les passages modifiés sont réindexés seuls.</p>
   </div>
-  <div class="card">
-    <div class="card-head">
-      <div><h2>{{ icon('sparkles') }} Photos par IA</h2><div class="sub">Section 14 : génération d'images.</div></div>
-      {% if openai_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}
-    </div>
-    <p class="muted" style="margin-top:0">Bouton « Générer une photo » sur chaque publication à valider : une photo réaliste d'après le brief visuel, habillée aux couleurs IBIG (titre, marque, slogan ajoutés par l'agent). Environ 0,04 à 0,06 USD par image, compté dans le plafond mensuel.</p>
+  <div class="svc-form">
+    <form method="post" action="/services/voyage" autocomplete="off">
+      <label class="field"><span>Clé API Voyage AI {% if voyage_key %}<em class="muted">(pour la remplacer)</em>{% endif %}</span>
+        <input type="password" name="cle" autocomplete="new-password" placeholder="{{ '•••••••• enregistrée' if voyage_key else 'pa-…' }}"></label>
+      <div class="actions"><button class="btn primary" onclick="this.innerHTML='Indexation…'">{{ icon('check') }} Enregistrer et indexer</button></div>
+    </form>
+    {% if voyage_key %}<form method="post" action="/services/voyage/indexer" class="svc-test"><button class="btn sm" onclick="this.innerHTML='Indexation…'">{{ icon('book') }} Réindexer maintenant</button><span class="muted small">Les passages modifiés sont réindexés seuls.</span></form>{% endif %}
+    <p class="muted small" style="margin:10px 0 0">Clé sur dash.voyageai.com. Coût : quelques centimes pour toute la base.</p>
+  </div>
+</section>
+
+<section class="card svc" id="svc-photos">
+  <div class="svc-side">
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Photos par IA</h2><div class="sub">Section 14 : génération d'images.</div></div>
+      {% if openai_key %}<span class="pill green dot">clé enregistrée</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}</div>
+    <p class="muted" style="margin-top:0">Bouton « Générer une photo » sur chaque publication à valider : une photo réaliste d'après le brief visuel, habillée aux couleurs IBIG (titre, marque, slogan ajoutés par l'agent).</p>
+    <div class="inline" style="gap:8px"><span class="pill">≈ 0,04 à 0,06 USD par image</span><span class="pill">compté dans le plafond mensuel</span></div>
+  </div>
+  <div class="svc-form">
     <form method="post" action="/services/openai" autocomplete="off">
-      <label class="field"><span>Clé API OpenAI {% if openai_key %}(laisser vide pour garder la clé actuelle){% endif %}</span>
-        <input type="password" name="cle" autocomplete="new-password" placeholder="sk-…"></label>
+      <label class="field"><span>Clé API OpenAI {% if openai_key %}<em class="muted">(vide = garder la clé actuelle)</em>{% endif %}</span>
+        <input type="password" name="cle" autocomplete="new-password" placeholder="{{ '•••••••• enregistrée' if openai_key else 'sk-…' }}"></label>
       <label class="field"><span>Modèle</span><select name="modele" style="width:100%">
         <option value="gpt-image-1" {{ 'selected' if image_model == 'gpt-image-1' }}>gpt-image-1 (meilleure qualité)</option>
         <option value="gpt-image-1-mini" {{ 'selected' if image_model == 'gpt-image-1-mini' }}>gpt-image-1-mini (moins cher)</option>
       </select></label>
       <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
     </form>
-    <form method="post" action="/services/openai/tester"><button class="btn sm" {{ 'disabled' if not openai_key }}>{{ icon('shield-check') }} Tester la clé</button></form>
-    <p class="muted small" style="margin:10px 0 0">Clé sur platform.openai.com (le compte doit être vérifié pour gpt-image-1).</p>
+    <form method="post" action="/services/openai/tester" class="svc-test">
+      <button class="btn sm" {{ 'disabled' if not openai_key }} onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester la clé</button>
+      <span class="muted small">Le compte doit être vérifié sur platform.openai.com pour gpt-image-1.</span>
+    </form>
   </div>
-</div>
+</section>
 {% endblock %}

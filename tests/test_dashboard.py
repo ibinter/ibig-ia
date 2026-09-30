@@ -275,3 +275,35 @@ def test_journal_timeline_and_csv_export(rt, accounts, connector):
     csv = c.get("/journal.csv")
     assert csv.headers["content-type"].startswith("text/csv")
     assert "Réponse test SOFT" in csv.text and "Réponse test MARKET" not in csv.text
+
+
+def test_report_text_is_structured_without_html():
+    from ibig_agent.dashboard.app import report_blocks, report_kind
+
+    blocks = report_blocks("Revue du mois\n\nIndicateurs\n- ✔ Mails lus : 100 %\n- ✖ Délai : 4 h\n"
+                           "- … Brouillons : —\n\nErreurs\n- rien à signaler\n<b>texte</b>")
+    assert blocks[:4] == [("p", "Revue du mois"), ("h", "Indicateurs"),
+                          ("ok", "Mails lus : 100 %"), ("ko", "Délai : 4 h")]
+    assert ("li", "rien à signaler") in blocks and ("p", "<b>texte</b>") in blocks
+    assert report_kind("Revue mensuelle au 30/09/2026") == "mensuel"
+    assert report_kind("Plan de la semaine du 28/09/2026") == "plan"
+
+
+def test_agent_button_returns_to_listed_pages_only(rt, accounts):
+    c = client(rt, "dg@ibig.test")
+    r = c.post("/agents/lancer/veille", data={"retour": "/indicateurs"}, follow_redirects=False)
+    assert r.headers["location"].startswith("/indicateurs?msg=")
+    r = c.post("/agents/lancer/veille", data={"retour": "https://evil.example"},
+               follow_redirects=False)
+    assert r.headers["location"].startswith("/agents?msg=")
+
+
+def test_configuration_pages_render_each_form_once(rt, accounts):
+    c = client(rt, "dg@ibig.test")
+    boxes = c.get("/boites").text
+    assert boxes.count('action="/boites/lot"') == 1 and "<title>Boîtes mail ·" in boxes
+    services = c.get("/services").text
+    assert services.count('action="/services/voyage"') == 1 and "<title>Services ·" in services
+    for path in ("/rapports", "/indicateurs", "/objectifs", "/connaissances", "/publications"):
+        assert c.get(path).status_code == 200
+    assert "Validation par pôle" in client(rt, "admin@ibig.test").get("/utilisateurs").text

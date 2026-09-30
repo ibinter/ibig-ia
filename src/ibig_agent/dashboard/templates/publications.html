@@ -1,40 +1,107 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon, channel_icon %}
+{% from "_icons.html" import icon %}
 {% block title %}Publications réussies{% endblock %}
 {% block heading %}Publications réussies{% endblock %}
-{% block lead %}<p class="lead">La bibliothèque de vos meilleures publications (section 7 du cahier des charges) : l'agent Communication s'en inspire pour le ton, la longueur et le format. Il ne les copie pas, et leurs prix ou dates ne font jamais foi.</p>{% endblock %}
-{% block tools %}<span class="pill blue dot">{{ posts | length }} / 20 conseillées</span>{% endblock %}
+{% block lead %}<p class="lead">Vos meilleures publications (section 7) : l'agent Communication s'en inspire pour le ton, la longueur et le format. Il ne les copie pas, et leurs prix ou dates ne font jamais foi.</p>{% endblock %}
 {% block content %}
+{% set n = posts | length %}
+{% set acc = namespace(nets=[], pls=[]) %}
+{% for d in posts %}{% set r = d.meta.get('reseau') or '' %}
+  {% if r and r not in acc.nets %}{% set acc.nets = acc.nets + [r] %}{% endif %}
+  {% if (d.pole or 'GROUPE') not in acc.pls %}{% set acc.pls = acc.pls + [d.pole or 'GROUPE'] %}{% endif %}
+{% endfor %}
+{% set nets = acc.nets | sort %}{% set pls = acc.pls | sort %}
+
+<section class="lib-hero card">
+  <div class="lib-count"><b>{{ n }}</b><span>/ 20 conseillées</span></div>
+  <div class="lib-bar"><span style="width:{{ [n / 20 * 100, 100] | min }}%"></span></div>
+  <p class="muted small">{% if n >= 20 %}Bibliothèque bien fournie : l'agent a assez d'exemples. Remplacez les plus anciennes par vos nouveaux succès.{% elif n >= 8 %}Bon début : visez une vingtaine, avec au moins deux ou trois exemples par réseau.{% else %}Ajoutez vos publications qui ont le mieux marché : l'agent écrira dans le même esprit.{% endif %}</p>
+</section>
+
 <div class="grid g-main">
-  <div class="stack">
-    {% if not posts %}
-    <div class="card"><div class="empty"><div class="bubble">{{ icon('sparkles') }}</div><b>Bibliothèque vide</b>Ajoutez vos publications qui ont le mieux marché (likes, partages, messages reçus) : l'agent écrira dans le même esprit.</div></div>
-    {% endif %}
-    {% for d in posts %}
-    <article class="card fade-in">
-      <div class="meta pills" style="margin-bottom:8px">
-        <span class="pill blue">{{ (d.meta.get('reseau') or 'réseau ?') | replace('_', ' ') }}</span>
-        <span class="pill violet">{{ d.pole or 'GROUPE' }}</span>
-        {% if d.meta.get('resultats') %}<span class="pill green">{{ icon('trending') }} {{ d.meta.resultats }}</span>{% endif %}
+  <div>
+    {% if posts %}
+    <div class="filter-bar">
+      <div class="chips">
+        <button type="button" class="chip on" data-net="">Tous les réseaux <span>{{ n }}</span></button>
+        {% for r in nets %}<button type="button" class="chip" data-net="{{ r }}">{{ r | lisible | replace('_', ' ') }} <span>{{ posts | selectattr('meta.reseau', 'equalto', r) | list | length }}</span></button>{% endfor %}
       </div>
-      <pre style="font-family:inherit;font-size:14.5px;color:var(--ink);line-height:1.6">{{ d.body }}</pre>
-      {% if can_edit %}
-      <form method="post" action="/publications/retirer" class="actions"><input type="hidden" name="chemin" value="{{ d.path }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>
-      {% endif %}
-    </article>
-    {% endfor %}
-  </div>
-  {% if can_edit %}
-  <form class="card" method="post" action="/publications" style="align-self:start">
-    <div class="card-head"><div><h2>{{ icon('sparkles') }} Ajouter une publication</h2><div class="sub">Copiez-collez le texte tel qu'il a été publié.</div></div></div>
-    <label class="field"><span>Texte de la publication</span><textarea name="texte" required style="min-height:200px" placeholder="C'est la rentrée ! …"></textarea></label>
-    <div class="grid g-2" style="gap:12px">
-      <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
-      <label class="field"><span>Réseau</span><select name="reseau" style="width:100%">{% for n in networks %}<option value="{{ n }}">{{ n | replace('_', ' ') }}</option>{% endfor %}</select></label>
+      {% if pls | length > 1 %}<select id="f-pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in pls %}<option>{{ p }}</option>{% endfor %}</select>{% endif %}
     </div>
-    <label class="field"><span>Pourquoi elle a marché (facultatif)</span><input type="text" name="resultats" placeholder="Ex. : 320 likes, 45 partages, 12 demandes de devis"></label>
-    <button class="btn primary lg">{{ icon('check') }} Ajouter à la bibliothèque</button>
-  </form>
-  {% endif %}
+    <div class="post-grid">
+      {% for d in posts %}{% set r = d.meta.get('reseau') or '' %}
+      <article class="card post" data-net="{{ r }}" data-pole="{{ d.pole or 'GROUPE' }}">
+        <header>
+          <span class="acc-ico net-{{ r }}">{{ icon('message' if 'whatsapp' in r else 'share') }}</span>
+          <div class="acc-name"><b>{{ (r | lisible | replace('_', ' ')) or 'Réseau non précisé' }}</b><small>{{ d.pole or 'GROUPE' }}{% if d.meta.get('ajoute_le') %} · ajoutée le {{ d.meta.ajoute_le[8:10] }}/{{ d.meta.ajoute_le[5:7] }}/{{ d.meta.ajoute_le[:4] }}{% endif %}</small></div>
+          {% if can_edit %}<form method="post" action="/publications/retirer" onsubmit="return confirm('Retirer cette publication de la bibliothèque ?')"><input type="hidden" name="chemin" value="{{ d.path }}"><button class="icon-btn" title="Retirer" aria-label="Retirer">{{ icon('x') }}</button></form>{% endif %}
+        </header>
+        <div class="post-text clamp">{{ d.body }}</div>
+        <button type="button" class="link-btn more" hidden>Lire tout</button>
+        <footer>
+          {% if d.meta.get('resultats') %}<span class="pill green">{{ icon('trending') }} {{ d.meta.resultats }}</span>{% else %}<span class="muted small">résultats non précisés</span>{% endif %}
+          <span class="muted small">{{ d.body | length }} caractères</span>
+        </footer>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="muted filter-empty" hidden style="text-align:center">Aucune publication pour ce filtre.</p>
+    {% else %}
+    <div class="card"><div class="empty"><div class="bubble">{{ icon('sparkles') }}</div><b>Bibliothèque vide</b>Collez à droite vos publications qui ont le mieux marché (likes, partages, messages reçus) : l'agent écrira dans le même esprit.</div></div>
+    {% endif %}
+  </div>
+
+  <div class="stack" style="align-self:start">
+    {% if can_edit %}
+    <form class="card" method="post" action="/publications">
+      <div class="card-head"><div><h2>{{ icon('sparkles') }} Ajouter une publication</h2><div class="sub">Copiez-collez le texte tel qu'il a été publié, emojis compris.</div></div></div>
+      <label class="field"><span>Texte de la publication</span><textarea name="texte" id="texte" required maxlength="5000" style="min-height:180px" placeholder="C'est la rentrée ! …"></textarea>
+        <small class="muted counter" id="cnt">0 caractère</small></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Réseau</span><select name="reseau" style="width:100%">{% for r in networks %}<option value="{{ r }}">{{ r | lisible | replace('_', ' ') }}</option>{% endfor %}</select></label>
+      </div>
+      <label class="field"><span>Pourquoi elle a marché (facultatif)</span><input type="text" name="resultats" placeholder="Ex. : 320 likes, 45 partages, 12 demandes de devis"></label>
+      <button class="btn primary lg" style="width:100%;justify-content:center">{{ icon('check') }} Ajouter à la bibliothèque</button>
+    </form>
+    {% endif %}
+    <div class="card">
+      <h3 style="margin:0 0 10px">{{ icon('eye') }} Ce que l'agent en retient</h3>
+      <ul class="agent-does">
+        <li>{{ icon('check') }}<span>Le ton, la longueur et la structure (accroche, corps, appel à l'action).</span></li>
+        <li>{{ icon('check') }}<span>L'usage des emojis et des hashtags propre à chaque réseau.</span></li>
+        <li>{{ icon('x') }}<span>Jamais les prix, dates ou promesses : ceux-là viennent de la base de connaissances.</span></li>
+      </ul>
+    </div>
+  </div>
 </div>
+<script>
+(function () {
+  var net = '', pole = '';
+  function apply() {
+    var shown = 0;
+    document.querySelectorAll('.post').forEach(function (p) {
+      var ok = (!net || p.dataset.net === net) && (!pole || p.dataset.pole === pole);
+      p.hidden = !ok; if (ok) shown++;
+    });
+    var e = document.querySelector('.filter-empty'); if (e) e.hidden = shown > 0;
+  }
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); net = b.dataset.net; apply();
+    });
+  });
+  var sel = document.getElementById('f-pole'); if (sel) sel.addEventListener('change', function () { pole = sel.value; apply(); });
+  document.querySelectorAll('.more').forEach(function (b) {
+    var t0 = b.previousElementSibling; if (t0.scrollHeight > t0.clientHeight + 4) b.hidden = false;
+    b.addEventListener('click', function () {
+      var t = b.previousElementSibling; t.classList.toggle('clamp');
+      b.textContent = t.classList.contains('clamp') ? 'Lire tout' : 'Réduire';
+    });
+  });
+  var t = document.getElementById('texte'), c = document.getElementById('cnt');
+  if (t) t.addEventListener('input', function () { var n = t.value.length; c.textContent = n + ' caractère' + (n > 1 ? 's' : ''); });
+})();
+</script>
 {% endblock %}

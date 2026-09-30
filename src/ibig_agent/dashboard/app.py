@@ -93,6 +93,42 @@ def lisible(text: str) -> str:
     return text
 
 
+REPORT_MARKS = {"✔": "ok", "✖": "ko", "…": "wait", "⚠": "ko"}
+REPORT_KINDS = (("Rapport quotidien", "quotidien"), ("Indicateurs de la semaine", "hebdo"),
+                ("Revue mensuelle", "mensuel"), ("Plan de la semaine", "plan"))
+
+
+def report_blocks(text: str) -> list[tuple[str, str]]:
+    """Texte brut d'un rapport → blocs à afficher : titre (« h »), puce (« li », « ok »,
+    « ko », « wait » selon ✔ ✖ …) ou paragraphe (« p »). Rien n'est interprété en HTML."""
+    lines = [ln.rstrip() for ln in (text or "").replace("\r", "").split("\n")]
+    out: list[tuple[str, str]] = []
+    for n, line in enumerate(lines):
+        s = line.strip()
+        if not s:
+            continue
+        bullet = re.match(r"^(?:[-*•]|\d+[.)])\s+", s)
+        body = s[bullet.end():] if bullet else s
+        mark = REPORT_MARKS.get(body[:1])
+        if mark:
+            out.append((mark, body[1:].strip()))
+        elif bullet:
+            out.append(("li", body))
+        elif s.startswith("#"):
+            out.append(("h", s.lstrip("# ").strip("* ")))
+        else:
+            nxt = next((x.strip() for x in lines[n + 1:] if x.strip()), "")
+            listy = bool(re.match(r"^(?:[-*•]|\d+[.)])\s+|^[✔✖…⚠]", nxt))
+            heading = len(s) <= 70 and (listy or s.endswith(":")) and not s.endswith(".")
+            out.append(("h" if heading else "p", s.rstrip(":").strip("* ") if heading else s))
+    return out
+
+
+def report_kind(summary: str) -> str:
+    return next((k for prefix, k in REPORT_KINDS if (summary or "").startswith(prefix)),
+                "autre")
+
+
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 # Aperçu des articles : toujours re-nettoyé (le HTML a pu être modifié par un valideur).
@@ -175,12 +211,14 @@ def install_filters(tz: ZoneInfo) -> None:
                        initiales=initiales, jour_iso=jour_iso, jour_titre=jour_titre, heure=heure,
                        action_label=lambda t: ACTION_LABELS.get(t, (t or "").replace(".", " ")),
                        action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"),
-                       lisible=lisible,
+                       lisible=lisible, rapport=report_blocks, genre_rapport=report_kind,
+                       jours_restants=lambda v: (local(v).date() - datetime.now(tz).date()).days,
                        famille=lambda t: FAMILIES.get((t or "").split(".")[0], "Autres"))
     env.globals["aujourdhui"] = lambda: (
         f"{JOURS[datetime.now(tz).weekday()]} {datetime.now(tz).day} "
         f"{MOIS[datetime.now(tz).month - 1].rstrip('.')} {datetime.now(tz).year}")
 SESSION_COOKIE = "ibig_session"
+RETURN_PAGES = ("/agents", "/rapports", "/objectifs", "/indicateurs", "/boites")
 EDITABLE_KEYS = ("body", "texte", "contenu_html")
 SARA_MAX_QUESTION = 2000
 SARA_RATE = (20, 600)          # 20 questions par 10 minutes et par conversation
@@ -326,14 +364,17 @@ def create_app(rt: Runtime) -> FastAPI:
         return back("/validations", "Brouillon rédigé : relisez-le ci-dessous puis validez")
 
     @app.post("/agents/lancer/{key}")
-    def run_agent(key: str, tasks: BackgroundTasks, who: Principal = Depends(user)):
+    def run_agent(key: str, tasks: BackgroundTasks, retour: str = Form(""),
+                  who: Principal = Depends(user)):
         jobs = runners(rt)
         if key not in jobs:
             raise HTTPException(404)
+        # Retour sur la page d'où le bouton a été cliqué (liste fermée : pas de redirection libre)
+        dest = retour if retour in RETURN_PAGES else "/agents"
         if who.role == "valideur":
-            return back("/agents", "Refusé : les agents se lancent depuis un compte direction")
+            return back(dest, "Refusé : les agents se lancent depuis un compte direction")
         if key in running:
-            return back("/agents", "Déjà en cours : patientez quelques instants")
+            return back(dest, "Déjà en cours : patientez quelques instants")
         fn, msg = jobs[key]
 
         def job():
@@ -344,7 +385,7 @@ def create_app(rt: Runtime) -> FastAPI:
                 running.discard(key)
 
         tasks.add_task(job)
-        return back("/agents", msg)
+        return back(dest, msg)
 
     @app.post("/agents/publication")
     def write_post(compte: int = Form(...), sujet: str = Form(...), jour: str = Form(""),
@@ -761,7 +802,10 @@ def create_app(rt: Runtime) -> FastAPI:
                 JournalEntry.action_type == "report.publish",
                 JournalEntry.status == "executed").order_by(desc(JournalEntry.id))
                 .limit(60)).all()
-        return page(request, "rapports.html", rows=rows)
+        kinds: dict[str, int] = {}
+        for r in rows:
+            kinds[report_kind(r.summary)] = kinds.get(report_kind(r.summary), 0) + 1
+        return page(request, "rapports.html", rows=rows, kinds=kinds, running=set(running))
 
     @app.get("/indicateurs", response_class=HTMLResponse)
     def indicators(request: Request, jours: int = 7, who: Principal = Depends(user)):
@@ -801,7 +845,7 @@ def create_app(rt: Runtime) -> FastAPI:
         if who.role != "admin":
             raise HTTPException(403)
         rows = [(u, rt.org.poles_of(u.email)) for u in users.all()]
-        return page(request, "utilisateurs.html", rows=rows,
+        return page(request, "utilisateurs.html", rows=rows, poles=rt.org.poles,
                     whatsapp_ready=bool(rt.whatsapp_clients),
                     template=rt.settings.whatsapp_validation_template)
 

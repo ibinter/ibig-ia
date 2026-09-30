@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=18">
+<link rel="stylesheet" href="/static/app.css?v=19">
 </head>
 <body>
 {% if user %}
@@ -78,6 +78,32 @@
     </main>
   </div>
 </div>
+<script>
+/* Onglets mémorisés (.tabs[data-remember]) et boutons « Copier » (data-copy-text). */
+(function () {
+  document.querySelectorAll('.tabs[data-remember]').forEach(function (bar) {
+    var key = 'tab-' + bar.dataset.remember;
+    var tabs = bar.querySelectorAll('.tab');
+    function open(name) {
+      tabs.forEach(function (t) { t.classList.toggle('on', t.dataset.tab === name); t.setAttribute('aria-selected', t.dataset.tab === name); });
+      tabs.forEach(function (t) { var p = document.getElementById(t.dataset.tab); if (p) p.hidden = t.dataset.tab !== name; });
+      try { sessionStorage.setItem(key, name); } catch (e) {}
+    }
+    tabs.forEach(function (t) { t.addEventListener('click', function () { open(t.dataset.tab); }); });
+    var saved = null; try { saved = sessionStorage.getItem(key); } catch (e) {}
+    if (location.hash && document.getElementById(location.hash.slice(1)) && bar.querySelector('[data-tab="' + location.hash.slice(1) + '"]')) saved = location.hash.slice(1);
+    if (saved && bar.querySelector('[data-tab="' + saved + '"]')) open(saved);
+  });
+  document.querySelectorAll('[data-copy-text]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var label = b.innerHTML;
+      (navigator.clipboard ? navigator.clipboard.writeText(b.dataset.copyText) : Promise.reject()).then(function () {
+        b.textContent = 'Copié ✓'; setTimeout(function () { b.innerHTML = label; }, 1800);
+      }, function () { b.textContent = 'Copie impossible'; });
+    });
+  });
+})();
+</script>
 {% else %}
 {% block bare %}{% endblock %}
 {% endif %}
