@@ -111,3 +111,113 @@ def render_svg(headline: str, message: str, pole: str, reseau: str,
         "</svg>",
     ]
     return "\n".join(out)
+
+
+# ------------------------------------------------------------------ rendu PNG (serveur)
+FONT_DIRS = ("/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/dejavu")
+
+
+def _font(name: str, size: int):
+    from PIL import ImageFont
+
+    for d in FONT_DIRS:
+        try:
+            return ImageFont.truetype(f"{d}/{name}", size)
+        except OSError:
+            continue
+    return ImageFont.load_default(size)
+
+
+def _wrap_px(draw, text: str, font, max_w: int, max_lines: int) -> list[str]:
+    words, lines, line = text.split(), [], ""
+    for w in words:
+        test = f"{line} {w}".strip()
+        if draw.textlength(test, font=font) <= max_w or not line:
+            line = test
+        else:
+            lines.append(line)
+            line = w
+    if line:
+        lines.append(line)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1].rstrip(".,;:") + "…"
+    return lines
+
+
+def _hex(c: str) -> tuple[int, int, int]:
+    return int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
+
+
+def render_png(headline: str, message: str, pole: str, reseau: str,
+               subtitle: str = "") -> bytes:
+    """Même gabarit que render_svg, en PNG (Instagram n'accepte que des images)."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    w, h = FORMATS.get(reseau, (1080, 1080))
+    accent = _hex(ACCENTS.get(pole, ACCENTS["GROUPE"]))
+    k = min(w, h) / 1080
+    pad = int(min(w, h) * 0.08)
+    tall = h / w > 1.2
+    # Dégradé diagonal bleu IBIG
+    top, mid, bot = _hex("#0b1830"), _hex("#12306b"), _hex("#1257c4")
+    img = Image.new("RGB", (w, h))
+    px = img.load()
+    for y in range(h):
+        for x in range(0, w, 4):
+            t = (x / w + y / h) / 2
+            a, b, u = (top, mid, t / 0.6) if t < 0.6 else (mid, bot, (t - 0.6) / 0.4)
+            c = tuple(int(a[i] + (b[i] - a[i]) * u) for i in range(3))
+            for dx in range(4):
+                if x + dx < w:
+                    px[x + dx, y] = c
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    r = int(min(w, h) * 0.7)
+    for i in range(20, 0, -1):
+        rr = r * i // 20
+        gd.ellipse((w * 0.85 - rr, h * 0.1 - rr, w * 0.85 + rr, h * 0.1 + rr),
+                   fill=(*accent, int(6 * (21 - i) / 20 * 2)))
+    img = Image.alpha_composite(img.convert("RGBA"), glow)
+    d = ImageDraw.Draw(img)
+    cr = int(min(w, h) * 0.3)
+    d.ellipse((w * 0.92 - cr, h * 0.88 - cr, w * 0.92 + cr, h * 0.88 + cr),
+              outline=(*accent, 70), width=max(2, int(3 * k)))
+    # Marque
+    s = int(64 * k)
+    d.rounded_rectangle((pad, pad, pad + s, pad + s), radius=int(16 * k), fill=accent)
+    for off in (20, 32, 44):
+        x = pad + int(off * k)
+        d.line((x, pad + int(18 * k), x, pad + int(46 * k)), fill="white", width=int(6 * k))
+    brand = "IBIG " + (pole if pole != "GROUPE" else "SARL")
+    d.text((pad + int(84 * k), pad + int((8 if subtitle else 18) * k)), brand, fill="white",
+           font=_font("DejaVuSans-Bold.ttf", int(30 * k)))
+    if subtitle and subtitle.upper() != brand.upper():
+        d.text((pad + int(84 * k), pad + int(40 * k)), subtitle[:60], fill=(220, 228, 245),
+               font=_font("DejaVuSans.ttf", int(21 * k)))
+    bar_y = pad + int(120 * k)
+    if tall:
+        bar_y = max(bar_y, int(h * 0.30))
+    d.rounded_rectangle((pad, bar_y, pad + int(90 * k), bar_y + int(8 * k)),
+                        radius=int(4 * k), fill=accent)
+    text_w = int((w - 2 * pad) * (0.78 if w > h else 1.0))
+    tfont = _font("DejaVuSans-Bold.ttf", int((80 if tall else 68) * k))
+    mfont = _font("DejaVuSans.ttf", int((38 if tall else 34) * k))
+    y = bar_y + int(40 * k)
+    for line in _wrap_px(d, headline, tfont, text_w, 4 if tall else 3):
+        d.text((pad, y), line, fill="white", font=tfont)
+        y += int(tfont.size * 1.18)
+    y += int(24 * k)
+    footer_y = h - pad - int(30 * k)
+    for line in _wrap_px(d, message, mfont, text_w, 5 if tall else 3):
+        if y + mfont.size > footer_y - int(30 * k):
+            break
+        d.text((pad, y), line, fill=(219, 231, 255), font=mfont)
+        y += int(mfont.size * 1.45)
+    d.text((pad, footer_y), SLOGAN, fill=(230, 236, 250),
+           font=_font("DejaVuSans-Oblique.ttf", int(24 * k)))
+    buf = io.BytesIO()
+    img.convert("RGB").save(buf, "PNG", optimize=True)
+    return buf.getvalue()

@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     whatsapp_app_secret: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_api_version: str = "v23.0"
+    # Validation par WhatsApp (section 12) : numéro d'envoi (phone_number_id, défaut : le
+    # premier de canaux.yaml) et modèle Meta à un paramètre pour écrire hors fenêtre de 24 h.
+    whatsapp_validation_number: str = ""
+    whatsapp_validation_template: str = ""
+    # Heure (fuseau IBIG) de publication automatique des posts validés, le jour prévu
+    social_publish_hour: int = 10
     # Conservation des données personnelles (section 13)
     retention_months: int = 12
 

@@ -35,7 +35,7 @@ from ..db import JournalEntry, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
-from . import config_routes
+from . import config_routes, social_routes
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
@@ -296,6 +296,7 @@ def create_app(rt: Runtime) -> FastAPI:
         return page(request, "essai.html", **ctx)
 
     config_routes.register(app, rt, user, page, back)
+    social_routes.register(app, rt, user, page, back)
 
     @app.get("/demarrage", response_class=HTMLResponse)
     def getting_started(request: Request, who: Principal = Depends(user)):
@@ -543,9 +544,16 @@ def create_app(rt: Runtime) -> FastAPI:
         except ValueError:
             return JSONResponse({"erreur": "JSON invalide"}, status_code=400)
         # Réponse immédiate à Meta ; le traitement (tri, IA) se fait ensuite.
-        agent = rt.whatsapp
+        # Un numéro de valideur enregistré décide (OK 123 / NON 123) ; les autres
+        # suivent le parcours client.
+        agent, validation = rt.whatsapp, rt.wa_validation
+
+        def route(m):
+            if not validation.handle(m):
+                agent.handle(m)
+
         for m in messages:
-            tasks.add_task(agent.handle, m)
+            tasks.add_task(route, m)
         return {"recus": len(messages)}
 
     @app.post("/prospects/{pid}/statut")
@@ -590,6 +598,19 @@ def create_app(rt: Runtime) -> FastAPI:
         if who.role != "admin":
             raise HTTPException(403)
         rows = [(u, rt.org.poles_of(u.email)) for u in users.all()]
-        return page(request, "utilisateurs.html", rows=rows)
+        return page(request, "utilisateurs.html", rows=rows,
+                    whatsapp_ready=bool(rt.whatsapp_clients),
+                    template=rt.settings.whatsapp_validation_template)
+
+    @app.post("/utilisateurs/{uid}/telephone")
+    def set_phone(uid: int, telephone: str = Form(""), who: Principal = Depends(user)):
+        if who.role != "admin":
+            raise HTTPException(403)
+        try:
+            digits = users.set_phone(uid, telephone)
+        except ValueError as exc:
+            return back("/utilisateurs", f"Refusé : {exc}")
+        return back("/utilisateurs", f"Numéro WhatsApp enregistré : +{digits}" if digits
+                    else "Numéro WhatsApp retiré")
 
     return app

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 import time
 from dataclasses import dataclass
@@ -91,6 +92,12 @@ def read_action_token(secret: str, token: str,
     if int(expires) < (now or time.time()):
         return None
     return int(pending_id), int(user_id)
+
+
+def normalize_phone(phone: str) -> str:
+    """Numéro international en chiffres seuls (format des identifiants WhatsApp)."""
+    digits = re.sub(r"\D", "", phone or "").removeprefix("00")
+    return digits if 8 <= len(digits) <= 15 else ""
 
 
 # ------------------------------------------------------------------ droits
@@ -176,6 +183,27 @@ class UserStore:
         if user is None or not user.active:
             return None
         return self._principal(user)
+
+    def by_phone(self, phone: str) -> Principal | None:
+        digits = normalize_phone(phone)
+        if not digits:
+            return None
+        with self._sessions() as s:
+            user = s.scalars(select(User).where(User.phone == digits,
+                                                User.active.is_(True))).first()
+        return self._principal(user) if user is not None else None
+
+    def set_phone(self, user_id: int, phone: str) -> str:
+        digits = normalize_phone(phone)
+        if phone.strip() and not digits:
+            raise ValueError("Numéro invalide : format international, ex. 225 07 00 00 00 00")
+        with self._sessions() as s:
+            user = s.get(User, user_id)
+            if user is None:
+                raise ValueError("Compte introuvable")
+            user.phone = digits
+            s.commit()
+        return digits
 
     def all(self) -> list[User]:
         with self._sessions() as s:

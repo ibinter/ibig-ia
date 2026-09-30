@@ -163,6 +163,39 @@ d'IBIG sont facturés par Meta (section 16). Les **chaînes WhatsApp** n'ont pas
 les déclarer dans `config/canaux.yaml` (`reseau: whatsapp_chaine`, `publication_auto:
 false`) ; l'agent Communication prépare leurs messages chaque semaine.
 
+## 5 ter. Publication automatique sur les réseaux sociaux (section 8)
+
+Menu **Réseaux sociaux** du tableau de bord : pour chaque compte, collez ses accès puis
+cliquez sur « Tester la connexion ». Tant qu'un compte n'est pas raccordé, ses publications
+validées restent remises à l'équipe (publication manuelle).
+
+| Réseau | Où obtenir les accès | Autorisations |
+|---|---|---|
+| Page Facebook | Meta Business Suite → Paramètres → Utilisateurs système → jeton de la page | `pages_manage_posts`, `pages_read_engagement`, `pages_read_user_content` |
+| Instagram | Compte professionnel relié à la page ; même application Meta | `instagram_basic`, `instagram_content_publish` |
+| Threads | Application Meta avec le produit Threads | `threads_basic`, `threads_content_publish` |
+| LinkedIn | developer.linkedin.com, produit « Community Management API » | `w_organization_social` (administrateur de la page) |
+| X | developer.x.com, application en lecture-écriture | les 4 clés OAuth 1.0a |
+
+* Une publication validée part **le jour prévu à 10 h** (réglable : `IBIG_SOCIAL_PUBLISH_HOUR`),
+  ou dans les 5 minutes si la date est passée. Elle peut être annulée jusque-là.
+* Facebook, Instagram et Threads reçoivent le visuel PNG aux couleurs IBIG : l'adresse
+  `IBIG_DASHBOARD_URL` doit être en `https://` (Meta télécharge l'image par un lien signé).
+* Les commentaires des pages Facebook raccordées sont relus chaque heure ; un commentaire
+  négatif déclenche une alerte. L'agent ne répond jamais lui-même aux commentaires.
+* Le bouton d'arrêt d'un réseau suspend aussi ses publications programmées ; elles
+  repartent quand il est réactivé.
+
+### Valider depuis WhatsApp (section 12)
+
+1. Raccorder un numéro WhatsApp Business (section 5 bis).
+2. Menu **Comptes** : renseigner le numéro WhatsApp de chaque valideur.
+3. Chaque nouvel élément à valider lui est signalé ; il répond `OK 123` ou `NON 123 motif`.
+4. Hors des 24 h qui suivent le dernier message du valideur, Meta n'accepte qu'un modèle :
+   créer dans WhatsApp Manager un modèle « Utilitaire » à un paramètre, par exemple
+   « Agent IA IBIG — à valider : {{1}}. Répondez OK suivi du numéro pour valider. », puis
+   indiquer son nom dans `IBIG_WHATSAPP_VALIDATION_TEMPLATE`.
+
 ## 6. Sauvegardes
 
 ```bash

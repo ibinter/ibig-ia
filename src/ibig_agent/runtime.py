@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .agents.campagnes import CampaignWriter
 from .agents.chef import ChefAgent
+from .agents.commentaires import CommentWatcher
 from .agents.commercial import CommercialAgent
 from .agents.communication import CommunicationAgent
 from .agents.contenus_web import ContenusWebAgent
@@ -19,6 +20,7 @@ from .agents.notifications import ValidatorNotifier
 from .agents.plan import WeeklyPlanner
 from .agents.revue import MonthlyReviewer
 from .agents.support import SupportAgent
+from .agents.validation_whatsapp import WhatsAppValidation, validation_executors
 from .agents.veille import VeilleAgent
 from .agents.whatsapp import WhatsAppAgent
 from .channels.mail import MailConnector, connector_for
@@ -30,6 +32,7 @@ from .db import WhatsAppContact, make_engine, open_db, utcnow
 from .governance import Executor, Governor, as_utc
 from .knowledge import KnowledgeBase
 from .llm import LLM, ClaudeClient
+from .publishing import publish_due, social_executors
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +112,8 @@ def manual_social_executors() -> dict[str, Executor]:
         return {"mode": "manuel", "a_publier_par": "équipe communication",
                 "reseau": payload.get("reseau"), "compte": payload.get("compte")}
 
+    # « social.post » est remplacé par la publication programmée (publishing.py) : manuel
+    # tant que le compte n'est pas raccordé.
     return {"social.post": manual, "social.manual_post": manual,
             # La réponse de SARA est renvoyée par l'API ; l'action sert au journal et à l'arrêt.
             "sara.answer": lambda payload: {"canal": "sara"},
@@ -132,6 +137,8 @@ class Runtime:
     dashboard_boxes: set[str] = field(default_factory=set)
     connector_factory: Callable = field(default=None)
     brevo_factory: Callable = field(default=None)
+    # Fabrique du client HTTP des réseaux sociaux (remplacée dans les tests)
+    social_client_factory: Callable = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -169,6 +176,19 @@ class Runtime:
 
     def directives_for(self, pole: str) -> str:
         return directives_text(self.sessions, pole)
+
+    @property
+    def comments(self) -> CommentWatcher:
+        return CommentWatcher(self.settings, self.org, self.sessions, self.llm, self.veille,
+                              self.social_client_factory)
+
+    @property
+    def wa_validation(self) -> WhatsAppValidation:
+        return WhatsAppValidation(self.settings, self.org, self.governor, self.sessions,
+                                  self.whatsapp_clients, self.notifier)
+
+    def publish_due(self) -> int:
+        return publish_due(self.governor, self.sessions)
 
     @property
     def notifier(self) -> ValidatorNotifier:
@@ -245,6 +265,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                             for n in org.whatsapp}
     executors = {**mail_executors(connectors), **web_executors(web_connectors),
                  **whatsapp_executors(whatsapp_clients, sessions), **manual_social_executors(),
+                 **social_executors(sessions, settings),
+                 **validation_executors(whatsapp_clients, settings),
                  **emailing_executors(sessions, settings)}
     governor = Governor(sessions, executors,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))

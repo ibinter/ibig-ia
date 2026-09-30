@@ -101,6 +101,21 @@ class WhatsAppClient:
         ids = [m.get("id") for m in resp.json().get("messages", [])]
         return {"whatsapp_id": ids[0] if ids else None}
 
+    def send_template(self, to: str, name: str, params: list[str],
+                      lang: str = "fr") -> dict:
+        """Modèle validé par Meta : seul envoi permis hors de la fenêtre de 24 h."""
+        components = [{"type": "body", "parameters": [
+            {"type": "text", "text": p[:1000]} for p in params]}] if params else []
+        resp = self.client.post(self._url("/messages"), headers=self._headers(), json={
+            "messaging_product": "whatsapp", "to": to, "type": "template",
+            "template": {"name": name, "language": {"code": lang},
+                         "components": components},
+        })
+        if resp.status_code != 200:
+            raise RuntimeError(f"API WhatsApp {resp.status_code} : {resp.text[:300]}")
+        ids = [m.get("id") for m in resp.json().get("messages", [])]
+        return {"whatsapp_id": ids[0] if ids else None}
+
     def check(self) -> str:
         """Jeton valide et état du numéro, sans rien envoyer (diagnostic)."""
         resp = self.client.get(self._url(), headers=self._headers(), params={

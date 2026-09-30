@@ -44,7 +44,7 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
                   hour=rt.settings.daily_report_hour, minute=0, id="daily_report")
     def alert_validators():
         rt.governor.flag_stale()
-        return rt.notifier.run()
+        return rt.notifier.run(), rt.wa_validation.notify()
 
     sched.add_job(_safe("alertes valideurs", alert_validators), "interval",
                   minutes=15, id="validator_alerts", max_instances=1, coalesce=True)
@@ -56,6 +56,12 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     # Agent chef : plan de la semaine chaque lundi, d'après les consignes de la direction.
     sched.add_job(_safe("plan de la semaine", lambda: rt.planner.run(this_monday(tz))),
                   "cron", day_of_week="mon", hour=7, minute=30, id="weekly_plan")
+    # Publication automatique des posts validés arrivés à leur date (section 8)
+    sched.add_job(_safe("publications programmées", lambda: rt.publish_due()), "interval",
+                  minutes=5, id="scheduled_posts", max_instances=1, coalesce=True)
+    # Veille des commentaires des pages Facebook raccordées (avis négatifs)
+    sched.add_job(_safe("veille des commentaires", lambda: rt.comments.run()), "interval",
+                  hours=1, id="comment_watch", max_instances=1, coalesce=True)
     # Veille : alertes toutes les heures, indicateurs de la semaine chaque lundi à 8 h 15.
     sched.add_job(_safe("alertes de veille", lambda: rt.veille.check_alerts()), "interval", hours=1,
                   id="watch_alerts", max_instances=1, coalesce=True)

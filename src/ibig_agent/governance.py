@@ -46,6 +46,7 @@ ACTION_LEVELS: dict[str, Level] = {
     "mail.forward_internal": Level.AUTOMATIQUE,
     "report.publish": Level.AUTOMATIQUE,
     "notify.internal": Level.AUTOMATIQUE,
+    "notify.whatsapp": Level.AUTOMATIQUE,
     "stats.read": Level.AUTOMATIQUE,
     "social.schedule_approved": Level.AUTOMATIQUE,
     # Niveau 2 — validation en un clic
@@ -89,7 +90,10 @@ AGENT_AUTONOMY: dict[str, str] = {
 
 # Actions internes (rapports, alertes à l'équipe IBIG), permises aux agents « aucune »
 # (le chef rend compte et alerte) et « lecture » (veille).
-READ_ONLY_ACTIONS = {"report.publish", "stats.read", "notify.internal"}
+READ_ONLY_ACTIONS = {"report.publish", "stats.read", "notify.internal", "notify.whatsapp"}
+# Actions qui ne font que publier un contenu déjà validé par un humain (relu en base par
+# l'exécuteur) : permises en automatique aux agents « validation » (section 12).
+PRE_APPROVED_ACTIONS = {"social.schedule_approved"}
 
 CHANNELS = [
     "mail",
@@ -218,7 +222,7 @@ class Governor:
                     f"L'agent {req.agent!r} ne peut pas émettre {req.action_type!r}"
                 )
         elif (autonomy == "validation" and level == Level.AUTOMATIQUE
-              and req.action_type not in READ_ONLY_ACTIONS):
+              and req.action_type not in READ_ONLY_ACTIONS | PRE_APPROVED_ACTIONS):
             # Les actions internes (alertes à l'équipe) ne touchent aucun canal extérieur.
             level = Level.VALIDATION
 
@@ -290,7 +294,8 @@ class Governor:
             action_type, payload = pa.action_type, dict(pa.payload)
 
         try:
-            result = self._execute(action_type, payload)
+            # L'exécuteur reçoit le numéro de l'action (ex. publication programmée liée)
+            result = self._execute(action_type, {**payload, "_pending_id": pending_id})
         except Exception as exc:  # noqa: BLE001
             self._close(pending_id, "failed", by, error=str(exc))
             return Outcome("failed", Level.VALIDATION, pending_id=pending_id, error=str(exc))

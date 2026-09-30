@@ -37,6 +37,10 @@ def setup_steps(rt: Runtime) -> list[Step]:
         ("réseaux sociaux", org.social_accounts),
         ("sites", [s for s in org.sites if s.actif]),
         ("WhatsApp", org.whatsapp)) if on]
+    from ..publishing import is_connected
+
+    auto_on = sum(is_connected(rt.sessions, rt.settings, a.reseau, a.compte)
+                  for a in org.social_accounts if a.publication_auto)
     return [
         Step("install", "shield-check", "Installer le tableau de bord", True,
              "C'est ici que vous suivez et validez tout ce que fait l'agent.",
@@ -78,6 +82,13 @@ def setup_steps(rt: Runtime) -> list[Step]:
              "whatsapp.yaml.",
              f"branchés : {', '.join(channels)}" if channels else "à brancher après les mails",
              optional=True),
+        Step("publication", "share", "Publier automatiquement sur les réseaux", auto_on > 0,
+             "Une publication validée part seule à sa date, avec son visuel ; les "
+             "commentaires des pages Facebook sont surveillés.",
+             "Menu « Réseaux sociaux » : pour chaque page ou compte, coller les accès "
+             "fournis par Meta, LinkedIn ou X, puis « Tester la connexion ».",
+             f"{auto_on} compte(s) en publication automatique" if auto_on
+             else "publication manuelle pour l'instant", optional=True),
     ]
 
 

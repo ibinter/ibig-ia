@@ -195,6 +195,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20))
     password_hash: Mapped[str] = mapped_column(String(300))
+    # Numéro WhatsApp (format international sans +) pour valider par WhatsApp
+    phone: Mapped[str] = mapped_column(String(32), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -270,6 +272,43 @@ class ServiceSetting(Base):
     secret: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_by: Mapped[str] = mapped_column(String(300), default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ScheduledPost(Base):
+    """Publication validée, programmée pour publication automatique à sa date."""
+
+    __tablename__ = "scheduled_posts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pending_id: Mapped[int] = mapped_column(Integer, index=True)
+    reseau: Mapped[str] = mapped_column(String(40))
+    compte: Mapped[str] = mapped_column(String(200))
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    texte: Mapped[str] = mapped_column(Text)
+    titre: Mapped[str] = mapped_column(String(300), default="")
+    publish_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="programme")  # publie | echec
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SocialComment(Base):
+    """Commentaire relevé sur une page Facebook (veille e-réputation, section 6)."""
+
+    __tablename__ = "social_comments"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)  # identifiant Meta
+    reseau: Mapped[str] = mapped_column(String(40))
+    compte: Mapped[str] = mapped_column(String(200))
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    post_id: Mapped[str] = mapped_column(String(120), default="")
+    author: Mapped[str] = mapped_column(String(200), default="")
+    text: Mapped[str] = mapped_column(Text, default="")
+    sentiment: Mapped[str] = mapped_column(String(20), default="neutre")  # positif|neutre|negatif
+    summary: Mapped[str] = mapped_column(String(300), default="")
+    posted_at: Mapped[str] = mapped_column(String(40), default="")
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
+                                              index=True)
 
 
 def make_engine(url: str) -> Engine:

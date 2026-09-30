@@ -236,7 +236,7 @@ a.kpi:hover { text-decoration: none; transform: translateY(-2px); box-shadow: va
 /* Formulaires */
 label.field { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 14px; }
 label.field span { display: block; margin-bottom: 6px; }
-input[type=text], input[type=email], input[type=password], input[type=date], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=tel], input[type=date], select, textarea {
   width: 100%; font: inherit; color: var(--ink); background: var(--card);
   border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 10px 12px;
   transition: border-color .15s, box-shadow .15s;
@@ -560,3 +560,4 @@ details > .inner { padding: 4px 14px 14px; }
           background: var(--bg-soft); flex-wrap: wrap; }
 .visual img { width: 220px; max-width: 100%; border-radius: 10px; box-shadow: var(--shadow); background: #0b1830; }
 .visual > div { flex: 1; min-width: 220px; }
+td.nowrap { white-space: nowrap; }

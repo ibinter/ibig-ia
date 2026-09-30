@@ -1,67 +1,11 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, channel_icon %}
-{% block title %}Validations<script>
-function png(id) {
-  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
-    var img = new Image();
-    img.onload = function () {
-      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
-        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
-</script>
-{% endblock %}
-{% block heading %}Validations<script>
-function png(id) {
-  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
-    var img = new Image();
-    img.onload = function () {
-      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
-        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
-</script>
-{% endblock %}
-{% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p><script>
-function png(id) {
-  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
-    var img = new Image();
-    img.onload = function () {
-      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
-        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
-</script>
-{% endblock %}
+{% block title %}Validations{% endblock %}
+{% block heading %}Validations{% endblock %}
+{% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p>{% endblock %}
 {% block tools %}
 <span class="pill amber dot">{{ pending | length }} à valider</span>
 {% if user.role != 'valideur' %}<span class="pill red dot">{{ prepared | length }} niveau 3</span>{% endif %}
-<script>
-function png(id) {
-  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
-    var img = new Image();
-    img.onload = function () {
-      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
-        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  });
-}
-</script>
 {% endblock %}
 {% block content %}
 <div class="section-title" style="margin-top:4px">{{ icon('check-circle') }}<h2>À valider</h2><span class="pill amber">niveau 2</span></div>

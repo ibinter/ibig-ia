@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=8">
+<link rel="stylesheet" href="/static/app.css?v=9">
 </head>
 <body>
 {% if user %}
@@ -33,6 +33,7 @@
       {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
       <div class="nav-title">Activité</div>
       {{ nav('/calendrier', 'calendar', 'Calendrier éditorial') }}
+      {{ nav('/reseaux', 'share', 'Réseaux sociaux') }}
       {% if user.role != 'valideur' %}{{ nav('/campagnes', 'mail', 'Campagnes mail') }}{% endif %}
       {{ nav('/prospects', 'target', 'Prospects') }}
       {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}

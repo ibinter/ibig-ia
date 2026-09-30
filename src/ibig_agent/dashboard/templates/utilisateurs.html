@@ -6,7 +6,7 @@
 {% block content %}
 <div class="card">
   <div class="table-wrap"><table>
-    <thead><tr><th>Personne</th><th>Rôle</th><th>Pôles</th><th>État</th></tr></thead>
+    <thead><tr><th>Personne</th><th>Rôle</th><th>Pôles</th><th>WhatsApp (validation)</th><th>État</th></tr></thead>
     <tbody>
     {% for u, poles in rows %}
     <tr>
@@ -14,11 +14,23 @@
         <span><b>{{ u.name }}</b><span class="sub">{{ u.email }}</span></span></span></td>
       <td><span class="pill {{ {'admin': 'violet', 'direction': 'blue', 'valideur': 'amber'}.get(u.role, '') }}">{{ {'admin': 'Administration', 'direction': 'Direction', 'valideur': 'Valideur'}.get(u.role, u.role) }}</span></td>
       <td>{% if poles %}<div class="pills">{% for p in poles %}<span class="pill">{{ p }}</span>{% endfor %}</div>{% else %}<span class="muted">{{ 'tous' if u.role != 'valideur' else '—' }}</span>{% endif %}</td>
+      <td><form method="post" action="/utilisateurs/{{ u.id }}/telephone" class="inline" style="gap:6px;flex-wrap:nowrap">
+        <input type="tel" name="telephone" value="{{ '+' ~ u.phone if u.phone else '' }}" placeholder="+225 07 00 00 00 00" style="min-width:170px">
+        <button class="btn sm" title="Enregistrer">{{ icon('check') }}</button></form></td>
       <td>{% if u.active %}<span class="pill green dot">actif</span>{% else %}<span class="pill red dot">désactivé</span>{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table></div>
+</div>
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('message') }} Valider depuis WhatsApp</h2><div class="sub">Section 12</div></div>
+    {% if whatsapp_ready %}<span class="pill green dot">numéro WhatsApp raccordé</span>{% else %}<span class="pill amber dot">aucun numéro WhatsApp raccordé</span>{% endif %}</div>
+  <ul class="agent-does">
+    <li>{{ icon('check') }}<span>Renseignez le numéro WhatsApp de chaque valideur ci-dessus. Chaque nouvel élément à valider lui est signalé avec son numéro.</span></li>
+    <li>{{ icon('check') }}<span>Il répond <b>OK 123</b> pour valider, <b>NON 123 motif</b> pour rejeter. Seuls ses pôles sont concernés ; le niveau 3 reste au tableau de bord.</span></li>
+    <li>{{ icon('alert') }}<span>Hors des 24 h qui suivent son dernier message, Meta n'accepte qu'un modèle validé : créez un modèle à un paramètre et indiquez son nom dans <code>IBIG_WHATSAPP_VALIDATION_TEMPLATE</code>{% if template %} (actuel : <b>{{ template }}</b>){% endif %}.</span></li>
+  </ul>
 </div>
 <div class="card" style="margin-top:16px">
   <div class="card-head"><div><h2>Ajouter un compte</h2><div class="sub">Sur le serveur, dans /opt/ibig-ia</div></div></div>
