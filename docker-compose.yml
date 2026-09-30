@@ -26,8 +26,10 @@ services:
       - ./knowledge:/app/knowledge:ro
       # Articles livrés en HTML pour les sites sans back-office
       - ./exports:/app/exports
-    # Pas de port publié : seul Caddy (HTTPS) est exposé.
+    # Publié sur 127.0.0.1 seulement (injoignable depuis Internet) : utilisé quand un
+    # nginx déjà présent sur le serveur sert le HTTPS à la place de Caddy.
     expose: ["8000"]
+    ports: ["127.0.0.1:${IBIG_LOCAL_PORT:-18000}:8000"]
     depends_on:
       db:
         condition: service_healthy
@@ -35,8 +37,11 @@ services:
       driver: json-file
       options: {max-size: "20m", max-file: "10"}
 
+  # HTTPS intégré, actif avec COMPOSE_PROFILES=caddy dans .env (serveur dédié). Laisser
+  # COMPOSE_PROFILES vide si un nginx existant occupe déjà les ports 80 et 443.
   caddy:
     image: caddy:2
+    profiles: ["caddy"]
     restart: unless-stopped
     environment:
       IBIG_DOMAIN: ${IBIG_DOMAIN:?définir IBIG_DOMAIN dans .env (ex. agent.exemple.ci)}

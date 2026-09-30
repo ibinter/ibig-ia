@@ -18,6 +18,12 @@ bleu() { printf '\n\033[1;34m== %s\033[0m\n' "$*"; }
 ok() { printf '\033[32m✔ %s\033[0m\n' "$*"; }
 stop() { printf '\033[31m✖ %s\033[0m\n' "$*" >&2; exit 1; }
 question() { local r; read -r -p "$1 " r </dev/tty; printf '%s' "$r"; }
+set_env() {  # remplace ou ajoute VAR=valeur dans .env sans afficher la valeur
+  if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
+}
+# Programmes (hors Docker) qui écoutent sur un port TCP donné
+ecoute() { ss -Hltnp "sport = :$1" 2>/dev/null | grep -v docker-proxy \
+  | grep -oE 'users:\(\("[^"]+' | cut -d'"' -f2 | sort -u | xargs || true; }
 
 [ "$(id -u)" -eq 0 ] || stop "À lancer en administrateur : sudo bash installer.sh"
 . /etc/os-release 2>/dev/null || stop "Système non reconnu (Ubuntu ou Debian attendu)"
@@ -38,8 +44,20 @@ apt-get update -qq
 apt-get install -y -qq ca-certificates curl git openssl ufw unattended-upgrades >/dev/null
 dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
 ufw allow 22/tcp >/dev/null && ufw allow 80/tcp >/dev/null && ufw allow 443/tcp >/dev/null
-ufw --force enable >/dev/null
-ok "Pare-feu actif : seuls SSH (22), HTTP (80) et HTTPS (443) sont ouverts"
+if ufw status | grep -q "Status: active"; then
+  ok "Pare-feu déjà actif : 22, 80 et 443 autorisés, les autres règles sont conservées"
+else
+  # Ne jamais couper un service existant (autre port SSH, base distante, panneau...)
+  AUTRES=$(ss -Hltn | awk '{print $4}' | grep -vE '^(127\.|\[::1\]|\[::ffff:127\.)' \
+    | sed -E 's/.*:([0-9]+)$/\1/' | grep -vxE '22|80|443' | sort -un | xargs || true)
+  if [ -n "$AUTRES" ]; then
+    echo "ATTENTION : pare-feu NON activé, d'autres services écoutent sur : $AUTRES"
+    echo "  Autorisez ceux qui doivent rester joignables (ufw allow PORT/tcp) puis : ufw enable"
+  else
+    ufw --force enable >/dev/null
+    ok "Pare-feu actif : seuls SSH (22), HTTP (80) et HTTPS (443) sont ouverts"
+  fi
+fi
 
 bleu "3/7 Docker"
 if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; then
@@ -75,9 +93,6 @@ else
   gen() { openssl rand -hex 32; }
   cp .env.example .env
   chmod 600 .env
-  set_env() {  # remplace ou ajoute VAR=valeur sans afficher la valeur
-    if grep -qE "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
-  }
   set_env IBIG_DOMAIN "$DOMAIN"
   set_env IBIG_DASHBOARD_URL "https://$DOMAIN"
   set_env POSTGRES_PASSWORD "$(gen)"
@@ -91,16 +106,22 @@ fi
 mkdir -p exports && chmod 777 exports
 
 bleu "6/7 Démarrage (base de données, agent, HTTPS)"
-# Caddy a besoin des ports 80 et 443 : un serveur web préinstallé par l'hébergeur les bloque.
-OCCUPE=$(ss -Hltnp 'sport = :80 or sport = :443' 2>/dev/null | grep -v docker-proxy || true)
-if [ -n "$OCCUPE" ]; then
-  echo "$OCCUPE"
-  PROGS=$(echo "$OCCUPE" | grep -oE 'users:\(\("[^"]+' | cut -d'"' -f2 | sort -u | tr '\n' ' ')
-  stop "Les ports 80/443 sont déjà pris par : ${PROGS:-un autre programme}. S'il n'héberge aucun
-  site utile sur ce serveur, arrêtez-le puis relancez l'installateur, par exemple :
-    systemctl disable --now apache2 nginx 2>/dev/null; bash $DIR/deploy/installer.sh"
-fi
-docker compose up -d --build
+# HTTPS : Caddy intégré si les ports 80/443 sont libres ; si un nginx existant les occupe
+# (autres sites sur le serveur), c'est lui qui sert l'agent et on n'y touche pas sinon.
+WEB=$( { ecoute 80; ecoute 443; } | xargs -n1 | sort -u | xargs)
+case "$WEB" in
+  "") MODE=caddy; set_env COMPOSE_PROFILES caddy ;;
+  nginx) MODE=nginx; set_env COMPOSE_PROFILES ""
+         docker compose --profile caddy rm -sf caddy >/dev/null 2>&1 || true
+         ok "nginx sert déjà d'autres sites : l'agent passera par lui (sites existants intacts)" ;;
+  *) stop "Les ports 80/443 sont pris par : $WEB. Configurez ce programme pour qu'il relaie
+  https://$DOMAIN vers 127.0.0.1:${IBIG_LOCAL_PORT:-18000}, ou libérez les ports." ;;
+esac
+PORT=$(grep -E '^IBIG_LOCAL_PORT=' .env | cut -d= -f2-)
+PORT=${PORT:-18000}
+while [ -n "$(ecoute "$PORT")" ]; do PORT=$((PORT + 1)); done
+set_env IBIG_LOCAL_PORT "$PORT"
+docker compose up -d --build --remove-orphans
 echo -n "Attente du démarrage de l'agent"
 for _ in $(seq 1 60); do
   if docker compose exec -T agent python -c \
@@ -112,6 +133,56 @@ done
 docker compose exec -T agent python -c \
   "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null \
   || { docker compose logs --tail 40 agent; stop "L'agent ne démarre pas (voir ci-dessus)"; }
+
+if [ "$MODE" = nginx ]; then
+  SITE=/etc/nginx/sites-available/ibig-agent
+  [ -d /etc/nginx/sites-enabled ] || SITE=/etc/nginx/conf.d/ibig-agent.conf
+  if [ -f "$SITE" ]; then
+    sed -i -E "s|proxy_pass http://127\.0\.0\.1:[0-9]+;|proxy_pass http://127.0.0.1:$PORT;|" "$SITE"
+    ok "Site nginx de l'agent déjà présent : $SITE"
+  else
+    cat > "$SITE" <<NGINX
+# Agent IA IBIG (créé par deploy/installer.sh) : relaie $DOMAIN vers l'agent (Docker)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN;
+    client_max_body_size 10m;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "same-origin" always;
+    location / {
+        proxy_pass http://127.0.0.1:$PORT;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 120s;
+    }
+}
+NGINX
+    [ -d /etc/nginx/sites-enabled ] && ln -sf "$SITE" /etc/nginx/sites-enabled/ibig-agent
+    ok "Site nginx créé : $SITE"
+  fi
+  if ! nginx -t >/dev/null 2>&1; then
+    nginx -t || true
+    rm -f "$SITE" /etc/nginx/sites-enabled/ibig-agent
+    stop "Configuration nginx refusée : site de l'agent retiré, les autres sites sont intacts"
+  fi
+  systemctl reload nginx
+  if grep -q ssl_certificate "$SITE"; then
+    ok "Certificat HTTPS déjà en place"
+  else
+    if ! command -v certbot >/dev/null || ! certbot plugins 2>/dev/null | grep -q nginx; then
+      apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
+    fi
+    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --redirect \
+        --register-unsafely-without-email \
+      && ok "Certificat HTTPS obtenu pour $DOMAIN" \
+      || echo "ATTENTION : certificat HTTPS non obtenu (DNS de $DOMAIN vers $IP ?). Plus tard :
+  certbot --nginx -d $DOMAIN --redirect"
+  fi
+fi
 
 bleu "7/7 Premier compte et diagnostic"
 if docker compose exec -T agent ibig-agent utilisateur lister 2>/dev/null | grep -q 'admin'; then

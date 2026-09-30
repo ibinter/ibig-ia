@@ -42,6 +42,12 @@ la clé API Anthropic (facultative à ce stade) et le compte de direction. Il pe
 relancé sans risque (il ne remplace jamais un `.env` existant). Il ne modifie pas la
 configuration SSH : passer ensuite à une connexion par clé (section 1).
 
+Serveur qui héberge déjà des sites avec **nginx** : le script le détecte, laisse Caddy
+éteint et ajoute seulement un site nginx pour le domaine de l'agent
+(`/etc/nginx/sites-available/ibig-agent`, vers `127.0.0.1:IBIG_LOCAL_PORT`) avec un
+certificat Let's Encrypt (`certbot --nginx`). Les autres sites ne sont pas modifiés. Le
+pare-feu n'est activé que si aucun autre service n'écoute sur un port public.
+
 Les sections suivantes détaillent l'installation manuelle.
 
 ## 1. Le serveur
