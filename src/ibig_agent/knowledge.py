@@ -178,7 +178,9 @@ class KnowledgeBase:
                     # Réponse encore à rédiger : jamais envoyée automatiquement.
                     (self.faq_pending if is_placeholder(entry.answer) else self.faq).append(entry)
         self.passages = [p for d in self.documents for p in self._split(d)]
-        corpus = "\n".join(d.body for d in self.documents)
+        # Les publications passées calent le style mais ne font pas foi : un prix ou un
+        # contact d'une ancienne publication ne valide jamais un nouveau contenu.
+        corpus = "\n".join(d.body for d in self.documents if d.type != "publication")
         self._emails = {e.lower() for e in _EMAIL.findall(corpus)}
         self._urls = {_norm_url(u) for u in _URL.findall(corpus)}
         self._phones = {_digits(p) for p in _PHONE.findall(corpus)}
@@ -266,6 +268,26 @@ class KnowledgeBase:
 
     def passage(self, passage_id: str) -> Passage | None:
         return next((p for p in self.passages if p.id == passage_id), None)
+
+    def style_examples(self, pole: str, reseau: str = "", limit: int = 4,
+                       max_chars: int = 4000) -> str:
+        """Publications réussies du pôle (ou du groupe), pour caler le ton (section 7)."""
+        docs = [d for d in self.documents if d.type == "publication"
+                and d.pole in (pole, "GROUPE", "")]
+        docs.sort(key=lambda d: (d.pole != pole, d.meta.get("reseau") != reseau))
+        parts, size = [], 0
+        for d in docs[:limit]:
+            chunk = (f"- [{d.meta.get('reseau', '?')}, {d.pole or 'groupe'}] "
+                     f"{d.body.strip()[:900]}\n")
+            if size + len(chunk) > max_chars:
+                break
+            parts.append(chunk)
+            size += len(chunk)
+        if not parts:
+            return ""
+        return ("Exemples de publications réussies d'IBIG, pour le ton et le format "
+                "UNIQUEMENT (ne pas les copier ; leurs prix, dates et chiffres ne font pas foi) "
+                ":\n" + "".join(parts))
 
     def context_for(self, pole: str, query: str = "", max_chars: int = 12000) -> str:
         """Contexte stable pour un pôle : charte, fiche, contacts, interdits, FAQ."""

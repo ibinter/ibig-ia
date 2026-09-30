@@ -15,13 +15,19 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from sqlalchemy import desc, select
 
-from ..auth import Principal, UserStore, make_session, read_session
+from ..auth import Principal, UserStore, make_session, read_action_token, read_session
 from ..channels.mail import MailMessage
 from ..channels.web import sanitize_html
 from ..config import Mailbox
@@ -33,6 +39,7 @@ from . import config_routes
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
+from .visuals import first_sentence, render_svg
 
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
@@ -344,6 +351,60 @@ def create_app(rt: Runtime) -> FastAPI:
         except GovernanceError as exc:
             return back("/validations", f"Refusé : {exc}")
         return back("/validations", "Marqué comme traité")
+
+    # ------------------------------------------------------------ validation par mail
+    def link_target(token: str) -> tuple[PendingAction | None, Principal | None, str]:
+        found = read_action_token(secret, token)
+        if found is None:
+            return None, None, "Lien invalide ou expiré (48 h) : validez depuis le tableau de bord."
+        pid, uid = found
+        who = users.get(uid)
+        with rt.sessions() as s:
+            pa = s.get(PendingAction, pid)
+        if who is None or pa is None or not who.can_decide(pa) or pa.level != 2:
+            return None, None, "Ce lien ne vous permet pas de décider de cet élément."
+        return pa, who, ""
+
+    @app.get("/v/{token}", response_class=HTMLResponse)
+    def link_page(request: Request, token: str):
+        pa, who, error = link_target(token)
+        return page(request, "lien_validation.html", pa=pa, who=who, error=error,
+                    token=token, done="")
+
+    @app.post("/v/{token}", response_class=HTMLResponse)
+    def link_decide(request: Request, token: str, decision: str = Form(...),
+                    motif: str = Form("")):
+        pa, who, error = link_target(token)
+        done = ""
+        if pa is not None:
+            by = f"{who.label} (lien mail)"
+            try:
+                if decision == "valider":
+                    out = rt.governor.approve(pa.id, by=by)
+                    done = ("Validé et exécuté." if out.status == "executed"
+                            else f"Échec de l'exécution : {out.error}")
+                elif decision == "rejeter":
+                    rt.governor.reject(pa.id, by=by, reason=motif)
+                    done = "Rejeté."
+                else:
+                    raise HTTPException(400)
+            except GovernanceError as exc:
+                error = f"Refusé : {exc}"
+        return page(request, "lien_validation.html", pa=pa, who=who, error=error,
+                    token=token, done=done)
+
+    @app.get("/visuel/{pid}.svg")
+    def visual(pid: int, who: Principal = Depends(user)):
+        pa = load(pid)
+        if not pa.action_type.startswith("social.") or (
+                who.role == "valideur" and pa.pole not in who.poles):
+            raise HTTPException(404)
+        pole = rt.org.pole(pa.pole)
+        svg = render_svg(pa.title.split(" · ")[-1], first_sentence(pa.payload.get("texte", "")),
+                         pa.pole, pa.payload.get("reseau", ""),
+                         (pole.activite.split(",")[0] if pole and pole.activite else ""))
+        return Response(svg, media_type="image/svg+xml",
+                        headers={"Cache-Control": "private, max-age=300"})
 
     @app.get("/journal", response_class=HTMLResponse)
     def journal(request: Request, limit: int = 200, who: Principal = Depends(user)):

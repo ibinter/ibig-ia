@@ -25,6 +25,7 @@ from .db import PendingAction, User
 ROLES = ("admin", "direction", "valideur")
 _ITERATIONS = 310_000
 SESSION_SECONDS = 12 * 3600
+ACTION_LINK_SECONDS = 48 * 3600
 
 
 def hash_password(password: str) -> str:
@@ -66,6 +67,30 @@ def read_session(secret: str, cookie: str, now: float | None = None) -> int | No
     if int(expires) < (now or time.time()):
         return None
     return int(user_id)
+
+
+# ------------------------------------------------------------------ liens de validation
+def make_action_token(secret: str, pending_id: int, user_id: int,
+                      now: float | None = None) -> str:
+    """Lien « valider en un clic » envoyé par mail (section 12) : propre à une action et
+    à une personne, valable 48 h. Il ouvre une page de confirmation, sans rien exécuter."""
+    expires = int((now or time.time()) + ACTION_LINK_SECONDS)
+    payload = f"{pending_id}.{user_id}.{expires}"
+    return f"{payload}.{_sign(secret, 'action:' + payload)}"
+
+
+def read_action_token(secret: str, token: str,
+                      now: float | None = None) -> tuple[int, int] | None:
+    try:
+        pending_id, user_id, expires, signature = token.split(".")
+        payload = f"{int(pending_id)}.{int(user_id)}.{int(expires)}"
+    except ValueError:
+        return None
+    if not hmac.compare_digest(signature, _sign(secret, "action:" + payload)):
+        return None
+    if int(expires) < (now or time.time()):
+        return None
+    return int(pending_id), int(user_id)
 
 
 # ------------------------------------------------------------------ droits
@@ -141,6 +166,13 @@ class UserStore:
     def get(self, user_id: int) -> Principal | None:
         with self._sessions() as s:
             user = s.get(User, user_id)
+        if user is None or not user.active:
+            return None
+        return self._principal(user)
+
+    def by_email(self, email: str) -> Principal | None:
+        with self._sessions() as s:
+            user = s.scalars(select(User).where(User.email == email.strip().lower())).first()
         if user is None or not user.active:
             return None
         return self._principal(user)

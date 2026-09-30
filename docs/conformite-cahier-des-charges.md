@@ -18,7 +18,8 @@ Pour chaque section du cahier des charges : où la trouver dans le tableau de bo
 | 6 | Commercial : qualification, relances J+3/7/14, démos et essais | **Prospects**, **Agents IA** | Fait |
 | 6 | Support + SARA : réponses documentées, tickets | **Support**, **Base de connaissances → Guides** | Fait |
 | 6 | Veille : statistiques, alertes pic / avis négatif | **Indicateurs** | Partiel : mails et WhatsApp ; avis sur les réseaux sociaux à faire |
-| 7 | Base de connaissances : charte, 8 fiches, catalogues, contacts, FAQ, guides, interdits | **Base de connaissances** (modifiable en ligne) | Fait (bibliothèque de publications : dossier prévu) |
+| 7 | Base de connaissances : charte, 8 fiches, catalogues, contacts, FAQ, guides, interdits | **Base de connaissances** (modifiable en ligne) | Fait |
+| 7 | Bibliothèque de publications réussies, pour caler le style | **Publications réussies** | Fait (utilisées comme modèles de ton, jamais comme source de faits) |
 | 8 | Publication automatique sur 11 comptes via un outil multi-comptes | — | À faire : aujourd'hui, une publication validée est remise à l'équipe pour publication à la main |
 | 9 | Gmail (API) + LWS (IMAP/SMTP), option A raccordement direct | **Boîtes mail** | Fait |
 | 9 | Envois en masse par un service d'emailing (Brevo, Resend) | — | À faire |
@@ -27,10 +28,10 @@ Pour chaque section du cahier des charges : où la trouver dans le tableau de bo
 | 10 | Chaînes WhatsApp préparées pour publication manuelle | **Calendrier éditorial** | Fait (chaînes à déclarer dans les comptes) |
 | 11 | Articles 2 par mois et par site, un mot-clé, une question réelle, sources | **Agents IA → Contenus web** | Fait (sites à activer) |
 | 12 | 3 niveaux, valideur + suppléant par pôle, alerte à 24 h, journal, bouton d'arrêt, revue mensuelle | **Validations**, **Journal**, **Bouton d'arrêt**, **Rapports** | Fait |
-| 12 | Validation depuis WhatsApp ou par mail | — | À faire (alerte par mail en place, validation au tableau de bord) |
+| 12 | Validation depuis WhatsApp ou par mail | Lien personnel dans le mail d'alerte (48 h, page de confirmation) | Fait par mail ; par WhatsApp : à faire (numéros Meta) |
 | 13 | Accès dédiés, coffre à secrets, messages traités comme données, données personnelles (12 mois, accès, suppression) | **Boîtes mail** (coffre), **Essayer l'agent** (message piégé) | Fait |
 | 14 | Claude, VPS, PostgreSQL + pgvector, tableau de bord web | Serveur installé | Partiel : recherche par mots-clés, recherche vectorielle à brancher |
-| 14 | Visuels Canva / génération d'images | — | À faire : l'agent fournit un brief visuel par publication |
+| 14 | Visuels Canva / génération d'images | **Validations** (aperçu et PNG de chaque publication) | Partiel : visuel aux couleurs IBIG généré au bon format par réseau + brief pour un visuel sur mesure ; génération d'images photo à faire |
 | 16 | Plafond IA mensuel, alerte 80 %, modèle léger pour le tri | **Accueil** (jauge budget) | Fait |
 | 17 | Recette R-01 à R-10 | `ibig-agent recette`, **Indicateurs** | Fait (outils) ; à dérouler sur 2 semaines réelles |
 | 19 | Prochaines actions IBIG | **Mise en route** | En cours |

@@ -554,3 +554,9 @@ details > .inner { padding: 4px 14px 14px; }
 .cal-post.st-executed { border-left-color: var(--ok); } .cal-post.st-executed .st { color: var(--ok); }
 .cal-post.st-rejected, .cal-post.st-failed { border-left-color: var(--bad); opacity: .7; } .cal-post.st-rejected .st { color: var(--bad); }
 .cal-empty { color: var(--line-2); text-align: center; margin-top: 20px; }
+
+/* Visuel des publications */
+.visual { display: flex; gap: 18px; align-items: flex-start; margin: 12px 0; padding: 14px; border-radius: 12px;
+          background: var(--bg-soft); flex-wrap: wrap; }
+.visual img { width: 220px; max-width: 100%; border-radius: 10px; box-shadow: var(--shadow); background: #0b1830; }
+.visual > div { flex: 1; min-width: 220px; }

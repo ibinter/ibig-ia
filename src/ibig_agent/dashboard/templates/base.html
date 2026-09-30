@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=7">
+<link rel="stylesheet" href="/static/app.css?v=8">
 </head>
 <body>
 {% if user %}
@@ -42,6 +42,7 @@
       <div class="nav-title">Configuration</div>
       {{ nav('/objectifs', 'target', 'Objectifs') }}
       {{ nav('/connaissances', 'book', 'Base de connaissances') }}
+      {{ nav('/publications', 'sparkles', 'Publications réussies') }}
       {% if user.role != 'valideur' %}{{ nav('/boites', 'inbox', 'Boîtes mail') }}{% endif %}
       {% if user.role == 'admin' %}{{ nav('/utilisateurs', 'users', 'Comptes') }}{% endif %}
       {{ nav('/arret', 'power', "Bouton d'arrêt", cls='stop') }}

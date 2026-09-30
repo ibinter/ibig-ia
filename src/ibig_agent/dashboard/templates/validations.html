@@ -1,11 +1,67 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon, channel_icon %}
-{% block title %}Validations{% endblock %}
-{% block heading %}Validations{% endblock %}
-{% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p>{% endblock %}
+{% block title %}Validations<script>
+function png(id) {
+  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+</script>
+{% endblock %}
+{% block heading %}Validations<script>
+function png(id) {
+  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+</script>
+{% endblock %}
+{% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p><script>
+function png(id) {
+  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+</script>
+{% endblock %}
 {% block tools %}
 <span class="pill amber dot">{{ pending | length }} à valider</span>
 {% if user.role != 'valideur' %}<span class="pill red dot">{{ prepared | length }} niveau 3</span>{% endif %}
+<script>
+function png(id) {
+  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+</script>
 {% endblock %}
 {% block content %}
 <div class="section-title" style="margin-top:4px">{{ icon('check-circle') }}<h2>À valider</h2><span class="pill amber">niveau 2</span></div>
@@ -31,7 +87,17 @@
     <details open><summary>{{ icon('eye') }} Aperçu de l'article</summary>
       <div class="inner"><div class="article"><h2>{{ a.payload.get('titre', '') }}</h2>{{ a.payload.contenu_html | apercu }}</div></div></details>
   {% endif %}
-  {% if a.payload.get('brief_visuel') %}<div class="summary"><b>Brief visuel :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
+  {% if a.action_type.startswith('social.') %}
+  <div class="visual">
+    <img src="/visuel/{{ a.id }}.svg" alt="Visuel proposé" loading="lazy" id="v{{ a.id }}">
+    <div>
+      <b>Visuel aux couleurs IBIG</b>
+      <p class="muted" style="margin:4px 0 10px">Généré automatiquement pour {{ a.payload.get('reseau', '') | replace('_', ' ') }}, au bon format.</p>
+      <button type="button" class="btn sm" onclick="png({{ a.id }})">{{ icon('arrow-right') }} Télécharger en PNG</button>
+      {% if a.payload.get('brief_visuel') %}<div class="summary" style="margin-top:12px"><b>Brief pour un visuel sur mesure :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
+    </div>
+  </div>
+  {% elif a.payload.get('brief_visuel') %}<div class="summary"><b>Brief visuel :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
   {% for src in a.payload.get('sources', []) %}
     <div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>
   {% endfor %}
@@ -81,4 +147,18 @@
 </article>
 {% endfor %}
 </div>
+<script>
+function png(id) {
+  fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      c.toBlob(function (b) { var a = document.createElement('a'); a.href = URL.createObjectURL(b);
+        a.download = 'visuel-ibig-' + id + '.png'; a.click(); }, 'image/png');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+</script>
 {% endblock %}

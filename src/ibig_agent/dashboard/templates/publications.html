@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Publications réussies{% endblock %}
+{% block heading %}Publications réussies{% endblock %}
+{% block lead %}<p class="lead">La bibliothèque de vos meilleures publications (section 7 du cahier des charges) : l'agent Communication s'en inspire pour le ton, la longueur et le format. Il ne les copie pas, et leurs prix ou dates ne font jamais foi.</p>{% endblock %}
+{% block tools %}<span class="pill blue dot">{{ posts | length }} / 20 conseillées</span>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div class="stack">
+    {% if not posts %}
+    <div class="card"><div class="empty"><div class="bubble">{{ icon('sparkles') }}</div><b>Bibliothèque vide</b>Ajoutez vos publications qui ont le mieux marché (likes, partages, messages reçus) : l'agent écrira dans le même esprit.</div></div>
+    {% endif %}
+    {% for d in posts %}
+    <article class="card fade-in">
+      <div class="meta pills" style="margin-bottom:8px">
+        <span class="pill blue">{{ (d.meta.get('reseau') or 'réseau ?') | replace('_', ' ') }}</span>
+        <span class="pill violet">{{ d.pole or 'GROUPE' }}</span>
+        {% if d.meta.get('resultats') %}<span class="pill green">{{ icon('trending') }} {{ d.meta.resultats }}</span>{% endif %}
+      </div>
+      <pre style="font-family:inherit;font-size:14.5px;color:var(--ink);line-height:1.6">{{ d.body }}</pre>
+      {% if can_edit %}
+      <form method="post" action="/publications/retirer" class="actions"><input type="hidden" name="chemin" value="{{ d.path }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% if can_edit %}
+  <form class="card" method="post" action="/publications" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Ajouter une publication</h2><div class="sub">Copiez-collez le texte tel qu'il a été publié.</div></div></div>
+    <label class="field"><span>Texte de la publication</span><textarea name="texte" required style="min-height:200px" placeholder="C'est la rentrée ! …"></textarea></label>
+    <div class="grid g-2" style="gap:12px">
+      <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Réseau</span><select name="reseau" style="width:100%">{% for n in networks %}<option value="{{ n }}">{{ n | replace('_', ' ') }}</option>{% endfor %}</select></label>
+    </div>
+    <label class="field"><span>Pourquoi elle a marché (facultatif)</span><input type="text" name="resultats" placeholder="Ex. : 320 likes, 45 partages, 12 demandes de devis"></label>
+    <button class="btn primary lg">{{ icon('check') }} Ajouter à la bibliothèque</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

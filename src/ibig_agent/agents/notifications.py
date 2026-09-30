@@ -18,6 +18,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from ..auth import UserStore, make_action_token
 from ..config import OrgConfig, Settings
 from ..db import PendingAction, User, utcnow
 from ..governance import ActionRequest, Governor
@@ -92,7 +93,7 @@ class ValidatorNotifier:
                 title=f"Alerte valideur ({kind}) : {len(items)} élément(s) → {recipient}",
                 payload={"mailbox": mailbox, "to": recipient,
                          "subject": self._subject(kind, items),
-                         "body": self._body(kind, items)},
+                         "body": self._body(kind, items, recipient)},
             ))
             if out.status == "executed":
                 result.envoyes += 1
@@ -117,7 +118,18 @@ class ValidatorNotifier:
             return f"[IBIG] {len(items)} dossier(s) réservé(s) à la direction"
         return f"[IBIG] {len(items)} élément(s) à valider"
 
-    def _body(self, kind: str, items: list[PendingAction]) -> str:
+    def _link(self, pa: PendingAction, recipient: str) -> str:
+        """Lien « valider en un clic » (niveau 2), si le destinataire a un compte qui
+        peut décider de cet élément ; le lien ouvre une page de confirmation."""
+        if pa.level != 2 or len(self.settings.secret_key) < 32:
+            return ""
+        who = UserStore(self._sessions, self.org).by_email(recipient)
+        if who is None or not who.can_decide(pa):
+            return ""
+        token = make_action_token(self.settings.secret_key, pa.id, who.id)
+        return f"{self.settings.dashboard_url.rstrip('/')}/v/{token}"
+
+    def _body(self, kind: str, items: list[PendingAction], recipient: str = "") -> str:
         url = self.settings.dashboard_url.rstrip("/") + "/validations"
         intro = {
             "nouveau": "L'agent IA a préparé les éléments suivants :",
@@ -128,6 +140,10 @@ class ValidatorNotifier:
         for pa in items:
             niveau = "à valider" if pa.level == 2 else "réservé à un humain"
             lines.append(f"- [{pa.pole or '—'}] {pa.title} ({niveau})")
-        lines += ["", f"Tableau de bord : {url}", "",
+            link = self._link(pa, recipient) if recipient else ""
+            if link:
+                lines.append(f"  Relire, valider ou rejeter : {link}")
+        lines += ["", "Chaque lien est personnel et valable 48 h : ne le transférez pas.",
+                  f"Tableau de bord : {url}", "",
                   "Message envoyé automatiquement par l'agent IA IBIG."]
         return "\n".join(lines)

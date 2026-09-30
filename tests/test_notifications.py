@@ -67,3 +67,57 @@ def test_failed_send_is_retried_later(rt, connector):
     assert rt.notifier.run().envoyes == 0
     rt.governor.set_stopped("*", False, by="Direction")
     assert rt.notifier.run().envoyes == 1
+
+
+def _link(body):
+    import re
+    return re.search(r"https://tableau\.ibig\.test(/v/\S+)", body).group(1)
+
+
+def test_one_click_link_validates_after_confirmation(rt, connector):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.dashboard.app import create_app
+    from ibig_agent.db import PendingAction
+
+    UserStore(rt.sessions, rt.org).create("awa@ibig.test", "Awa", "valideur", "mot-de-passe-1")
+    pid = queue(rt, connector, title="Réponse au devis")
+    rt.notifier.run()
+    path = _link(connector.sent[0]["body"])
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    page = c.get(path).text  # un simple clic (ou un antivirus qui ouvre le lien) n'exécute rien
+    assert "Réponse au devis" in page and "Valider et envoyer" in page
+    with rt.sessions() as s:
+        assert s.get(PendingAction, pid).status == "pending"
+    assert "Validé et exécuté" in c.post(path, data={"decision": "valider"}).text
+    with rt.sessions() as s:
+        pa = s.get(PendingAction, pid)
+    assert pa.status == "executed" and pa.decided_by == "Awa <awa@ibig.test> (lien mail)"
+    assert "déjà traitée" in c.post(path, data={"decision": "valider"}).text
+
+
+def test_link_is_refused_when_forged_or_expired(rt, connector):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import make_action_token
+    from ibig_agent.dashboard.app import create_app
+
+    store = UserStore(rt.sessions, rt.org)
+    awa = store.create("awa@ibig.test", "Awa", "valideur", "mot-de-passe-1")
+    pid = queue(rt, connector)
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    old = make_action_token(rt.settings.secret_key, pid, awa.id, now=time.time() - 49 * 3600)
+    assert "expiré" in c.get(f"/v/{old}").text
+    forged = make_action_token("x" * 40, pid, awa.id)
+    assert "expiré" in c.get(f"/v/{forged}").text
+    other = queue(rt, connector, pole="EDUFORM")  # pôle qu'Awa ne valide pas
+    token = make_action_token(rt.settings.secret_key, other, awa.id)
+    assert "ne vous permet pas" in c.post(f"/v/{token}", data={"decision": "valider"}).text
+
+
+def test_no_link_for_level3_or_without_account(rt, connector):
+    queue(rt, connector)  # awa n'a pas de compte : pas de lien
+    rt.notifier.run()
+    assert "/v/" not in connector.sent[0]["body"]

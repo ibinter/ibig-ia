@@ -130,6 +130,7 @@ class CommunicationAgent:
             "- Varie les sujets (offre, conseil pratique, témoignage, coulisses, question).\n"
             "- Respecte la liste des sujets interdits et des formulations à éviter.\n\n"
             f"{self.directives(pole_code)}\n\n"
+            f"{self.kb.style_examples(pole_code)}\n\n"
             f"Base de connaissances :\n{self.kb.context_for(pole_code)}"
         )
         user = (
@@ -185,6 +186,7 @@ class CommunicationAgent:
             "- Respecte la liste des sujets interdits et des formulations à éviter.\n"
             "- brief_visuel : description de l'image ou de la vidéo à produire.\n\n"
             f"{self.directives(pole_code)}\n\n"
+            f"{self.kb.style_examples(pole_code, account.reseau)}\n\n"
             f"Base de connaissances :\n{self.kb.context_for(pole_code, sujet)}"
         )
         data = self.llm.structured("social.post", "writing", system,

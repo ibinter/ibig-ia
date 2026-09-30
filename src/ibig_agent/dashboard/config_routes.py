@@ -38,6 +38,8 @@ KB_GROUPS = [
      "Une réponse complétée part automatiquement quand un client pose la question."),
     ("guide", "Guides des solutions", "life",
      "Source des réponses du Support et de SARA."),
+    ("publication", "Publications réussies", "sparkles",
+     "Modèles de style pour l'agent Communication (menu « Publications réussies »)."),
     ("", "Charte, catalogues, contacts, interdits", "file",
      "Règles et informations communes à tout le groupe."),
 ]
@@ -222,6 +224,48 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             s.commit()
         reload_knowledge(rt)
         return back(f"/connaissances/document?chemin={path}", "Guide créé : rédigez-le")
+
+    # ------------------------------------------------------------ publications réussies
+    @app.get("/publications", response_class=HTMLResponse)
+    def best_posts(request: Request, who: Principal = Depends(user)):
+        posts = sorted((d for d in rt.kb.documents if d.type == "publication"),
+                       key=lambda d: str(d.meta.get("ajoute_le", "")), reverse=True)
+        networks = sorted({a.reseau for a in rt.org.social_accounts} | {"whatsapp_chaine"})
+        return page(request, "publications.html", posts=posts, poles=rt.org.poles,
+                    networks=networks, can_edit=who.role != "valideur")
+
+    @app.post("/publications")
+    def add_best_post(texte: str = Form(...), pole: str = Form("GROUPE"),
+                      reseau: str = Form(""), resultats: str = Form(""),
+                      who: Principal = Depends(user)):
+        direction_only(who)
+        texte = texte.strip()[:5000]
+        if len(texte) < 20 or pole not in rt.org.pole_codes:
+            return back("/publications", "Refusé : collez le texte de la publication")
+        now = utcnow()
+        path = f"publications/{now:%Y%m%d-%H%M%S}-{_slug(texte[:40])}.md"
+        meta = {"titre": texte.splitlines()[0][:80], "pole": pole, "type": "publication",
+                "reseau": reseau[:40], "resultats": resultats.strip()[:300],
+                "ajoute_le": now.isoformat(timespec="seconds")}
+        raw = "---\n" + yaml.safe_dump(meta, allow_unicode=True, sort_keys=False) + "---\n" + texte + "\n"
+        with rt.sessions() as s:
+            s.add(KnowledgeEdit(path=path, content=raw, updated_by=who.label))
+            s.commit()
+        reload_knowledge(rt)
+        return back("/publications", "Publication ajoutée : l'agent s'en inspire dès maintenant")
+
+    @app.post("/publications/retirer")
+    def remove_best_post(chemin: str = Form(...), who: Principal = Depends(user)):
+        direction_only(who)
+        if not chemin.startswith("publications/"):
+            raise HTTPException(404)
+        with rt.sessions() as s:
+            edit = s.get(KnowledgeEdit, chemin)
+            if edit is not None:
+                s.delete(edit)
+                s.commit()
+        reload_knowledge(rt)
+        return back("/publications", "Publication retirée de la bibliothèque")
 
     # ------------------------------------------------------------ boîtes mail
     @app.get("/boites", response_class=HTMLResponse)

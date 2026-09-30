@@ -118,3 +118,37 @@ def test_editorial_calendar_shows_posts_on_their_day(rt, dg):
     page = dg.get("/calendrier?semaine=2026-10-05").text
     assert "Rentrée scolaire" in page and "à valider" in page
     assert "Rentrée scolaire" not in dg.get("/calendrier?semaine=2026-10-12").text
+
+
+def test_best_posts_shape_style_but_never_validate_facts(rt, dg):
+    text = "Rentrée : IBIG School à 9 999 FCFA seulement ! Écrivez à promo@ibig.test"
+    dg.post("/publications", data={"texte": text, "pole": "SOFT", "reseau": "facebook_page",
+                                   "resultats": "300 likes"})
+    assert "IBIG School à 9 999 FCFA" in dg.get("/publications").text
+    examples = rt.kb.style_examples("SOFT", "facebook_page")
+    assert "9 999 FCFA" in examples and "ne font pas foi" in examples
+    kinds = {i.kind for i in rt.kb.verify_facts(text)}
+    assert {"prix", "email"} <= kinds  # une ancienne publication n'est pas une source
+    path = next(d.path for d in rt.kb.documents if d.type == "publication")
+    dg.post("/publications/retirer", data={"chemin": path})
+    assert rt.kb.style_examples("SOFT") == ""
+
+
+def test_branded_visual_for_each_post(rt, dg):
+    import xml.etree.ElementTree as ET
+
+    from ibig_agent.config import SocialAccount
+    from ibig_agent.dashboard.visuals import render_svg
+
+    account = SocialAccount(reseau="linkedin", compte="IBIG Soft", pole="SOFT",
+                            publication_auto=False)
+    pid = rt.communication.write_post("SOFT", account, "Rentrée <scolaire> & IBIG", date(2026, 10, 7))
+    r = dg.get(f"/visuel/{pid}.svg")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
+    root = ET.fromstring(r.text)  # XML valide, texte échappé
+    assert root.get("width") == "1200" and root.get("height") == "675"  # format LinkedIn
+    assert "Rentrée &lt;scolaire&gt;" in r.text
+    assert "Visuel aux couleurs IBIG" in dg.get("/validations").text
+    assert login(rt, "awa@ibig.test").get(f"/visuel/{pid}.svg").status_code == 200  # SOFT
+    tall = ET.fromstring(render_svg("Titre", "Message", "EDUFORM", "tiktok"))
+    assert tall.get("height") == "1920"
