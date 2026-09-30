@@ -341,3 +341,18 @@ def test_accounts_channels_and_whatsapp_numbers_from_dashboard(rt, accounts, met
     assert login(rt, "awa@ibig.test").post("/reseaux/whatsapp", data={
         "nom": "x", "numero": "2250700000000", "phone_number_id": "1", "pole": "SOFT",
         "jeton": "t"}).status_code == 403
+
+
+def test_calendar_shows_real_publication_state(rt, meta, accounts):
+    from datetime import timedelta
+
+    connect(rt)
+    day = (datetime.now(UTC).date() + timedelta(days=7)).isoformat()
+    out = validated_post(rt, day=day)  # programmée à 10 h le jour prévu
+    page = login(rt, "dg@ibig.test").get(f"/calendrier?semaine={day}").text
+    assert "Nouvelle version de Scolaby" in page and "programmée" in page
+    assert "Page Facebook" in page
+    publish_due(rt.governor, rt.sessions, now=LATER)
+    page = login(rt, "dg@ibig.test").get(f"/calendrier?semaine={day}").text
+    assert "publiée" in page
+    assert out.result["mode"] == "programme"

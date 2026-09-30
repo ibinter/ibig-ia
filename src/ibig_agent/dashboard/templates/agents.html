@@ -49,7 +49,7 @@
       <div class="grid g-3" style="gap:12px">
         <label class="field"><span>Compte</span>
           <select name="compte" style="width:100%">{% for i, a in accounts %}<option value="{{ i }}">{{ a.compte }} — {{ a.reseau | lisible }} ({{ a.pole }})</option>{% endfor %}</select></label>
-        <label class="field"><span>Date de publication</span><input type="date" name="jour"></label>
+        <label class="field"><span>Date de publication</span><input type="date" name="jour" value="{{ jour }}"></label>
         <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : la rentrée scolaire avec IBIG School"></label>
       </div>
       <div class="actions">

@@ -30,6 +30,7 @@ from ..db import (
     KnowledgeEdit,
     MailboxAccount,
     PendingAction,
+    ScheduledPost,
     utcnow,
 )
 from ..governance import as_utc
@@ -115,7 +116,9 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     # ------------------------------------------------------------ calendrier éditorial
     @app.get("/calendrier", response_class=HTMLResponse)
     def calendar(request: Request, semaine: str = "", who: Principal = Depends(user)):
-        today = datetime.now(UTC).date()
+        from zoneinfo import ZoneInfo
+
+        today = datetime.now(ZoneInfo(rt.settings.timezone)).date()
         try:
             start = date.fromisoformat(semaine) if semaine else today
         except ValueError:
@@ -127,7 +130,10 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                 PendingAction.action_type.in_(("social.post", "social.manual_post")),
                 PendingAction.created_at >= datetime.combine(start - timedelta(days=45),
                                                              time(0), UTC))).all()
+            scheduled = {sp.pending_id: sp for sp in s.scalars(select(ScheduledPost).where(
+                ScheduledPost.pending_id.in_([pa.id for pa in posts]))).all()}
         by_day: dict[date, list] = {d: [] for d in days}
+        next_week = 0
         for pa in posts:
             if who.role == "valideur" and pa.pole not in who.poles:
                 continue
@@ -137,11 +143,35 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                 continue
             if day in by_day:
                 by_day[day].append(pa)
-        counts = {st: sum(pa.status == st for lst in by_day.values() for pa in lst)
-                  for st in ("pending", "executed", "rejected")}
+            elif start + timedelta(days=7) <= day < start + timedelta(days=14):
+                next_week += 1
+        shown = [pa for lst in by_day.values() for pa in lst]
+
+        def state(pa) -> str:
+            sp = scheduled.get(pa.id)
+            if pa.status != "executed":
+                return pa.status
+            if sp is not None:
+                return {"programme": "programmee", "publie": "publiee", "echec": "echec",
+                        "annule": "annulee", "en_cours": "programmee"}.get(sp.status, "validee")
+            # Validée sans publication programmée : remise à l'équipe (à publier à la main)
+            return "manuel"
+
+        states = {pa.id: state(pa) for pa in shown}
+        counts = {k: sum(v == k for v in states.values())
+                  for k in ("pending", "programmee", "publiee", "manuel", "rejected", "echec")}
+        end = start + timedelta(days=6)
+        mois = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.",
+                "oct.", "nov.", "déc."]
+        label = (f"{start.day} {mois[start.month - 1]} – {end.day} {mois[end.month - 1]} "
+                 f"{end.year}")
         return page(request, "calendrier.html", days=days, by_day=by_day, counts=counts,
+                    states=states, scheduled=scheduled, next_week=next_week,
                     prev=(start - timedelta(days=7)).isoformat(),
-                    next=(start + timedelta(days=7)).isoformat(), start=start, today=today)
+                    next=(start + timedelta(days=7)).isoformat(), start=start, today=today,
+                    week_label=label, is_current=start <= today <= end,
+                    poles_here=sorted({pa.pole for pa in shown if pa.pole}),
+                    networks_here=sorted({pa.payload.get("reseau", "") for pa in shown}))
 
     # ------------------------------------------------------------ base de connaissances
     @app.get("/connaissances", response_class=HTMLResponse)

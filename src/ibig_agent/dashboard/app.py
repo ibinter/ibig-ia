@@ -269,14 +269,14 @@ def create_app(rt: Runtime) -> FastAPI:
     running: set[str] = set()
 
     @app.get("/agents", response_class=HTMLResponse)
-    def agents(request: Request, who: Principal = Depends(user)):
+    def agents(request: Request, jour: str = "", who: Principal = Depends(user)):
         accounts = [(i, a) for i, a in enumerate(rt.org.social_accounts)
                     if a.pole in rt.org.pole_codes]
         sites = [(i, st) for i, st in enumerate(rt.org.sites)
                  if rt.contenus_web.why_skipped(st) is None]
         return page(request, "agents.html", cards=agent_cards(rt), accounts=accounts,
                     running=running, can_run=who.role != "valideur", sites=sites,
-                    products=rt.kb.products())
+                    products=rt.kb.products(), jour=jour[:10])
 
     @app.post("/agents/contenu-web")
     def write_web_content(site: int = Form(...), genre: str = Form("article"),
