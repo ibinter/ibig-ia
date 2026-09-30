@@ -187,7 +187,7 @@ def test_trial_blocks_injection_before_drafting(rt, accounts, llm):
 
 def test_getting_started_lists_next_step(rt, accounts):
     page = client(rt, "dg@ibig.test").get("/demarrage").text
-    assert "Étapes de mise en service" in page and "à faire maintenant" in page
+    assert "Prochaine étape" in page and "Indispensable" in page and "maintenant" in page
     for step in ("Activer la recherche par le sens", "Activer les photos par IA",
                  "Valider depuis WhatsApp", "Indiquer le temps passé avant"):
         assert step in page

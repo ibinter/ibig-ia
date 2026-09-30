@@ -2,72 +2,138 @@
 {% from "_icons.html" import icon %}
 {% block title %}Mise en route{% endblock %}
 {% block heading %}Mise en route{% endblock %}
-{% block lead %}<p class="lead">Ce que fait l'agent, et ce qu'il reste à faire pour qu'il se mette au travail.</p>{% endblock %}
+{% block lead %}<p class="lead">Où en est l'agent, et la prochaine chose à faire pour qu'il travaille pour vous.</p>{% endblock %}
 {% block content %}
 {% set done, total = setup %}
+{% set pct = (done / total * 100) | round(0) | int if total else 100 %}
+{% set required = steps | rejectattr('optional') | list %}
+{% set extras = steps | selectattr('optional') | list %}
+{% set ns = namespace(next=none) %}
+{% for s in required %}{% if not s.done and ns.next is none %}{% set ns.next = s %}{% endif %}{% endfor %}
+{% if ns.next is none %}{% for s in extras %}{% if not s.done and ns.next is none %}{% set ns.next = s %}{% endif %}{% endfor %}{% endif %}
+{% set can_go = user.role != 'valideur' %}
+
+{# ------------------------------------------------ bandeau : progression + prochaine étape #}
+<section class="setup-hero fade-in">
+  <div class="progress-ring">
+    <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" fill="none" class="ring-bg"/><circle cx="60" cy="60" r="52" fill="none" class="ring-val" pathLength="100" stroke-dasharray="{{ pct }} 100"/></svg>
+    <div class="ring-txt"><b>{{ pct }} %</b><span>{{ done }} étape(s) sur {{ total }}</span></div>
+  </div>
+  <div class="hero-body">
+    {% if done == total %}
+      <span class="hero-eyebrow">{{ icon('shield-check') }} L'agent est prêt</span>
+      <h2>Tout l'indispensable est en place.</h2>
+      <p>L'agent relève vos boîtes, classe les messages et prépare les réponses. {% if ns.next %}Pour aller plus loin : <b>{{ ns.next.title | lower }}</b>.{% else %}Toutes les options sont activées.{% endif %}</p>
+    {% else %}
+      <span class="hero-eyebrow">{{ icon('sparkles') }} Prochaine étape</span>
+      <h2>{{ ns.next.title }}</h2>
+      <p>{{ ns.next.why }}</p>
+    {% endif %}
+    {% if ns.next %}
+    <div class="hero-how">{{ icon('arrow-right') }}<span>{{ ns.next.how }}</span></div>
+    {% if ns.next.link and can_go %}<a class="btn hero-btn" href="{{ ns.next.link }}">{{ icon('arrow-right') }} {{ 'Commencer' if not ns.next.done else 'Ouvrir' }}</a>{% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{# ------------------------------------------------ étapes indispensables #}
+<div class="section-title">{{ icon('check-circle') }}<h2>Indispensable</h2><span class="pill {{ 'green' if done == total else 'amber' }}">{{ done }} sur {{ total }}</span></div>
+<div class="step-grid">
+{% for s in required %}
+  {% set state = 'done' if s.done else ('next' if s is sameas ns.next else 'todo') %}
+  <article class="step-card {{ state }} fade-in">
+    <div class="step-top">
+      <span class="step-ico">{% if s.done %}{{ icon('check') }}{% else %}{{ icon(s.icon) }}{% endif %}</span>
+      <span class="step-num">Étape {{ loop.index }}</span>
+      {% if s.done %}<span class="pill green">fait</span>{% elif state == 'next' %}<span class="pill amber dot">maintenant</span>{% else %}<span class="pill">à faire</span>{% endif %}
+    </div>
+    <h3>{{ s.title }}</h3>
+    <p class="step-detail">{{ s.detail }}</p>
+    {% if not s.done %}
+    <details {{ 'open' if state == 'next' }}><summary>Pourquoi et comment</summary><div class="inner">
+      <p><b>Pourquoi :</b> {{ s.why }}</p>
+      <p><b>Comment :</b> {{ s.how }}</p>
+    </div></details>
+    {% if s.link and can_go %}<a class="btn sm {{ 'primary' if state == 'next' }}" href="{{ s.link }}">{{ icon('arrow-right') }} Y aller</a>{% endif %}
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+
+{# ------------------------------------------------ options #}
+{% set extras_done = extras | selectattr('done') | list | length %}
+<div class="section-title">{{ icon('sparkles') }}<h2>Pour aller plus loin</h2><span class="pill">{{ extras_done }} sur {{ extras | length }} activé(s)</span></div>
+<div class="option-grid">
+{% for s in extras %}
+  <article class="option-card {{ 'on' if s.done }} fade-in">
+    <div class="option-head">
+      <span class="step-ico">{{ icon(s.icon) }}</span>
+      <div><h3>{{ s.title }}</h3><span class="muted small">{{ s.detail }}</span></div>
+      {% if s.done %}<span class="pill green dot">actif</span>{% endif %}
+    </div>
+    <p>{{ s.why }}</p>
+    {% if not s.done %}
+    <div class="option-foot">
+      <details><summary>Comment</summary><div class="inner"><p>{{ s.how }}</p></div></details>
+      {% if s.link and can_go %}<a class="btn sm" href="{{ s.link }}">{{ icon('arrow-right') }} Configurer</a>{% endif %}
+    </div>
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+
+{# ------------------------------------------------ fonctionnement #}
+<div class="section-title">{{ icon('bot') }}<h2>Comment travaille l'agent</h2></div>
 <div class="card">
-  <div class="card-head" style="margin-bottom:18px"><div><h2>Comment fonctionne l'agent</h2>
-    <div class="sub">Il travaille comme un assistant : il lit, trie et prépare. Vous gardez le dernier mot.</div></div></div>
   <div class="flow">
     <div class="flow-step"><span class="flow-ico t-blue">{{ icon('mail') }}</span>
-      <b>1. Un message arrive</b><span>Un mail sur contact@…, une question sur le site (SARA) ou sur WhatsApp.</span></div>
+      <b>1. Un message arrive</b><span>Un mail, une question sur un site (SARA), un message WhatsApp, un commentaire Facebook.</span></div>
     <div class="flow-arrow">{{ icon('arrow-right') }}</div>
     <div class="flow-step"><span class="flow-ico t-violet">{{ icon('sparkles') }}</span>
-      <b>2. L'agent le lit et prépare</b><span>Il le classe par pôle, détecte l'urgence et rédige une réponse à partir de vos fiches.</span></div>
+      <b>2. L'agent lit et prépare</b><span>Il classe par pôle, détecte l'urgence et rédige à partir de la base de connaissances — rien d'inventé.</span></div>
     <div class="flow-arrow">{{ icon('arrow-right') }}</div>
     <div class="flow-step"><span class="flow-ico t-green">{{ icon('check-circle') }}</span>
-      <b>3. Vous validez en un clic</b><span>Dans « Validations » : vous relisez, corrigez si besoin, et la réponse part.</span></div>
+      <b>3. Vous validez en un clic</b><span>Au tableau de bord, par le lien du mail ou par « OK 123 » sur WhatsApp : alors seulement, ça part.</span></div>
   </div>
   <div class="levels">
-    <div><span class="pill green">Seul</span> Accusés de réception, classement, réponses FAQ déjà écrites par vous.</div>
-    <div><span class="pill amber">Avec votre accord</span> Réponses rédigées, publications, articles : rien ne part sans validation.</div>
-    <div><span class="pill red">Jamais seul</span> Plaintes, litiges, messages suspects : l'agent prépare le dossier, vous le traitez.</div>
+    <div><span class="pill green">Seul</span> Accusés de réception, classement, réponses FAQ relues par vous, publication à la date prévue d'un post déjà validé.</div>
+    <div><span class="pill amber">Avec votre accord</span> Réponses rédigées, publications, articles, campagnes : rien ne part sans validation, même après 24 h.</div>
+    <div><span class="pill red">Jamais seul</span> Plaintes, litiges, remises, messages suspects : l'agent prépare le dossier, un humain décide.</div>
   </div>
 </div>
 
-<div class="card" style="margin-top:16px">
-  <div class="card-head">
-    <div><h2>Étapes de mise en service</h2><div class="sub">{{ done }} sur {{ total }} terminées</div></div>
-    {% if done == total %}<span class="pill green dot">l'agent est prêt</span>{% endif %}
+{# ------------------------------------------------ guide des pages #}
+<div class="section-title">{{ icon('list') }}<h2>À quoi sert chaque page</h2></div>
+<div class="guide-groups">
+  <div class="card">
+    <h3 class="guide-h">Au quotidien</h3>
+    <div class="guide">
+      <a href="/validations">{{ icon('check-circle') }}<span><b>Validations</b>Ce que l'agent a préparé et qui attend votre accord. <em>La page la plus importante.</em></span></a>
+      <a href="/">{{ icon('home') }}<span><b>Accueil</b>Les chiffres du jour, l'activité et le budget IA.</span></a>
+      <a href="/prospects">{{ icon('target') }}<span><b>Prospects</b>Les personnes intéressées, notées de froid à chaud, avec les relances.</span></a>
+      <a href="/tickets">{{ icon('life') }}<span><b>Support</b>Les questions techniques que l'agent n'a pas pu résoudre seul.</span></a>
+      <a href="/arret">{{ icon('power') }}<span><b>Bouton d'arrêt</b>Couper l'agent tout de suite, sur un canal ou partout.</span></a>
+    </div>
   </div>
-  <div class="hbar" style="margin-bottom:22px"><div class="track" style="height:12px"><div class="fill" style="width:{{ (done / total * 100) | round(0) }}%"></div></div></div>
-  {% set ns = namespace(next=none) %}
-  {% for s in steps %}{% if not s.done and not s.optional and ns.next is none %}{% set ns.next = s.key %}{% endif %}{% endfor %}
-  <ol class="steps">
-  {% for s in steps %}
-    <li class="{{ 'done' if s.done else ('next' if s.key == ns.next else ('later' if s.optional else '')) }}">
-      <span class="num">{% if s.done %}{{ icon('check') }}{% else %}{{ loop.index }}{% endif %}</span>
-      <div class="body">
-        <div class="inline" style="gap:10px">
-          <h3>{{ s.title }}</h3>
-          {% if s.done %}<span class="pill green">fait</span>
-          {% elif s.key == ns.next %}<span class="pill amber dot">à faire maintenant</span>
-          {% elif s.optional %}<span class="pill">plus tard</span>
-          {% else %}<span class="pill">à faire</span>{% endif %}
-        </div>
-        <p class="muted" style="margin:4px 0 0">{{ s.detail }}</p>
-        {% if not s.done %}
-        <div class="why"><b>Pourquoi :</b> {{ s.why }}</div>
-        <div class="how">{{ icon('arrow-right') }}<span><b>Comment :</b> {{ s.how }}</span></div>
-        {% if s.link and user.role != 'valideur' %}<a class="btn sm {{ 'primary' if s.key == ns.next }}" href="{{ s.link }}" style="margin-top:10px">{{ icon('arrow-right') }} Y aller</a>{% endif %}
-        {% endif %}
-      </div>
-    </li>
-  {% endfor %}
-  </ol>
-</div>
-
-<div class="card" style="margin-top:16px">
-  <div class="card-head"><div><h2>Les pages du tableau de bord</h2><div class="sub">À quoi sert chaque menu</div></div></div>
-  <div class="grid g-2 guide">
-    <a href="/agents">{{ icon('bot') }}<span><b>Agents IA</b>Les agents du cahier des charges, ce que fait chacun, et des boutons pour leur demander un travail tout de suite.</span></a>
-    <a href="/essai">{{ icon('sparkles') }}<span><b>Essayer l'agent</b>Collez un message de client et voyez la réponse que l'agent proposerait. <em>Idéal pour découvrir, même sans boîte raccordée.</em></span></a>
-    <a href="/validations">{{ icon('check-circle') }}<span><b>Validations</b>Les réponses et publications préparées par l'agent, qui attendent votre accord. <em>La page la plus importante.</em></span></a>
-    <a href="/prospects">{{ icon('target') }}<span><b>Prospects</b>Les personnes intéressées par une offre, notées de froid à chaud, avec les relances prévues.</span></a>
-    <a href="/tickets">{{ icon('life') }}<span><b>Support</b>Les questions techniques que l'agent n'a pas pu résoudre seul, avec une proposition de réponse.</span></a>
-    <a href="/journal">{{ icon('list') }}<span><b>Journal</b>L'historique de tout ce qu'a fait l'agent, qui l'a validé et quand.</span></a>
-    <a href="/indicateurs">{{ icon('chart') }}<span><b>Indicateurs</b>Les objectifs du projet : délai de réponse, publications, prospects…</span></a>
-    <a href="/arret">{{ icon('power') }}<span><b>Bouton d'arrêt</b>Couper l'agent immédiatement, sur un canal ou partout, en cas de doute.</span></a>
+  <div class="card">
+    <h3 class="guide-h">Communication</h3>
+    <div class="guide">
+      <a href="/agents">{{ icon('bot') }}<span><b>Agents IA</b>Chaque agent, ce qu'il fait, et des boutons pour lui demander un travail.</span></a>
+      <a href="/calendrier">{{ icon('calendar') }}<span><b>Calendrier éditorial</b>Les publications de la semaine, par pôle et par réseau.</span></a>
+      <a href="/reseaux">{{ icon('share') }}<span><b>Réseaux sociaux</b>Comptes, chaînes, numéros WhatsApp, publications programmées, commentaires.</span></a>
+      <a href="/campagnes">{{ icon('mail') }}<span><b>Campagnes mail</b>Newsletters rédigées par l'agent, envoyées par Brevo après validation.</span></a>
+      <a href="/essai">{{ icon('sparkles') }}<span><b>Essayer l'agent</b>Collez un message et voyez la réponse proposée, sans rien envoyer.</span></a>
+    </div>
+  </div>
+  <div class="card">
+    <h3 class="guide-h">Réglages et suivi</h3>
+    <div class="guide">
+      <a href="/connaissances">{{ icon('book') }}<span><b>Base de connaissances</b>Fiches, catalogues, FAQ et contacts : la seule source de l'agent.</span></a>
+      <a href="/boites">{{ icon('inbox') }}<span><b>Boîtes mail</b>Les boîtes relevées toutes les 5 minutes, ajout en masse.</span></a>
+      <a href="/objectifs">{{ icon('target') }}<span><b>Objectifs</b>Vos consignes de la semaine : les agents en tiennent compte.</span></a>
+      <a href="/indicateurs">{{ icon('chart') }}<span><b>Indicateurs</b>Les objectifs du projet : délais, publications, heures économisées.</span></a>
+      <a href="/services">{{ icon('globe') }}<span><b>Services</b>Brevo, recherche par le sens, photos par IA.</span></a>
+    </div>
   </div>
 </div>
 {% endblock %}
