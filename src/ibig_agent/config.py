@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     dashboard_url: str = "http://localhost:8000"
     # Boîte (déclarée dans mailboxes.yaml) qui envoie les notifications aux valideurs.
     notification_mailbox: str = ""
+    # Valideur des pôles qui n'en ont pas dans poles.yaml (ex. la direction au démarrage).
+    # Réglé dans .env du serveur : l'adresse ne va pas dans le dépôt Git.
+    valideur_defaut: str = ""
     timezone: str = "Africa/Abidjan"
     config_dir: Path = Path("./config")
     knowledge_dir: Path = Path("./knowledge")
@@ -168,9 +171,12 @@ def _read_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def load_org_config(config_dir: Path | None = None) -> OrgConfig:
+def load_org_config(config_dir: Path | None = None, valideur_defaut: str = "") -> OrgConfig:
     config_dir = config_dir or get_settings().config_dir
     poles = [Pole(**p) for p in _read_yaml(config_dir / "poles.yaml").get("poles", [])]
+    if valideur_defaut.strip():
+        poles = [p if p.valideur else replace(p, valideur=valideur_defaut.strip().lower())
+                 for p in poles]
     mailboxes = [Mailbox(**m) for m in _read_yaml(config_dir / "mailboxes.yaml").get("mailboxes", [])]
     canaux = _read_yaml(config_dir / "canaux.yaml")
     accounts = [SocialAccount(**a) for a in canaux.get("comptes_sociaux", [])]

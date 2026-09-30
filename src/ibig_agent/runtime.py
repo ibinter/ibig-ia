@@ -186,7 +186,7 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                   web_connectors: dict[str, WebConnector] | None = None,
                   whatsapp_clients: dict[str, WhatsAppClient] | None = None) -> Runtime:
     settings = settings or get_settings()
-    org = load_org_config(settings.config_dir)
+    org = load_org_config(settings.config_dir, settings.valideur_defaut)
     sessions = open_db(make_engine(settings.database_url))
     kb = KnowledgeBase(settings.knowledge_dir)
     if connectors is None:

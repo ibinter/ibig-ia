@@ -78,6 +78,7 @@ Dans `.env` :
 | `ANTHROPIC_API_KEY` | la clé API |
 | `IBIG_MONTHLY_AI_BUDGET_USD` | le plafond mensuel décidé (alerte à 80 %) |
 | `IBIG_NOTIFICATION_MAILBOX` | la boîte qui envoie les alertes internes |
+| `IBIG_VALIDEUR_DEFAUT` | valideur des pôles sans valideur dans `poles.yaml` (ex. la direction au démarrage) |
 | secrets des boîtes et des sites | un par variable, aux noms indiqués dans les YAML |
 
 Les secrets ne vont **jamais** dans les fichiers YAML ni dans Git : les YAML contiennent
