@@ -33,7 +33,7 @@ from ..db import (
     utcnow,
 )
 from ..governance import as_utc
-from ..knowledge import PLACEHOLDER, split_front_matter
+from ..knowledge import IMPORT_MARK, PLACEHOLDER, split_front_matter
 from ..runtime import Runtime
 from ..vault import encrypt
 
@@ -151,7 +151,9 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             known = {k for k, *_ in KB_GROUPS if k}
             docs = [d for d in rt.kb.documents
                     if (d.type == kind if kind else d.type not in known)]
-            rows = [(d, len(_todo_lines(d.body)), d.path in rt.kb.overrides) for d in docs]
+            rows = [(d, len(_todo_lines(d.body)), d.path in rt.kb.overrides,
+                     len(IMPORT_MARK.findall(d.body)) if d.type == "faq" else 0)
+                    for d in docs]
             groups.append((title, icon, why, kind, rows))
         import json
 

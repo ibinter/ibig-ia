@@ -3,7 +3,7 @@
 {% block title %}Base de connaissances{% endblock %}
 {% block heading %}Base de connaissances{% endblock %}
 {% block lead %}<p class="lead">La source unique de vérité (section 7) : un agent ne publie jamais un prix, un contact ou une promesse qui n'y figure pas. Complétez chaque « À COMPLÉTER » ici, directement.</p>{% endblock %}
-{% block tools %}<span class="pill green dot">{{ faq_ready }} réponse(s) FAQ prête(s)</span><span class="pill amber dot">{{ faq_todo }} à rédiger</span>{% endblock %}
+{% block tools %}<span class="pill green dot">{{ faq_ready }} réponse(s) FAQ prête(s)</span><span class="pill amber dot">{{ faq_todo }} à rédiger ou relire</span>{% endblock %}
 {% block content %}
 {% if can_edit %}
 <div class="card" style="margin-bottom:16px" id="import">
@@ -39,11 +39,11 @@
   </div>
   {% if rows %}
   <div class="kb-list">
-    {% for d, todo, edited in rows %}
+    {% for d, todo, edited, review in rows %}
     <a href="/connaissances/document?chemin={{ d.path | urlencode }}" class="kb-item">
-      <span class="kb-ico {{ 'ok' if not todo and d.meta.get('statut') != 'a_completer' else 'todo' }}">{{ icon('check' if not todo and d.meta.get('statut') != 'a_completer' else 'edit') }}</span>
+      {% set ok = not todo and not review and d.meta.get('statut') != 'a_completer' %}<span class="kb-ico {{ 'ok' if ok else 'todo' }}">{{ icon('check' if ok else 'edit') }}</span>
       <span class="txt"><b>{{ d.titre }}</b>
-        <small>{% if d.pole %}{{ d.pole }} · {% endif %}{% if todo %}{{ todo }} « À COMPLÉTER »{% elif d.meta.get('statut') == 'a_completer' %}à valider{% else %}complet{% endif %}{% if edited %} · modifié ici{% endif %}{% if kind == 'guide' %} · {{ 'réponses automatiques autorisées' if d.meta.get('reponses_auto') else 'réponses relues par un humain' }}{% endif %}</small></span>
+        <small>{% if d.pole %}{{ d.pole }} · {% endif %}{% if review %}{{ review }} réponse(s) importée(s) à relire{% if todo %} · {% endif %}{% endif %}{% if todo %}{{ todo }} « À COMPLÉTER »{% elif review %}{% elif d.meta.get('statut') == 'a_completer' %}à valider{% else %}complet{% endif %}{% if edited %} · modifié ici{% endif %}{% if kind == 'guide' %} · {{ 'réponses automatiques autorisées' if d.meta.get('reponses_auto') else 'réponses relues par un humain' }}{% endif %}</small></span>
       {{ icon('arrow-right') }}
     </a>
     {% endfor %}

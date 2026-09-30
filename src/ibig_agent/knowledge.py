@@ -44,6 +44,9 @@ class Passage:
 
 # Marqueur des informations à fournir par IBIG : un texte qui le contient n'est jamais
 # utilisé pour répondre (FAQ automatique, passage cité par le Support).
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# Repère d'une réponse importée d'un site : à supprimer après relecture pour l'activer
+IMPORT_MARK = re.compile(r"<!--\s*(source\s*:|importé)", re.IGNORECASE)
 # Similarité de sens minimale pour retenir un passage sans mot commun avec la question
 SENSE_MIN = 0.45
 PLACEHOLDER = re.compile(r"[àa]\s+compl[ée]ter", re.IGNORECASE)
@@ -66,6 +69,8 @@ class FaqEntry:
     pole: str
     question: str
     answer: str
+    # Réponse importée d'un site : pas d'envoi automatique avant relecture humaine
+    a_relire: bool = False
 
 
 def _strip_accents(text: str) -> str:
@@ -181,7 +186,8 @@ class KnowledgeBase:
             if doc.type == "faq":
                 for entry in self._faq_entries(doc):
                     # Réponse encore à rédiger : jamais envoyée automatiquement.
-                    (self.faq_pending if is_placeholder(entry.answer) else self.faq).append(entry)
+                    pending = is_placeholder(entry.answer) or entry.a_relire
+                    (self.faq_pending if pending else self.faq).append(entry)
         self.passages = [p for d in self.documents for p in self._split(d)]
         # Les publications passées calent le style mais ne font pas foi : un prix ou un
         # contact d'une ancienne publication ne valide jamais un nouveau contenu.
@@ -200,10 +206,12 @@ class KnowledgeBase:
         for block in re.split(r"^##\s+", doc.body, flags=re.MULTILINE)[1:]:
             question, _, answer = block.partition("\n")
             question = question.strip().removeprefix("Q:").strip()
-            if answer.strip():
-                entries.append(
-                    FaqEntry(f"{stem}#{_slug(question)}", doc.pole, question, answer.strip())
-                )
+            review = bool(IMPORT_MARK.search(answer))
+            # Les commentaires (repères, consignes) ne partent jamais chez un client.
+            answer = HTML_COMMENT.sub("", answer).strip()
+            if answer:
+                entries.append(FaqEntry(f"{stem}#{_slug(question)}", doc.pole, question,
+                                        answer, review))
         return entries
 
     @staticmethod

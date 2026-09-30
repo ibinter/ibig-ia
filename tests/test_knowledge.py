@@ -68,3 +68,17 @@ def test_repository_templates_are_all_inactive():
     assert kb.faq == [] and len(kb.faq_pending) >= 30
     assert all(d.meta.get("statut") == "a_completer"
                for d in kb.documents if d.type == "fiche_pole")
+
+
+def test_faq_comments_are_never_sent(tmp_path):
+    from ibig_agent.knowledge import KnowledgeBase
+
+    (tmp_path / "faq").mkdir()
+    (tmp_path / "faq" / "soft.md").write_text(
+        "---\ntitre: FAQ\npole: SOFT\ntype: faq\n---\n"
+        "## Horaires ?\nDe 8 h à 18 h.\n<!-- note interne : vérifier le samedi -->\n"
+        "## Essai ?\nOui.\n<!-- source : https://ibigsoft.com -->\n", encoding="utf-8")
+    kb = KnowledgeBase(tmp_path)
+    (horaires,) = kb.faq
+    assert horaires.answer == "De 8 h à 18 h."
+    assert [f.question for f in kb.faq_pending] == ["Essai ?"]

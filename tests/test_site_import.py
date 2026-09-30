@@ -1,5 +1,6 @@
 """Import de la base de connaissances depuis les sites publics (section 7)."""
 
+import re
 from urllib.parse import unquote
 
 import httpx
@@ -96,7 +97,10 @@ def test_import_fills_fiche_catalogue_faq_contacts(rt, sites, llm):
     assert "## Interdits" in fiche  # sections non importées conservées
     assert "IBIG FactPro" in rt.kb.products("SOFT")
     assert "4 900 FCFA" in rt.kb.raw("catalogue-ibig-soft.md")
-    assert any(f.question == "Y a-t-il un essai gratuit ?" for f in rt.kb.faq)
+    # Réponse importée : jamais envoyée automatiquement avant relecture humaine
+    assert not any(f.question == "Y a-t-il un essai gratuit ?" for f in rt.kb.faq)
+    imported = next(f for f in rt.kb.faq_pending if f.question == "Y a-t-il un essai gratuit ?")
+    assert imported.a_relire and imported.answer == "Oui, 7 jours."  # sans le commentaire
     assert "contact@ibigsoft.com" in rt.kb.raw("contacts.md")
     # Fiche jamais utilisable avant relecture humaine
     assert not rt.contenus_web.pole_ready("SOFT")
@@ -132,3 +136,18 @@ def test_internal_addresses_are_refused():
 
     assert not _public_host("localhost") and not _public_host("127.0.0.1")
     assert Crawler(check_host=_public_host).fetch("http://127.0.0.1:8000/")[0] is None
+
+
+def test_imported_faq_is_activated_once_marker_removed(rt, sites):
+    from ibig_agent.configstore import reload_knowledge
+
+    rt.import_sites(["SOFT"])
+    raw = rt.kb.raw("faq/soft.md")
+    assert "<!-- importé de" in raw
+    reviewed = re.sub(r"<!-- importé de.*?-->", "", raw, flags=re.DOTALL)
+    with rt.sessions() as s:
+        s.merge(KnowledgeEdit(path="faq/soft.md", content=reviewed, updated_by="Direction"))
+        s.commit()
+    reload_knowledge(rt)
+    entry = next(f for f in rt.kb.faq if f.question == "Y a-t-il un essai gratuit ?")
+    assert entry.answer == "Oui, 7 jours." and not entry.a_relire

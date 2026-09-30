@@ -436,7 +436,8 @@ class SiteImporter:
             if q["question"].lower().strip() in known:
                 continue
             body = body.rstrip() + (f"\n\n## {q['question'].strip()}\n{q['reponse'].strip()}"
-                                    f"\n<!-- source : {q['source']} -->\n")
+                                    f"\n<!-- importé de {q['source']} : relire, puis supprimer ce commentaire pour "
+                                    "activer la réponse automatique -->\n")
         self._save(path, _doc(meta, body), report, "FAQ")
 
     def _write_contacts(self, pole, data: dict, report: ImportReport) -> None:
