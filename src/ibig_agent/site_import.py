@@ -332,7 +332,7 @@ class SiteImporter:
         data = self.llm.structured(
             "kb.site_import", "writing", SYSTEM,
             f"Pôle : {pole.nom} ({pole.activite}).\nSite principal : {url}\n"
-            + "".join(corpus), extraction_schema(), max_tokens=32000)
+            + "".join(corpus), extraction_schema(), max_tokens=64000)
         report.offres, report.faq = len(data["offres"]), len(data["faq"])
         self._write_fiche(pole, data, report)
         self._write_catalogue(pole, data, report)
