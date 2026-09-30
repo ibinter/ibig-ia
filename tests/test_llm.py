@@ -19,9 +19,21 @@ class FakeMessages:
     def __init__(self, resp):
         self.resp, self.kwargs = resp, None
 
-    def create(self, **kwargs):
+    def stream(self, **kwargs):
         self.kwargs = kwargs
-        return self.resp
+        resp = self.resp
+
+        class _Stream:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def get_final_message(self):
+                return resp
+
+        return _Stream()
 
 
 def make(tmp_path, resp, budget=10.0):

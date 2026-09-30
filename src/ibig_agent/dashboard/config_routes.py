@@ -160,6 +160,10 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                                  or "{}")
         except ValueError:
             imports = {}
+        if not _importing:  # « en cours » sans import actif : interrompu (redémarrage)
+            for st in imports.values():
+                if st.get("etat") == "en_cours":
+                    st.update(etat="echec", resume="interrompu : relancez l'import")
         return page(request, "connaissances.html", groups=groups,
                     can_edit=who.role != "valideur", poles=rt.org.poles,
                     faq_ready=len(rt.kb.faq), faq_todo=len(rt.kb.faq_pending),

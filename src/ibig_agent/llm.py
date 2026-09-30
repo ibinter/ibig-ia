@@ -134,12 +134,16 @@ class ClaudeClient:
         if output_config:
             kwargs["output_config"] = output_config
         try:
+            # Toujours en streaming : les longues réponses (import des sites, articles)
+            # dépasseraient sinon la limite de 10 minutes d'une requête simple.
             if model in FALLBACK_MODELS:
-                response = self.client.beta.messages.create(
+                stream = self.client.beta.messages.stream(
                     betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kwargs
                 )
             else:
-                response = self.client.messages.create(**kwargs)
+                stream = self.client.messages.stream(**kwargs)
+            with stream as s:
+                response = s.get_final_message()
         except anthropic.APIConnectionError as exc:
             raise LLMError(f"Connexion à l'API impossible : {exc}") from exc
         except anthropic.APIStatusError as exc:
