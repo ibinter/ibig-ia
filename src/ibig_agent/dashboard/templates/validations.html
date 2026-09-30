@@ -1,60 +1,84 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Validations{% endblock %}
+{% block heading %}Validations{% endblock %}
+{% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p>{% endblock %}
+{% block tools %}
+<span class="pill amber dot">{{ pending | length }} à valider</span>
+{% if user.role != 'valideur' %}<span class="pill red dot">{{ prepared | length }} niveau 3</span>{% endif %}
+{% endblock %}
 {% block content %}
-<h2>À valider (niveau 2)</h2>
-{% if not pending %}<p class="muted">Rien à valider.</p>{% endif %}
+<div class="section-title" style="margin-top:4px">{{ icon('check-circle') }}<h2>À valider</h2><span class="pill amber">niveau 2</span></div>
+{% if not pending %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('check') }}</div><b>Rien à valider</b>Vous êtes à jour. Les nouvelles propositions de l'agent apparaîtront ici.</div></div>
+{% endif %}
+<div class="stack">
 {% for a in pending %}
-<div class="card">
-  <div class="row"><span class="tag l2">niveau 2</span><span class="tag">{{ a.channel }}</span>
-    <span class="tag">{{ a.pole }}</span><span class="muted">{{ a.account }} · {{ a.created_at.strftime('%d/%m %H:%M') }}
-    · agent {{ a.agent }}</span>
-    {% if a.flagged_at %}<span class="tag l3">en attente depuis plus de 24 h</span>{% endif %}</div>
+<article class="card item l2 fade-in">
+  <div class="meta">
+    <span class="pill amber">{{ icon('clock') }} niveau 2</span>
+    <span class="pill blue">{{ channel_icon(a.channel) }} {{ a.channel }}</span>
+    {% if a.pole %}<span class="pill violet">{{ a.pole }}</span>{% endif %}
+    {% if a.flagged_at %}<span class="pill red dot">en attente depuis plus de 24 h</span>{% endif %}
+    <span class="muted">{{ a.account }} · agent {{ a.agent }} · {{ a.created_at | quand }}</span>
+  </div>
   <h3>{{ a.title }}</h3>
-  {% if a.payload.get('resume') %}<p class="muted">Résumé : {{ a.payload.resume }}</p>{% endif %}
+  {% if a.payload.get('resume') %}<div class="summary"><b>Résumé :</b> {{ a.payload.resume }}</div>{% endif %}
   {% if a.payload.get('original') %}
-    <details><summary class="muted">Message d'origine</summary><pre>{{ a.payload.original }}</pre></details>
+    <details><summary>{{ icon('mail') }} Message d'origine</summary><div class="inner"><pre>{{ a.payload.original }}</pre></div></details>
   {% endif %}
   {% if a.payload.get('contenu_html') %}
-    <details open><summary class="muted">Aperçu de l'article</summary>
-      <div class="card"><h3>{{ a.payload.get('titre', '') }}</h3>{{ a.payload.contenu_html | apercu }}</div></details>
+    <details open><summary>{{ icon('eye') }} Aperçu de l'article</summary>
+      <div class="inner"><div class="article"><h2>{{ a.payload.get('titre', '') }}</h2>{{ a.payload.contenu_html | apercu }}</div></div></details>
   {% endif %}
-  {% if a.payload.get('brief_visuel') %}<p class="muted">Brief visuel : {{ a.payload.brief_visuel }}</p>{% endif %}
+  {% if a.payload.get('brief_visuel') %}<div class="summary"><b>Brief visuel :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
   {% for src in a.payload.get('sources', []) %}
-    <div class="muted">Source : {{ src.titre }} — {{ src.section }} : « {{ src.extrait }} »</div>
+    <div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>
   {% endfor %}
   {% for al in a.payload.get('alertes', []) %}
-    <div class="alert">⚠ Absent de la base de connaissances — {{ al }}</div>
+    <div class="alert" style="margin-top:8px">{{ icon('alert') }}<span>Absent de la base de connaissances — {{ al }}</span></div>
   {% endfor %}
-  <form method="post" action="/validations/{{ a.id }}/approuver">
+  <form method="post" action="/validations/{{ a.id }}/approuver" style="margin-top:14px">
     {% for k in editable if k in a.payload %}
-      <textarea name="contenu">{{ a.payload[k] }}</textarea>
+      <label class="field"><span>{{ icon('edit') }} Texte qui partira (modifiable)</span>
+      <textarea name="contenu">{{ a.payload[k] }}</textarea></label>
     {% endfor %}
     {% set txt = a.payload.get('body') or a.payload.get('texte') or a.payload.get('contenu_html') or '' %}
-    {% if 'COMPLÉTER' in txt.upper() %}<div class="alert">Texte incomplet : remplacez « À COMPLÉTER » avant de valider.</div>{% endif %}
-    <div class="row"><button class="ok">Valider</button></div>
+    {% if 'COMPLÉTER' in txt.upper() %}<div class="alert amber">{{ icon('alert') }}<span>Texte incomplet : remplacez « À COMPLÉTER » avant de valider.</span></div>{% endif %}
+    <div class="actions"><button class="btn ok">{{ icon('check') }} Valider et envoyer</button></div>
   </form>
-  <form method="post" action="/validations/{{ a.id }}/rejeter" class="row" style="margin-top:8px">
-    <input type="text" name="motif" placeholder="Motif du rejet">
-    <button class="bad">Rejeter</button>
+  <form method="post" action="/validations/{{ a.id }}/rejeter" class="actions">
+    <input class="grow" type="text" name="motif" placeholder="Motif du rejet (aide l'agent à s'améliorer)">
+    <button class="btn ghost-bad">{{ icon('x') }} Rejeter</button>
   </form>
-</div>
+</article>
 {% endfor %}
+</div>
 
-<h2>Réservé à un humain (niveau 3)</h2>
-<p class="muted">L'agent a préparé ces dossiers ; il n'agira pas. Traitez-les puis marquez-les comme traités.</p>
-{% if not prepared %}<p class="muted">Aucun dossier.</p>{% endif %}
+<div class="section-title" id="niveau3">{{ icon('hand') }}<h2>Réservé à un humain</h2><span class="pill red">niveau 3</span></div>
+<p class="muted" style="margin-top:-6px">L'agent a préparé ces dossiers ; il n'agira pas. Traitez-les vous-même, puis marquez-les comme traités.</p>
+{% if not prepared %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('shield-check') }}</div><b>Aucun dossier</b>Plaintes, litiges, messages suspects et sujets sensibles arriveront ici.</div></div>
+{% endif %}
+<div class="stack">
 {% for a in prepared %}
-<div class="card">
-  <div class="row"><span class="tag l3">niveau 3</span><span class="tag">{{ a.action_type }}</span>
-    <span class="tag">{{ a.pole }}</span><span class="muted">{{ a.account }} · {{ a.created_at.strftime('%d/%m %H:%M') }}</span></div>
+<article class="card item l3 fade-in">
+  <div class="meta">
+    <span class="pill red">{{ icon('hand') }} niveau 3</span>
+    <span class="pill">{{ a.action_type }}</span>
+    {% if a.pole %}<span class="pill violet">{{ a.pole }}</span>{% endif %}
+    <span class="muted">{{ a.account }} · {{ a.created_at | quand }}</span>
+  </div>
   <h3>{{ a.title }}</h3>
-  {% if a.payload.get('motifs') %}<div class="alert">Motifs suspects : {{ a.payload.motifs | join(', ') }}</div>{% endif %}
-  {% if a.payload.get('resume') %}<p class="muted">Résumé : {{ a.payload.resume }}</p>{% endif %}
+  {% if a.payload.get('motifs') %}<div class="alert">{{ icon('shield') }}<span>Motifs suspects : {{ a.payload.motifs | join(', ') }}</span></div>{% endif %}
+  {% if a.payload.get('resume') %}<div class="summary"><b>Résumé :</b> {{ a.payload.resume }}</div>{% endif %}
   {% if a.payload.get('raison') %}<p class="muted">{{ a.payload.raison }}</p>{% endif %}
-  {% if a.payload.get('body') %}<details><summary>Brouillon préparé</summary><pre>{{ a.payload.body }}</pre></details>{% endif %}
-  <form method="post" action="/validations/{{ a.id }}/traite" class="row" style="margin-top:8px">
-    <input type="text" name="note" placeholder="Note (facultatif)">
-    <button>Marquer comme traité</button>
+  {% if a.payload.get('body') %}<details><summary>{{ icon('edit') }} Brouillon préparé</summary><div class="inner"><pre>{{ a.payload.body }}</pre></div></details>{% endif %}
+  <form method="post" action="/validations/{{ a.id }}/traite" class="actions">
+    <input class="grow" type="text" name="note" placeholder="Note (facultatif)">
+    <button class="btn">{{ icon('check') }} Marquer comme traité</button>
   </form>
-</div>
+</article>
 {% endfor %}
+</div>
 {% endblock %}

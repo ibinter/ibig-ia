@@ -1,12 +1,42 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Journal{% endblock %}
+{% block heading %}Journal des actions{% endblock %}
+{% block lead %}<p class="lead">Chaque action de chaque agent, avec son niveau, son statut et qui l'a décidée.</p>{% endblock %}
+{% block tools %}<input type="text" id="q" placeholder="Rechercher…" style="width:240px" oninput="filtre(this.value)">{% endblock %}
 {% block content %}
-<h2>Journal des actions</h2>
-<div class="card scroll"><table>
-<tr><th>Date</th><th>Agent</th><th>Action</th><th>Niv.</th><th>Canal / compte</th><th>Statut</th><th>Résumé</th><th>Par</th></tr>
-{% for r in rows %}
-<tr><td>{{ r.created_at.strftime('%d/%m %H:%M:%S') }}</td><td>{{ r.agent }}</td><td>{{ r.action_type }}</td>
-<td><span class="tag l{{ r.level }}">{{ r.level }}</span></td><td>{{ r.channel }}<br><span class="muted">{{ r.account }}</span></td>
-<td>{{ r.status }}</td><td>{{ r.summary }}</td><td>{{ r.decided_by }}</td></tr>
-{% endfor %}
-</table></div>
+<div class="card">
+  <div class="card-head">
+    <div class="pills"><span class="pill green dot">niveau 1 · automatique</span><span class="pill amber dot">niveau 2 · validation</span><span class="pill red dot">niveau 3 · humain</span></div>
+    <span class="sub">{{ rows | length }} dernières entrées</span>
+  </div>
+  {% if rows %}
+  <div class="table-wrap"><table id="t">
+    <thead><tr><th>Quand</th><th>Action</th><th>Niveau</th><th>Canal</th><th>Statut</th><th>Résumé</th><th>Par</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td style="white-space:nowrap"><b>{{ r.created_at | quand }}</b><span class="sub">{{ r.created_at | depuis }}</span></td>
+      <td><b>{{ r.action_type }}</b><span class="sub">agent {{ r.agent }}{% if r.pole %} · {{ r.pole }}{% endif %}</span></td>
+      <td><span class="pill {{ {1: 'green', 2: 'amber', 3: 'red'}.get(r.level, '') }}">{{ r.level }}</span></td>
+      <td><span class="inline" style="gap:6px">{{ channel_icon(r.channel) }}{{ r.channel }}</span><span class="sub">{{ r.account }}</span></td>
+      <td><span class="pill {{ {'executed': 'green', 'approved': 'green', 'handled': 'green', 'pending': 'amber', 'prepared': 'violet', 'failed': 'red', 'rejected': 'red', 'blocked': 'red', 'flagged': 'amber'}.get(r.status, '') }}">{{ r.status | statut }}</span></td>
+      <td style="min-width:260px">{{ r.summary }}</td>
+      <td class="muted">{{ r.decided_by }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty"><div class="bubble">{{ icon('list') }}</div><b>Journal vide</b>La première action de l'agent s'inscrira ici.</div>
+  {% endif %}
+</div>
+<script>
+function filtre(v) {
+  v = v.toLowerCase();
+  document.querySelectorAll('#t tbody tr').forEach(function (tr) {
+    tr.style.display = tr.textContent.toLowerCase().indexOf(v) === -1 ? 'none' : '';
+  });
+}
+</script>
 {% endblock %}

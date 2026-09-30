@@ -1,20 +1,139 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Accueil{% endblock %}
+{% block heading %}Bonjour, {{ user.name.split(' ')[0] if user.role == 'valideur' else user.name }}{% endblock %}
+{% block lead %}
+<p class="lead">{% if stats.pending %}<b>{{ stats.pending }}</b> proposition{{ 's' if stats.pending > 1 }} attend{{ 'ent' if stats.pending > 1 }} votre validation.
+  {% else %}Tout est à jour : aucune proposition n'attend votre validation.{% endif %}
+  {% if user.role == 'valideur' %}Vos pôles : {{ user.poles | join(', ') or 'aucun pôle attribué' }}.{% endif %}</p>
+{% endblock %}
+{% block tools %}<a class="btn primary" href="/validations">{{ icon('check-circle') }} Ouvrir les validations</a>{% endblock %}
 {% block content %}
-<div class="grid">
-  <div class="card stat"><b>{{ counts.get('pending', 0) }}</b>à valider (niveau 2)</div>
-  <div class="card stat"><b>{{ counts.get('prepared', 0) }}</b>dossiers humains (niveau 3)</div>
-  <div class="card stat"><b>{{ mails }}</b>mails traités au total</div>
-  <div class="card stat"><b>{{ prospects }}</b>prospects</div>
-</div>
 {% set stopped = states.values() | selectattr('stopped') | list %}
 {% if stopped %}
-<div class="card alert">Canaux suspendus :
-  {% for s in stopped %}<span class="tag l3">{{ s.channel }}</span>{% endfor %}</div>
+<div class="banner">{{ icon('power') }}<span>Agent suspendu sur :
+  {% for s in stopped %}<b>{{ 'tout le périmètre' if s.channel == '*' else s.channel }}</b>{{ ', ' if not loop.last }}{% endfor %}.</span>
+  <a class="btn sm ghost-bad" href="/arret" style="margin-left:auto">Gérer</a></div>
 {% endif %}
+
+<div class="grid g-4">
+  <a class="card kpi hero fade-in" href="/validations">
+    <div class="ico">{{ icon('check-circle') }}</div>
+    <div class="val">{{ stats.pending }}</div>
+    <div class="lbl">à valider (niveau 2)</div>
+    <div class="foot">{{ icon('arrow-right') }} Valider en un clic</div>
+  </a>
+  {% if user.role == 'valideur' %}
+  <a class="card kpi t-red fade-in" href="/tickets">
+    <div class="ico">{{ icon('life') }}</div>
+    <div class="val">{{ stats.open_tickets }}</div>
+    <div class="lbl">tickets de support ouverts</div>
+    <div class="foot">Questions transmises à un humain</div>
+  </a>
+  {% else %}
+  <a class="card kpi t-red fade-in" href="/validations#niveau3">
+    <div class="ico">{{ icon('hand') }}</div>
+    <div class="val">{{ stats.prepared }}</div>
+    <div class="lbl">dossiers humains (niveau 3)</div>
+    <div class="foot">L'agent prépare, vous décidez</div>
+  </a>
+  {% endif %}
+  <div class="card kpi t-blue fade-in">
+    <div class="ico">{{ icon('mail') }}</div>
+    <div class="val">{{ stats.mails_24h }}</div>
+    <div class="lbl">mails traités en 24 h</div>
+    <div class="foot">{{ stats.mails_total }} mails traités au total</div>
+  </div>
+  <a class="card kpi t-amber fade-in" href="/prospects">
+    <div class="ico">{{ icon('flame') }}</div>
+    <div class="val">{{ stats.prospects }}</div>
+    <div class="lbl">prospects</div>
+    <div class="foot">{% if stats.hot_prospects %}<span class="pill red">{{ stats.hot_prospects }} chaud{{ 's' if stats.hot_prospects > 1 }}</span>{% else %}Aucun prospect chaud{% endif %}</div>
+  </a>
+</div>
+
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Activité des 14 derniers jours</h2><div class="sub">Mails reçus et traités par l'agent</div></div>
+      <span class="pill blue">{{ stats.activity_total }} au total</span>
+    </div>
+    {% set top = stats.activity_max or 1 %}
+    <div class="bars">
+      {% for d in stats.activity %}
+      <div class="bar">
+        <div class="col {{ 'zero' if not d.count }}" data-n="{{ d.count }} mail{{ 's' if d.count > 1 }}" style="height:{{ [d.count / top * 100, 2] | max }}%; animation-delay:{{ loop.index0 * 30 }}ms"></div>
+        <small>{{ d.day | jour_court }}</small>
+      </div>
+      {% endfor %}
+    </div>
+    {% if not stats.activity_total %}<p class="muted" style="text-align:center;margin:14px 0 0">La courbe se remplira dès que les boîtes mail seront raccordées.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    {% if user.role != 'valideur' %}
+    <div class="card-head"><div><h2>Budget IA du mois</h2><div class="sub">Plafond et alerte à 80 %</div></div></div>
+    {% set pct = (stats.ai_ratio * 100) | round(0) | int %}
+    <div class="ring" style="--p:{{ pct }}; --ring:{{ 'var(--bad)' if pct >= 80 else 'var(--brand)' }}">
+      <div><span><b>{{ '%.2f' | format(stats.ai_spend) }} $</b><small>sur {{ stats.ai_budget | round(0) | int }} $</small></span></div>
+    </div>
+    <p class="muted" style="text-align:center;margin:0">{{ pct }} % du plafond utilisé{% if pct >= 80 %} · <b style="color:var(--bad)">alerte</b>{% endif %}</p>
+    <hr class="divider">
+    {% endif %}
+    <div class="grid g-2" style="gap:12px">
+      <a class="pill {{ 'red' if stats.open_tickets else 'green' }}" href="/tickets" style="justify-content:center;padding:10px">{{ icon('life') }} {{ stats.open_tickets }} ticket{{ 's' if stats.open_tickets > 1 }} ouvert{{ 's' if stats.open_tickets > 1 }}</a>
+      <span class="pill {{ 'red' if stats.suspicious_24h else 'green' }}" style="justify-content:center;padding:10px">{{ icon('shield') }} {{ stats.suspicious_24h }} suspect{{ 's' if stats.suspicious_24h > 1 }} (24 h)</span>
+    </div>
+  </div>
+</div>
+
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head"><div><h2>Dernières actions</h2><div class="sub">Tout ce que fait l'agent est journalisé</div></div>
+      <a class="btn sm" href="/journal">Tout le journal {{ icon('arrow-right') }}</a></div>
+    {% if stats.recent %}
+    <ul class="feed">
+      {% for r in stats.recent %}
+      <li><span class="dot lv{{ r.level }}">{{ channel_icon(r.channel) }}</span>
+        <span class="txt"><b>{{ r.summary or r.action_type }}</b>
+          <small>{{ r.agent }} · {{ r.action_type }} · {{ r.created_at | depuis }}</small></span>
+        <span class="pill {{ {'executed': 'green', 'pending': 'amber', 'prepared': 'red', 'failed': 'red', 'rejected': 'red', 'blocked': 'red'}.get(r.status, '') }}">{{ r.status | statut }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty"><div class="bubble">{{ icon('sparkles') }}</div><b>Prêt à démarrer</b>Les actions de l'agent apparaîtront ici.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h2>Par pôle</h2><div class="sub">Mails des 30 derniers jours</div></div></div>
+    {% if stats.by_pole %}
+      {% for pole, n in stats.by_pole %}
+      <div class="hbar"><div class="top-line"><b>{{ pole }}</b><span class="muted">{{ n }}</span></div>
+        <div class="track"><div class="fill" style="width:{{ (n / stats.by_pole_max * 100) | round(1) }}%"></div></div></div>
+      {% endfor %}
+    {% else %}
+      <p class="muted">Aucun mail sur la période.</p>
+      {% if user.role == 'valideur' %}<div class="pills">{% for p in user.poles %}<span class="pill blue">{{ p }}</span>{% endfor %}</div>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>État des canaux</h2><div class="sub">Vert : actif · Rouge : suspendu par le bouton d'arrêt</div></div>
+    <a class="btn sm ghost-bad" href="/arret">{{ icon('power') }} Bouton d'arrêt</a></div>
+  <div class="channels">
+    {% for c in channels %}{% set st = states.get(c) %}{% set off = (st and st.stopped) or (states.get('*') and states.get('*').stopped) %}
+    <div class="chan {{ 'off' if off }}"><span class="led"></span>{{ channel_icon(c) }}<span>{{ c | capitalize }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+
 {% if report %}
-<div class="card"><h3>Synthèse des dernières 24 h</h3><pre>{{ report }}</pre></div>
-{% else %}
-<p class="muted">Chiffres de vos pôles : {{ user.poles | join(', ') or 'aucun pôle attribué' }}.
-  La synthèse de tous les pôles est réservée à la direction.</p>
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Synthèse des dernières 24 h</h2><div class="sub">Rapport de l'agent chef, envoyé chaque matin à 8 h</div></div>
+    <a class="btn sm" href="/rapports">Tous les rapports {{ icon('arrow-right') }}</a></div>
+  <div class="report-text"><pre>{{ report }}</pre></div>
+</div>
 {% endif %}
 {% endblock %}

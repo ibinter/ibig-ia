@@ -1,25 +1,47 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Bouton d'arrêt{% endblock %}
+{% block heading %}Bouton d'arrêt{% endblock %}
+{% block lead %}<p class="lead">Suspend l'agent sur un canal ou sur tout le périmètre. Effet immédiat : plus aucune action automatique ni validation n'est exécutée sur un canal suspendu. Tout le monde peut arrêter ; seule la direction réactive.</p>{% endblock %}
 {% block content %}
-<h2>Bouton d'arrêt</h2>
-<p class="muted">Suspend l'agent sur un canal ou sur tout le périmètre (*). Effet immédiat : aucune
-action automatique ni validation n'est exécutée sur un canal suspendu.</p>
-<div class="card scroll"><table>
-<tr><th>Canal</th><th>État</th><th>Motif</th><th>Par</th><th></th></tr>
-{% for c in channels %}{% set st = states.get(c) %}
-<tr><td><b>{{ 'Tout le périmètre (*)' if c == '*' else c }}</b></td>
-<td>{% if st and st.stopped %}<span class="tag l3">suspendu</span>{% else %}<span class="tag l1">actif</span>{% endif %}</td>
-<td>{{ st.reason if st else '' }}</td><td>{{ st.updated_by if st else '' }}</td>
-<td><form method="post" action="/arret" class="row">
-  <input type="hidden" name="canal" value="{{ c }}">
-  {% if st and st.stopped %}
-    {% if user.role in ('admin', 'direction') %}
-    <input type="hidden" name="action" value="reprise"><button class="ok">Réactiver</button>
-    {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
-  {% else %}
-    <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
-    <button class="bad">Suspendre</button>
-  {% endif %}
-</form></td></tr>
-{% endfor %}
-</table></div>
+{% set all = states.get('*') %}
+{% set all_off = all and all.stopped %}
+<div class="card big-stop {{ '' if all_off else 'running' }}">
+  <span class="ico">{{ icon('power') }}</span>
+  <div style="flex:1;min-width:220px">
+    <h2>{{ "Agent suspendu sur tout le périmètre" if all_off else "Agent en service" }}</h2>
+    <p class="muted" style="margin:4px 0 0">{% if all_off %}Motif : {{ all.reason or '—' }} · par {{ all.updated_by }}{% else %}Arrêt général : un clic suffit, tous les canaux s'arrêtent.{% endif %}</p>
+  </div>
+  <form method="post" action="/arret" class="inline">
+    <input type="hidden" name="canal" value="*">
+    {% if all_off %}
+      {% if user.role in ('admin', 'direction') %}<input type="hidden" name="action" value="reprise"><button class="btn ok">{{ icon('play') }} Tout réactiver</button>
+      {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
+    {% else %}
+      <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif" style="width:220px">
+      <button class="btn bad">{{ icon('power') }} Tout arrêter</button>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Par canal</h2><div class="sub">Suspendre un seul canal sans toucher aux autres</div></div></div>
+  {% for c in channels if c != '*' %}{% set st = states.get(c) %}{% set off = st and st.stopped %}
+  <div class="switch-row {{ 'off' if off }}">
+    <div class="name"><span class="ico">{{ channel_icon(c) }}</span>
+      <div><b>{{ c | capitalize }}</b><div class="muted">{% if off %}suspendu · {{ st.reason or 'sans motif' }} · par {{ st.updated_by }}{% else %}actif{% endif %}</div></div></div>
+    {% if off %}<span class="pill red dot">suspendu</span>{% else %}<span class="pill green dot">actif</span>{% endif %}
+    <form method="post" action="/arret">
+      <input type="hidden" name="canal" value="{{ c }}">
+      {% if off %}
+        {% if user.role in ('admin', 'direction') %}<input type="hidden" name="action" value="reprise"><button class="btn ok sm">{{ icon('play') }} Réactiver</button>
+        {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
+      {% else %}
+        <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
+        <button class="btn ghost-bad sm">{{ icon('pause') }} Suspendre</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}

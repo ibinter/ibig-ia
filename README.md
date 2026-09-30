@@ -47,6 +47,16 @@ Utile pour présenter l'agent et former les valideurs avant la mise en service.
 |---|---|---|
 | ![Accueil](docs/captures/1-accueil.png) | ![Validations](docs/captures/2-validations.png) | ![Indicateurs](docs/captures/5-indicateurs.png) |
 
+| Connexion | Journal | Bouton d'arrêt |
+|---|---|---|
+| ![Connexion](docs/captures/0-connexion.png) | ![Journal](docs/captures/6-journal.png) | ![Bouton d'arrêt](docs/captures/7-arret.png) |
+
+| Prospects | Support | Rapports |
+|---|---|---|
+| ![Prospects](docs/captures/3-prospects.png) | ![Support](docs/captures/4-tickets.png) | ![Rapports](docs/captures/8-rapports.png) |
+
+Thème clair ou sombre selon le réglage de l'appareil ; menu repliable sur téléphone.
+
 ## Architecture
 
 ```

@@ -9,24 +9,86 @@ from __future__ import annotations
 import secrets
 import time
 from collections import defaultdict, deque
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, select
 
 from ..auth import Principal, UserStore, make_session, read_session
 from ..channels.web import sanitize_html
-from ..db import JournalEntry, PendingAction, ProcessedMessage, Prospect, Ticket
+from ..db import JournalEntry, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
+from .stats import home_stats, nav_counts
 
-TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+HERE = Path(__file__).parent
+TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 # Aperçu des articles : toujours re-nettoyé (le HTML a pu être modifié par un valideur).
 TEMPLATES.env.filters["apercu"] = lambda html: Markup(sanitize_html(html or ""))
+MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.",
+        "nov.", "déc."]
+JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def install_filters(tz: ZoneInfo) -> None:
+    """Dates en français, à l'heure locale d'IBIG."""
+    env = TEMPLATES.env
+
+    def local(dt: datetime | None) -> datetime | None:
+        return _aware(dt).astimezone(tz) if dt else None
+
+    def quand(dt: datetime | None, heure: bool = True) -> str:
+        if not dt:
+            return ""
+        d = local(dt)
+        txt = f"{d.day} {MOIS[d.month - 1]}"
+        if d.year != datetime.now(tz).year:
+            txt += f" {d.year}"
+        return f"{txt} · {d:%H:%M}" if heure else txt
+
+    def depuis(dt: datetime | None) -> str:
+        if not dt:
+            return ""
+        sec = int((datetime.now(UTC) - _aware(dt)).total_seconds())
+        if sec < 60:
+            return "à l'instant"
+        if sec < 3600:
+            return f"il y a {sec // 60} min"
+        if sec < 86400:
+            return f"il y a {sec // 3600} h"
+        if sec < 7 * 86400:
+            return f"il y a {sec // 86400} j"
+        return quand(dt, heure=False)
+
+    def jour_court(dt: datetime) -> str:
+        return f"{JOURS[dt.weekday()][:3]}. {dt.day}"
+
+    def initiales(nom: str) -> str:
+        mots = [m for m in (nom or "?").replace("-", " ").split() if m[:1].isalnum()]
+        return "".join(m[0] for m in mots[:2]).upper() or "?"
+
+    statuts = {"executed": "exécuté", "pending": "à valider", "prepared": "niveau 3",
+               "failed": "échec", "rejected": "rejeté", "approved": "approuvé",
+               "handled": "traité", "blocked": "bloqué", "flagged": "signalé",
+               "queued": "en file", "gagne": "gagné", "qualifie": "qualifié",
+               "resolu": "résolu", "en_cours": "en cours"}
+    env.filters["statut"] = lambda v: statuts.get(v, (v or "").replace("_", " "))
+    env.filters.update(local=local, quand=quand, depuis=depuis, jour_court=jour_court,
+                       initiales=initiales)
+    env.globals["aujourdhui"] = lambda: (
+        f"{JOURS[datetime.now(tz).weekday()]} {datetime.now(tz).day} "
+        f"{MOIS[datetime.now(tz).month - 1].rstrip('.')} {datetime.now(tz).year}")
 SESSION_COOKIE = "ibig_session"
 EDITABLE_KEYS = ("body", "texte", "contenu_html")
 SARA_MAX_QUESTION = 2000
@@ -46,6 +108,8 @@ def create_app(rt: Runtime) -> FastAPI:
     if len(rt.settings.secret_key) < 32:
         raise RuntimeError("IBIG_SECRET_KEY doit faire au moins 32 caractères")
     app = FastAPI(title="Agent IA IBIG — tableau de bord", docs_url=None, redoc_url=None)
+    app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
+    install_filters(ZoneInfo(rt.settings.timezone))
     users = UserStore(rt.sessions, rt.org)
     secret = rt.settings.secret_key
     failed_logins: dict[str, deque[float]] = defaultdict(deque)
@@ -64,8 +128,13 @@ def create_app(rt: Runtime) -> FastAPI:
         return principal
 
     def page(request: Request, name: str, **ctx) -> HTMLResponse:
+        who = getattr(request.state, "user", None)
+        badges = {}
+        if who is not None:
+            with rt.sessions() as s:
+                badges = nav_counts(s, who)
         return TEMPLATES.TemplateResponse(request, name, {
-            "user": getattr(request.state, "user", None),
+            "user": who, "badges": badges, "path": request.url.path,
             "msg": request.query_params.get("msg", ""), **ctx})
 
     def back(url: str, msg: str) -> RedirectResponse:
@@ -118,19 +187,11 @@ def create_app(rt: Runtime) -> FastAPI:
         # Cloisonnement : un valideur ne voit que les chiffres de ses pôles.
         scoped = who.role == "valideur"
         with rt.sessions() as s:
-            q = select(PendingAction.status, func.count()).group_by(PendingAction.status)
-            m = select(func.count()).select_from(ProcessedMessage)
-            p = select(func.count()).select_from(Prospect)
-            if scoped:
-                q = q.where(PendingAction.pole.in_(who.poles))
-                m = m.where(ProcessedMessage.pole.in_(who.poles))
-                p = p.where(Prospect.pole.in_(who.poles))
-            counts = dict(s.execute(q).all())
-            mails, prospects = s.scalar(m) or 0, s.scalar(p) or 0
+            stats = home_stats(s, who, rt.settings.monthly_ai_budget_usd)
         # La synthèse couvre tous les pôles (expéditeurs compris) : réservée à la direction.
         report = None if scoped else rt.chef.build_daily_report().as_text()
-        return page(request, "index.html", counts=counts, mails=mails, prospects=prospects,
-                    states=rt.governor.channel_states(), report=report)
+        return page(request, "index.html", stats=stats, states=rt.governor.channel_states(),
+                    channels=CHANNELS, report=report)
 
     @app.get("/validations", response_class=HTMLResponse)
     def validations(request: Request, who: Principal = Depends(user)):

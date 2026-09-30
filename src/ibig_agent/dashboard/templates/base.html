@@ -1,60 +1,73 @@
-<!doctype html>
+{% from "_icons.html" import icon %}<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent IA IBIG</title>
-<style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --muted:#667085; --line:#e4e7ec;
-          --brand:#0b4f9c; --ok:#127a3e; --warn:#b54708; --bad:#b42318; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-         background:var(--bg); color:var(--ink); }
-  header { background:var(--brand); color:#fff; padding:10px 16px; display:flex;
-           flex-wrap:wrap; gap:16px; align-items:center; }
-  header a { color:#fff; text-decoration:none; font-weight:500; }
-  header .who { margin-left:auto; font-size:13px; opacity:.9; }
-  main { max-width:1100px; margin:0 auto; padding:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:8px;
-          padding:14px 16px; margin-bottom:14px; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
-  .stat b { font-size:26px; display:block; }
-  .muted { color:var(--muted); font-size:13px; }
-  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px;
-         background:#eef2f7; margin-right:4px; }
-  .l1 { background:#e7f5ec; } .l2 { background:#fff4e5; } .l3 { background:#fdecea; }
-  .alert { color:var(--bad); font-size:13px; }
-  .flash { background:#eef4ff; border:1px solid #c7d7fe; padding:8px 12px; border-radius:6px;
-           margin-bottom:14px; }
-  textarea { width:100%; min-height:140px; font:inherit; padding:8px; }
-  input[type=text], input[type=password], select { font:inherit; padding:6px 8px; }
-  button { font:inherit; padding:6px 14px; border-radius:6px; border:1px solid var(--line);
-           cursor:pointer; background:#fff; }
-  button.ok { background:var(--ok); color:#fff; border-color:var(--ok); }
-  button.bad { background:var(--bad); color:#fff; border-color:var(--bad); }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
-  .scroll { overflow-x:auto; }
-  pre { white-space:pre-wrap; margin:0; font:13px/1.45 ui-monospace,monospace; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-</style>
+<title>{% block title %}Tableau de bord{% endblock %} · Agent IA IBIG</title>
+<meta name="theme-color" content="#0b1830">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231257c4'/%3E%3Cstop offset='1' stop-color='%230ea5c6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M9 22V10m7 12V10m7 12V10' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/app.css?v=2">
 </head>
 <body>
 {% if user %}
-<header>
-  <strong>Agent IA IBIG</strong>
-  <a href="/">Accueil</a><a href="/validations">Validations</a><a href="/journal">Journal</a>
-  <a href="/indicateurs">Indicateurs</a>{% if user.role != 'valideur' %}<a href="/rapports">Rapports</a>{% endif %}
-  <a href="/prospects">Prospects</a><a href="/tickets">Tickets</a><a href="/arret">Bouton d'arrêt</a>
-  {% if user.role == 'admin' %}<a href="/utilisateurs">Comptes</a>{% endif %}
-  <span class="who">{{ user.name }} · {{ user.role }}{% if user.poles %} · {{ user.poles | join(', ') }}{% endif %}
-    <form method="post" action="/logout" style="display:inline"><button>Quitter</button></form>
-  </span>
-</header>
+{% macro nav(href, ic, label, badge=0, cls="") -%}
+  {%- set on = (path == href) or (href != '/' and path.startswith(href)) -%}
+  <a href="{{ href }}" class="{{ 'on' if on }} {{ cls }}">{{ icon(ic) }}<span>{{ label }}</span>
+    {%- if badge %}<span class="count">{{ badge }}</span>{% endif %}</a>
+{%- endmacro %}
+<input type="checkbox" id="menu" class="menu-toggle" hidden>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="/">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 18V6m5 12V6m5 12V6"/></svg></span>
+      <span><b>Agent IA IBIG</b><small>Centre de pilotage</small></span>
+    </a>
+    <nav class="nav">
+      {{ nav('/', 'home', 'Accueil') }}
+      {{ nav('/validations', 'check-circle', 'Validations', badges.get('validations', 0)) }}
+      <div class="nav-title">Activité</div>
+      {{ nav('/prospects', 'target', 'Prospects') }}
+      {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
+      {{ nav('/journal', 'list', 'Journal') }}
+      <div class="nav-title">Pilotage</div>
+      {{ nav('/indicateurs', 'chart', 'Indicateurs') }}
+      {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{% endif %}
+      {% if user.role == 'admin' %}{{ nav('/utilisateurs', 'users', 'Comptes') }}{% endif %}
+      {{ nav('/arret', 'power', "Bouton d'arrêt", cls='stop') }}
+    </nav>
+    <div class="side-foot">
+      <span class="avatar">{{ user.name | initiales }}</span>
+      <span class="who"><b>{{ user.name }}</b>
+        <small>{{ {'admin': 'Administration', 'direction': 'Direction', 'valideur': 'Valideur'}.get(user.role, user.role) }}{% if user.poles %} · {{ user.poles | join(', ') }}{% endif %}</small></span>
+      <form method="post" action="/logout"><button class="icon-btn" title="Se déconnecter" aria-label="Se déconnecter">{{ icon('logout') }}</button></form>
+    </div>
+  </aside>
+  <label for="menu" class="scrim"></label>
+  <div class="main">
+    <div class="mobile-bar">
+      <label for="menu" class="burger" aria-label="Menu">{{ icon('menu') }}</label>
+      <b>Agent IA IBIG</b>
+    </div>
+    <header class="top">
+      <div>
+        <div class="eyebrow">{% block eyebrow %}{{ aujourdhui() }}{% endblock %}</div>
+        <h1>{% block heading %}{% endblock %}</h1>
+        {% block lead %}{% endblock %}
+      </div>
+      <div class="inline">{% block tools %}{% endblock %}</div>
+    </header>
+    <main class="content">
+      {% if msg %}{% set bad = msg.startswith('Refus') or msg.startswith('Échec') or msg.startswith('Trop') or msg.startswith('Identifiants') %}
+      <div class="flash {{ 'bad' if bad else 'ok' }}">{{ icon('alert' if bad else 'check-circle') }}<span>{{ msg }}</span></div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+{% block bare %}{% endblock %}
 {% endif %}
-<main>
-{% if msg %}<div class="flash">{{ msg }}</div>{% endif %}
-{% block content %}{% endblock %}
-</main>
 </body>
 </html>

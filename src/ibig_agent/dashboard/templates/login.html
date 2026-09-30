@@ -1,11 +1,37 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="card" style="max-width:420px;margin:40px auto">
-  <h2>Connexion au tableau de bord</h2>
-  <form method="post" action="/login">
-    <p><label>Adresse mail<br><input type="text" name="email" autocomplete="username" required></label></p>
-    <p><label>Mot de passe<br><input type="password" name="password" autocomplete="current-password" required></label></p>
-    <button class="ok">Entrer</button>
-  </form>
+{% from "_icons.html" import icon %}
+{% block title %}Connexion{% endblock %}
+{% block bare %}
+<div class="login">
+  <section class="visual">
+    <div class="brand" style="padding:0">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 18V6m5 12V6m5 12V6"/></svg></span>
+      <span><b>Agent IA IBIG</b><small style="color:rgba(255,255,255,.65)">Centre de pilotage</small></span>
+    </div>
+    <div>
+      <h1>Vos canaux, vos pôles, une seule équipe augmentée.</h1>
+      <p>L'agent trie, prépare et répond ; vous gardez la main sur tout ce qui part vers l'extérieur.</p>
+      <div class="features">
+        <div class="feat"><span>{{ icon('mail') }}</span>Mails triés et réponses préparées en quelques minutes</div>
+        <div class="feat"><span>{{ icon('check-circle') }}</span>Validation en un clic, rien ne part sans règle</div>
+        <div class="feat"><span>{{ icon('shield-check') }}</span>Messages piégés détectés, faits vérifiés</div>
+        <div class="feat"><span>{{ icon('power') }}</span>Bouton d'arrêt immédiat, canal par canal</div>
+      </div>
+    </div>
+    <small style="color:rgba(255,255,255,.55)">IBIG SARL · Abidjan</small>
+  </section>
+  <section class="form-side">
+    <form method="post" action="/login">
+      <h2>Bienvenue</h2>
+      <p class="hint">Connectez-vous avec votre compte nominatif.</p>
+      {% if msg %}<div class="flash bad">{{ icon('alert') }}<span>{{ msg }}</span></div>{% endif %}
+      <label class="field"><span>Adresse mail</span>
+        <input type="email" name="email" autocomplete="username" placeholder="vous@ibigsoft.com" required autofocus></label>
+      <label class="field"><span>Mot de passe</span>
+        <input type="password" name="password" autocomplete="current-password" placeholder="••••••••••" required></label>
+      <button class="btn primary lg">Se connecter {{ icon('arrow-right') }}</button>
+      <div class="secure">{{ icon('lock') }} Connexion chiffrée · session de 12 h</div>
+    </form>
+  </section>
 </div>
 {% endblock %}

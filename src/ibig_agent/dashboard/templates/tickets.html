@@ -1,21 +1,32 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Support{% endblock %}
+{% block heading %}Support{% endblock %}
+{% block lead %}<p class="lead">Questions que l'agent Support et SARA n'ont pas traitées seuls, avec une proposition de réponse sourcée.</p>{% endblock %}
+{% block tools %}
+<div class="seg"><a href="/tickets" class="{{ 'on' if not tous }}">Ouverts</a><a href="?tous=1" class="{{ 'on' if tous }}">Tous</a></div>
+{% endblock %}
 {% block content %}
-<h2>Tickets du support</h2>
-<p class="muted">Questions que l'agent Support (et SARA) n'a pas traitées seul.
-  {% if tous %}<a href="/tickets">Voir les tickets ouverts</a>{% else %}<a href="?tous=1">Voir aussi les tickets résolus</a>{% endif %}</p>
-{% if not rows %}<p class="muted">Aucun ticket.</p>{% endif %}
+{% if not rows %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('life') }}</div><b>Aucun ticket</b>{{ 'Aucun ticket ouvert : le support est à jour.' if not tous else 'Aucun ticket pour le moment.' }}</div></div>
+{% endif %}
+<div class="stack">
 {% for t in rows %}
-<div class="card">
-  <div class="row"><span class="tag {{ 'l3' if t.status == 'ouvert' else 'l1' }}">{{ t.status }}</span>
-    <span class="tag">{{ t.channel }}</span><span class="tag">{{ t.pole }}</span>
-    <span class="muted">n° {{ t.id }} · {{ t.created_at.strftime('%d/%m %H:%M') }} · contact : {{ t.contact or 'non communiqué' }}</span></div>
-  <pre>{{ t.question }}</pre>
-  {% if t.reason %}<p class="muted">Pourquoi un humain : {{ t.reason }}</p>{% endif %}
-  {% if t.draft %}<details><summary>Proposition de réponse (à vérifier)</summary><pre>{{ t.draft }}</pre>
-    {% for src in t.sources %}<p class="muted">Source : {{ src.titre }} — {{ src.section }} : « {{ src.extrait }} »</p>{% endfor %}</details>{% endif %}
+<article class="card item {{ 'l3' if t.status == 'ouvert' else '' }} fade-in">
+  <div class="meta">
+    <span class="pill {{ 'red dot' if t.status == 'ouvert' else 'green' }}">{{ t.status | statut }}</span>
+    <span class="pill blue">{{ channel_icon(t.channel) }} {{ t.channel }}</span>
+    {% if t.pole %}<span class="pill violet">{{ t.pole }}</span>{% endif %}
+    <span class="muted">n° {{ t.id }} · {{ t.created_at | quand }} · contact : {{ t.contact or 'non communiqué' }}</span>
+  </div>
+  <div class="summary"><pre>{{ t.question }}</pre></div>
+  {% if t.reason %}<p class="muted">{{ icon('hand') }} Pourquoi un humain : {{ t.reason }}</p>{% endif %}
+  {% if t.draft %}<details><summary>{{ icon('sparkles') }} Proposition de réponse (à vérifier)</summary><div class="inner"><pre>{{ t.draft }}</pre>
+    {% for src in t.sources %}<div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>{% endfor %}</div></details>{% endif %}
   {% if t.status == 'ouvert' %}
-  <form method="post" action="/tickets/{{ t.id }}/resolu" class="row" style="margin-top:8px"><button class="ok">Marquer comme résolu</button></form>
-  {% else %}<p class="muted">Résolu par {{ t.resolved_by }}</p>{% endif %}
-</div>
+  <form method="post" action="/tickets/{{ t.id }}/resolu" class="actions"><button class="btn ok">{{ icon('check') }} Marquer comme résolu</button></form>
+  {% else %}<p class="muted">{{ icon('check-circle') }} Résolu par {{ t.resolved_by }}{% if t.resolved_at %} · {{ t.resolved_at | quand }}{% endif %}</p>{% endif %}
+</article>
 {% endfor %}
+</div>
 {% endblock %}

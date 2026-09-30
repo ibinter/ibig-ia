@@ -37,6 +37,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 ibig_agent = [
     "dashboard/templates/*.html",
+    "dashboard/static/*",
     "migrations/*.py",
     "migrations/script.py.mako",
     "migrations/versions/*.py",

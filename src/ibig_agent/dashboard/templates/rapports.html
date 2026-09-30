@@ -1,14 +1,23 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Rapports{% endblock %}
+{% block heading %}Rapports{% endblock %}
+{% block lead %}<p class="lead">Rapports quotidiens de 8 h, indicateurs hebdomadaires et revues mensuelles (section 12).</p>{% endblock %}
 {% block content %}
-<h2>Rapports</h2>
-<p class="muted">Rapports quotidiens, indicateurs hebdomadaires et revues mensuelles (section 12).</p>
-{% if not rows %}<p class="muted">Aucun rapport pour l'instant.</p>{% endif %}
+{% if not rows %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('file') }}</div><b>Aucun rapport pour l'instant</b>Le premier rapport quotidien sera publié demain à 8 h.</div></div>
+{% endif %}
+<div class="stack">
 {% for r in rows %}
-<div class="card">
-  <div class="row"><span class="tag">{{ r.agent }}</span><span class="muted">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</span></div>
-  <h3>{{ r.summary }}</h3>
-  <details {% if loop.first %}open{% endif %}><summary class="muted">Texte</summary>
-    <pre>{{ r.details.get('texte', '(texte non conservé)') }}</pre></details>
-</div>
+<article class="card fade-in">
+  <div class="card-head" style="margin-bottom:6px">
+    <div class="inline"><span class="dot lv1" style="width:38px;height:38px;border-radius:11px;display:grid;place-items:center">{{ icon('file') }}</span>
+      <div><h3>{{ r.summary }}</h3><div class="muted">agent {{ r.agent }} · {{ r.created_at | quand }}</div></div></div>
+    {% if loop.first %}<span class="pill blue dot">le plus récent</span>{% endif %}
+  </div>
+  <details {% if loop.first %}open{% endif %}><summary>Lire le rapport</summary>
+    <div class="inner"><div class="report-text"><pre>{{ r.details.get('texte', '(texte non conservé)') }}</pre></div></div></details>
+</article>
 {% endfor %}
+</div>
 {% endblock %}

@@ -1,25 +1,49 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Indicateurs{% endblock %}
+{% block heading %}Indicateurs de réussite{% endblock %}
+{% block lead %}<p class="lead">Cibles de la section 3 du cahier des charges, du {{ report.debut | quand(false) }} au {{ report.fin | quand(false) }}</p>{% endblock %}
+{% block tools %}
+<div class="seg">{% for j in (7, 30, 90) %}<a href="?jours={{ j }}" class="{{ 'on' if j == jours }}">{{ j }} jours</a>{% endfor %}</div>
+{% endblock %}
 {% block content %}
-<h2>Indicateurs de réussite</h2>
-<p class="muted">Cibles de la section 3 du cahier des charges.
-  Période : {% for j in (7, 30, 90) %}<a href="?jours={{ j }}">{{ j }} jours</a>{% if not loop.last %} · {% endif %}{% endfor %}
-  (actuelle : {{ jours }} jours, du {{ report.debut.strftime('%d/%m/%Y') }} au {{ report.fin.strftime('%d/%m/%Y') }})</p>
-<div class="card scroll"><table>
-<tr><th>Indicateur</th><th>Valeur</th><th>Cible</th><th>État</th><th>Détail</th></tr>
-{% for i in report.items %}
-<tr><td>{{ i.nom }}</td><td><b>{{ i.valeur }}</b></td><td>{{ i.cible }}</td>
-<td>{% if i.etat == 'ok' %}<span class="tag l1">atteint</span>{% elif i.etat == 'alerte' %}<span class="tag l3">sous la cible</span>{% else %}<span class="tag">à mesurer</span>{% endif %}</td>
-<td class="muted">{{ i.detail }}</td></tr>
-{% endfor %}
-</table></div>
-<h2>Dernières alertes de veille</h2>
-{% if not alerts %}<p class="muted">Aucune alerte.</p>{% endif %}
-{% for a in alerts %}
-<div class="card">
-  <div class="row"><span class="tag l3">{{ a.details.get('kind', '') }}</span>{% if a.pole %}<span class="tag">{{ a.pole }}</span>{% endif %}
-    <span class="muted">{{ a.created_at.strftime('%d/%m %H:%M') }}</span></div>
-  <h3>{{ a.summary }}</h3>
-  <details><summary class="muted">Détail</summary><pre>{{ a.details.get('texte', '') }}</pre></details>
+{% set ok = report.items | selectattr('etat', 'equalto', 'ok') | list | length %}
+{% set bad = report.items | selectattr('etat', 'equalto', 'alerte') | list | length %}
+{% set wait = report.items | length - ok - bad %}
+<div class="grid g-3">
+  <div class="card kpi t-green fade-in"><div class="ico">{{ icon('check-circle') }}</div><div class="val">{{ ok }}</div><div class="lbl">cibles atteintes</div></div>
+  <div class="card kpi t-red fade-in"><div class="ico">{{ icon('alert') }}</div><div class="val">{{ bad }}</div><div class="lbl">sous la cible</div></div>
+  <div class="card kpi t-blue fade-in"><div class="ico">{{ icon('clock') }}</div><div class="val">{{ wait }}</div><div class="lbl">à mesurer</div></div>
 </div>
+
+<div class="grid g-2" style="margin-top:16px">
+{% for i in report.items %}
+  <div class="card fade-in" style="border-top:3px solid {{ 'var(--ok)' if i.etat == 'ok' else ('var(--bad)' if i.etat == 'alerte' else 'var(--line-2)') }}">
+    <div class="card-head" style="margin-bottom:8px">
+      <h3>{{ i.nom }}</h3>
+      {% if i.etat == 'ok' %}<span class="pill green dot">atteint</span>{% elif i.etat == 'alerte' %}<span class="pill red dot">sous la cible</span>{% else %}<span class="pill">à mesurer</span>{% endif %}
+    </div>
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span style="font-size:{{ 28 if i.valeur | length < 18 else 16 }}px;font-weight:{{ 780 if i.valeur | length < 18 else 600 }};letter-spacing:-.02em">{{ i.valeur }}</span>
+      <span class="muted">{{ icon('target') }} cible : {{ i.cible }}</span>
+    </div>
+    {% if i.detail %}<p class="muted" style="margin:8px 0 0">{{ i.detail }}</p>{% endif %}
+  </div>
 {% endfor %}
+</div>
+
+<div class="section-title">{{ icon('alert') }}<h2>Dernières alertes de veille</h2></div>
+{% if not alerts %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('shield-check') }}</div><b>Aucune alerte</b>Pics de messages, clients insatisfaits et mails sans réponse seront signalés ici.</div></div>
+{% endif %}
+<div class="stack">
+{% for a in alerts %}
+<article class="card item l3 fade-in">
+  <div class="meta"><span class="pill red">{{ a.details.get('kind', '') }}</span>{% if a.pole %}<span class="pill violet">{{ a.pole }}</span>{% endif %}
+    <span class="muted">{{ a.created_at | quand }} · {{ a.created_at | depuis }}</span></div>
+  <h3>{{ a.summary }}</h3>
+  <details><summary>Détail</summary><div class="inner"><pre>{{ a.details.get('texte', '') }}</pre></div></details>
+</article>
+{% endfor %}
+</div>
 {% endblock %}

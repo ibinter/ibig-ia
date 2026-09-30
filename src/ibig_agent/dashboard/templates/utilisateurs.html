@@ -1,15 +1,28 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Comptes{% endblock %}
+{% block heading %}Comptes du tableau de bord{% endblock %}
+{% block lead %}<p class="lead">Comptes nominatifs : chaque décision est tracée au nom de la personne. Les pôles d'un valideur viennent de <code>config/poles.yaml</code>.</p>{% endblock %}
 {% block content %}
-<h2>Comptes du tableau de bord</h2>
-<p class="muted">Création et désactivation par la ligne de commande :
-<code>ibig-agent utilisateur ajouter</code>. Les pôles d'un valideur viennent de
-<code>config/poles.yaml</code> (valideur ou suppléant).</p>
-<div class="card scroll"><table>
-<tr><th>Nom</th><th>Email</th><th>Rôle</th><th>Pôles</th><th>Actif</th></tr>
-{% for u, poles in rows %}
-<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.role }}</td>
-<td>{{ poles | join(', ') if poles else ('tous' if u.role != 'valideur' else '—') }}</td>
-<td>{{ 'oui' if u.active else 'non' }}</td></tr>
-{% endfor %}
-</table></div>
+<div class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Personne</th><th>Rôle</th><th>Pôles</th><th>État</th></tr></thead>
+    <tbody>
+    {% for u, poles in rows %}
+    <tr>
+      <td><span class="inline" style="gap:12px;flex-wrap:nowrap"><span class="avatar">{{ u.name | initiales }}</span>
+        <span><b>{{ u.name }}</b><span class="sub">{{ u.email }}</span></span></span></td>
+      <td><span class="pill {{ {'admin': 'violet', 'direction': 'blue', 'valideur': 'amber'}.get(u.role, '') }}">{{ {'admin': 'Administration', 'direction': 'Direction', 'valideur': 'Valideur'}.get(u.role, u.role) }}</span></td>
+      <td>{% if poles %}<div class="pills">{% for p in poles %}<span class="pill">{{ p }}</span>{% endfor %}</div>{% else %}<span class="muted">{{ 'tous' if u.role != 'valideur' else '—' }}</span>{% endif %}</td>
+      <td>{% if u.active %}<span class="pill green dot">actif</span>{% else %}<span class="pill red dot">désactivé</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Ajouter un compte</h2><div class="sub">Sur le serveur, dans /opt/ibig-ia</div></div></div>
+  <pre style="background:var(--bg-soft);padding:14px 16px;border-radius:10px">docker compose exec agent ibig-agent utilisateur ajouter --email prenom@ibigsoft.com --nom "Prénom Nom" --role valideur</pre>
+  <p class="muted" style="margin:10px 0 0">Rôles : <b>admin</b> (tout, y compris les comptes), <b>direction</b> (tous les pôles), <b>valideur</b> (ses pôles seulement). Le mot de passe est demandé à la création.</p>
+</div>
 {% endblock %}
