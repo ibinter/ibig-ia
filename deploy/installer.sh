@@ -9,6 +9,9 @@
 # génère les secrets, démarre l'agent en HTTPS, crée le premier compte et lance le
 # diagnostic. Il ne touche pas à la configuration SSH (pour ne jamais vous bloquer dehors).
 set -euo pipefail
+# Tout le script est entre accolades : bash le lit en entier avant de l'exécuter, ce qui
+# le protège de la mise à jour du dépôt (étape 4) quand il est lancé depuis /opt/ibig-ia.
+{
 
 REPO="${IBIG_REPO:-https://github.com/ibinter/ibig-ia.git}"
 BRANCH="${IBIG_BRANCH:-claude/construire-github-9ct4l2}"
@@ -207,3 +210,5 @@ Les « ÉCHEC » et « ATTENTION » du diagnostic ci-dessus sont normaux à ce s
 mail, valideurs et fiches pôles restent à configurer (docs/mise-en-service.md, section 3).
 Sauvegardes quotidiennes : voir docs/mise-en-service.md, section 6.
 FIN
+exit 0
+}
