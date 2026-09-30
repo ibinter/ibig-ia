@@ -785,3 +785,6 @@ textarea.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
   .team { padding: 16px; } .team-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick { grid-template-columns: 1fr; }
 }
+.empty-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.empty-actions .quick-btn:hover { text-decoration: none; }
+@media (max-width: 900px) { .empty-actions { grid-template-columns: 1fr; } }
