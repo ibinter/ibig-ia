@@ -30,8 +30,8 @@ Pour chaque section du cahier des charges : où la trouver dans le tableau de bo
 | 12 | 3 niveaux, valideur + suppléant par pôle, alerte à 24 h, journal, bouton d'arrêt, revue mensuelle | **Validations**, **Journal**, **Bouton d'arrêt**, **Rapports** | Fait |
 | 12 | Validation depuis WhatsApp ou par mail | Lien personnel dans le mail d'alerte (48 h) ; **Comptes** (numéro WhatsApp du valideur) | Fait : par mail, et par WhatsApp (« OK 123 » / « NON 123 motif ») dès qu'un numéro Meta est raccordé |
 | 13 | Accès dédiés, coffre à secrets, messages traités comme données, données personnelles (12 mois, accès, suppression) | **Boîtes mail** (coffre), **Essayer l'agent** (message piégé) | Fait |
-| 14 | Claude, VPS, PostgreSQL + pgvector, tableau de bord web | Serveur installé | Partiel : recherche par mots-clés, recherche vectorielle à brancher |
-| 14 | Visuels Canva / génération d'images | **Validations** (aperçu et PNG de chaque publication) | Partiel : visuel aux couleurs IBIG généré au bon format par réseau (PNG sur le serveur, joint aux publications) + brief pour un visuel sur mesure ; génération d'images photo à faire |
+| 14 | Claude, VPS, PostgreSQL + pgvector, tableau de bord web | Serveur installé ; **Services → Voyage AI** | Fait : recherche hybride mots-clés + sens (vecteurs Voyage AI rangés dans pgvector), repli automatique sur les mots-clés sans clé ou en cas de panne |
+| 14 | Visuels Canva / génération d'images | **Validations** (aperçu, PNG, « Générer une photo ») ; **Services → Photos par IA** | Fait : visuel aux couleurs IBIG au bon format par réseau ; photo réaliste générée à la demande d'après le brief (OpenAI gpt-image-1), habillée aux couleurs IBIG et jointe à la publication. Canva : non utilisé (pas nécessaire) |
 | 16 | Plafond IA mensuel, alerte 80 %, modèle léger pour le tri | **Accueil** (jauge budget) | Fait |
 | 17 | Recette R-01 à R-10 | `ibig-agent recette`, **Indicateurs** | Fait (outils) ; à dérouler sur 2 semaines réelles |
 | 19 | Prochaines actions IBIG | **Mise en route** | En cours |

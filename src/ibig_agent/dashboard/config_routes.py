@@ -282,9 +282,65 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     def services(request: Request, who: Principal = Depends(user)):
         direction_only(who)
         get = lambda name: service_value(rt.sessions, rt.settings, name)
+        sem = rt.semantic
         return page(request, "services.html", has_key=bool(get("brevo_api_key")),
                     sender_name=get("brevo_sender_name"),
-                    sender_email=get("brevo_sender_email"))
+                    sender_email=get("brevo_sender_email"),
+                    voyage_key=bool(get("voyage_api_key")),
+                    indexed=sem.count() if sem else 0,
+                    passages=len([p for p in rt.kb.passages if p.doc.type != "publication"]),
+                    pgvector=sem.pgvector() if sem else False,
+                    sem_error=sem.last_error if sem else "",
+                    openai_key=bool(get("openai_api_key")),
+                    image_model=get("openai_image_model") or "gpt-image-1")
+
+    @app.post("/services/voyage")
+    def save_voyage(cle: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        if not cle.strip():
+            return back("/services", "Refusé : collez la clé Voyage AI")
+        set_service_value(rt.sessions, rt.settings, "voyage_api_key", cle.strip(), who.label,
+                          secret=True)
+        out = rt.index_knowledge()
+        if out.get("erreur"):
+            return back("/services", f"Clé enregistrée, mais l'indexation a échoué : "
+                                     f"{out['erreur']}"[:300])
+        return back("/services", f"Recherche par le sens activée : {out.get('total', 0)} "
+                                 "passages indexés")
+
+    @app.post("/services/voyage/indexer")
+    def reindex(who: Principal = Depends(user)):
+        direction_only(who)
+        out = rt.index_knowledge()
+        if out.get("erreur"):
+            return back("/services", f"Échec de l'indexation : {out['erreur']}"[:300])
+        return back("/services", f"Index à jour : {out.get('indexes', 0)} passage(s) "
+                                 f"(ré)indexé(s), {out.get('total', 0)} au total")
+
+    @app.post("/services/openai")
+    def save_openai(cle: str = Form(""), modele: str = Form("gpt-image-1"),
+                    who: Principal = Depends(user)):
+        direction_only(who)
+        if cle.strip():
+            set_service_value(rt.sessions, rt.settings, "openai_api_key", cle.strip(),
+                              who.label, secret=True)
+        if modele not in ("gpt-image-1", "gpt-image-1-mini"):
+            modele = "gpt-image-1"
+        set_service_value(rt.sessions, rt.settings, "openai_image_model", modele, who.label)
+        return back("/services", "Réglages des photos enregistrés : testez la clé")
+
+    @app.post("/services/openai/tester")
+    def test_openai(who: Principal = Depends(user)):
+        from ..images import OpenAIImages
+
+        direction_only(who)
+        key = service_value(rt.sessions, rt.settings, "openai_api_key")
+        model = service_value(rt.sessions, rt.settings, "openai_image_model") or "gpt-image-1"
+        try:
+            msg = (rt.image_factory or OpenAIImages)(key, model).check()
+        except Exception as exc:  # noqa: BLE001 — affiché
+            msg = f"Échec OpenAI : {exc}"
+        return back("/services", msg[:300])
 
     @app.post("/services/brevo")
     def save_brevo(cle: str = Form(""), expediteur: str = Form(""),

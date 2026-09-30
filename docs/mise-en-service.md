@@ -196,6 +196,17 @@ validées restent remises à l'équipe (publication manuelle).
    « Agent IA IBIG — à valider : {{1}}. Répondez OK suivi du numéro pour valider. », puis
    indiquer son nom dans `IBIG_WHATSAPP_VALIDATION_TEMPLATE`.
 
+### Recherche par le sens et photos par IA (section 14)
+
+Menu **Services** :
+
+* **Voyage AI** (dash.voyageai.com) : collez la clé, l'agent indexe aussitôt la base de
+  connaissances dans PostgreSQL (pgvector). Le Support retrouve alors une réponse même
+  quand le client emploie d'autres mots. Sans clé : recherche par mots-clés, comme avant.
+* **OpenAI** (platform.openai.com, compte vérifié) : bouton « Générer une photo » sur
+  chaque publication à valider. Environ 0,04 à 0,06 USD par image, comptés dans le
+  plafond mensuel `IBIG_MONTHLY_AI_BUDGET_USD`.
+
 ## 6. Sauvegardes
 
 ```bash

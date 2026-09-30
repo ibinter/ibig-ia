@@ -140,8 +140,11 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             p = s.get(ScheduledPost, sid)
         if p is None:
             raise HTTPException(404)
+        from ..images import photo_for
+
         pole = rt.org.pole(p.pole)
         png = render_png(p.titre or p.compte, first_sentence(p.texte), p.pole, p.reseau,
-                         pole.activite.split(",")[0] if pole and pole.activite else "")
+                         pole.activite.split(",")[0] if pole and pole.activite else "",
+                         photo=photo_for(rt.sessions, p.pending_id) if p.pending_id else None)
         return Response(png, media_type="image/png",
                         headers={"Cache-Control": "public, max-age=86400"})

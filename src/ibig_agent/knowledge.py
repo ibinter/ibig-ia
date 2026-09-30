@@ -44,6 +44,8 @@ class Passage:
 
 # Marqueur des informations à fournir par IBIG : un texte qui le contient n'est jamais
 # utilisé pour répondre (FAQ automatique, passage cité par le Support).
+# Similarité de sens minimale pour retenir un passage sans mot commun avec la question
+SENSE_MIN = 0.45
 PLACEHOLDER = re.compile(r"[àa]\s+compl[ée]ter", re.IGNORECASE)
 
 
@@ -153,6 +155,9 @@ class KnowledgeBase:
         self.documents: list[Document] = []
         self.faq: list[FaqEntry] = []
         self.passages: list[Passage] = []
+        # Recherche par le sens (semantic.SemanticIndex.scores), branchée par le runtime :
+        # question -> {id de passage: similarité}. Sans elle : mots-clés seuls.
+        self.semantic = None
         self.reload()
 
     def file_text(self, rel_path: str) -> str:
@@ -239,32 +244,44 @@ class KnowledgeBase:
     def faq_by_id(self, faq_id: str) -> FaqEntry | None:
         return next((f for f in self.faq if f.id == faq_id), None)
 
+    def _sense(self, query: str) -> dict[str, float]:
+        return self.semantic(query) if self.semantic and query.strip() else {}
+
+    @staticmethod
+    def _kw_score(q: set[str], text: str) -> float:
+        words = _keywords(text)
+        return sum(1 for w in words if w in q) / (1 + len(words) ** 0.5)
+
+    def _rank(self, items: list, kw: dict, sense: dict, k: int) -> list:
+        """Hybride : mots-clés (ramenés entre 0 et 1) + similarité de sens. Un élément sans
+        mot commun n'est retenu que si son sens est vraiment proche de la question."""
+        top = max(kw.values(), default=0) or 1
+        scored = []
+        for key, item in items:
+            s_kw, s_sense = kw.get(key, 0) / top, sense.get(key, 0.0)
+            if s_kw > 0 or s_sense >= SENSE_MIN:
+                scored.append((s_kw + (2 * s_sense if sense else 0), item))
+        return [it for _, it in sorted(scored, key=lambda x: -x[0])[:k]]
+
     def search(self, query: str, pole: str | None = None, k: int = 4) -> list[Document]:
         q = set(_keywords(query))
-        scored = []
-        for d in self.documents:
-            if pole and d.pole not in (pole, "GROUPE"):
-                continue
-            words = _keywords(d.titre + " " + d.body)
-            score = sum(1 for w in words if w in q) / (1 + len(words) ** 0.5)
-            if score > 0:
-                scored.append((score, d))
-        return [d for _, d in sorted(scored, key=lambda x: -x[0])[:k]]
+        docs = [d for d in self.documents if not pole or d.pole in (pole, "GROUPE")]
+        kw = {d.path: self._kw_score(q, d.titre + " " + d.body) for d in docs}
+        sense: dict[str, float] = {}
+        for pid, sc in self._sense(query).items():
+            path = pid.rsplit("#", 1)[0]
+            sense[path] = max(sense.get(path, 0.0), sc)
+        return self._rank([(d.path, d) for d in docs], kw, sense, k)
 
     def search_passages(self, query: str, pole: str, k: int = 6,
                         types: tuple[str, ...] = ("guide", "faq", "catalogue", "fiche_pole",
                                                   "contacts")) -> list[Passage]:
         q = set(_keywords(query))
-        scored = []
-        for p in self.passages:
-            if (p.doc.type not in types or p.doc.pole not in (pole, "GROUPE")
-                    or is_placeholder(p.text)):
-                continue
-            words = _keywords(f"{p.doc.titre} {p.heading} {p.text}")
-            score = sum(1 for w in words if w in q) / (1 + len(words) ** 0.5)
-            if score > 0:
-                scored.append((score, p))
-        return [p for _, p in sorted(scored, key=lambda x: -x[0])[:k]]
+        items = [p for p in self.passages
+                 if p.doc.type in types and p.doc.pole in (pole, "GROUPE")
+                 and not is_placeholder(p.text)]
+        kw = {p.id: self._kw_score(q, f"{p.doc.titre} {p.heading} {p.text}") for p in items}
+        return self._rank([(p.id, p) for p in items], kw, self._sense(query), k)
 
     def passage(self, passage_id: str) -> Passage | None:
         return next((p for p in self.passages if p.id == passage_id), None)

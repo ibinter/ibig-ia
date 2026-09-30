@@ -2,7 +2,7 @@
 
 from alembic import context
 
-from ibig_agent.db import Base
+from ibig_agent.db import Base, include_object
 
 config = context.config
 target_metadata = Base.metadata
@@ -17,6 +17,7 @@ def run_migrations_online() -> None:
         target_metadata=target_metadata,
         render_as_batch=connection.dialect.name == "sqlite",  # ALTER limités sous SQLite
         compare_type=True,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()

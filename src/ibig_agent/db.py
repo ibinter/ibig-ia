@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -309,6 +310,41 @@ class SocialComment(Base):
     posted_at: Mapped[str] = mapped_column(String(40), default="")
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow,
                                               index=True)
+
+
+class KbEmbedding(Base):
+    """Vecteur d'un passage de la base de connaissances (recherche par le sens).
+
+    Sur PostgreSQL avec pgvector, la migration ajoute la colonne `vec vector(1024)` utilisée
+    pour la recherche ; `embedding` (JSON) sert partout ailleurs."""
+
+    __tablename__ = "kb_embeddings"
+
+    id: Mapped[str] = mapped_column(String(300), primary_key=True)  # identifiant du passage
+    content_hash: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(40))
+    embedding: Mapped[list] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MediaAsset(Base):
+    """Photo générée par IA pour une publication (fond du visuel aux couleurs IBIG)."""
+
+    __tablename__ = "media_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    pending_id: Mapped[int] = mapped_column(Integer, index=True)
+    mime: Mapped[str] = mapped_column(String(40), default="image/jpeg")
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+def include_object(obj, name, type_, reflected, compare_to) -> bool:
+    """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
+    return not (type_ == "column" and reflected and compare_to is None
+                and name == "vec" and obj.table.name == "kb_embeddings")
 
 
 def make_engine(url: str) -> Engine:

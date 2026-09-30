@@ -5,6 +5,7 @@ pour la publication. Le brief visuel de l'agent reste disponible pour un visuel 
 
 from __future__ import annotations
 
+import io
 from xml.sax.saxutils import escape
 
 # Couleur d'accent par pôle (fond bleu IBIG commun)
@@ -149,11 +150,26 @@ def _hex(c: str) -> tuple[int, int, int]:
     return int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
 
 
-def render_png(headline: str, message: str, pole: str, reseau: str,
-               subtitle: str = "") -> bytes:
-    """Même gabarit que render_svg, en PNG (Instagram n'accepte que des images)."""
-    import io
+def _photo_background(photo: bytes, w: int, h: int):
+    """Photo recadrée au format, voilée de bleu IBIG (plus foncé en bas) pour le texte."""
+    from PIL import Image, ImageOps
 
+    bg = ImageOps.fit(Image.open(io.BytesIO(photo)).convert("RGB"), (w, h),
+                      Image.Resampling.LANCZOS).convert("RGBA")
+    from PIL import ImageChops
+
+    grad = Image.linear_gradient("L")  # 0 en haut, 255 en bas
+    vertical = grad.resize((w, h)).point(lambda p: int(110 + 0.35 * p))
+    left = grad.rotate(-90).resize((w, h)).point(lambda p: int(p * 35 / 255))
+    veil = Image.new("RGBA", (w, h), (11, 24, 48, 0))
+    veil.putalpha(ImageChops.add(vertical, left))
+    return Image.alpha_composite(bg, veil)
+
+
+def render_png(headline: str, message: str, pole: str, reseau: str,
+               subtitle: str = "", photo: bytes | None = None) -> bytes:
+    """Même gabarit que render_svg, en PNG (Instagram n'accepte que des images).
+    Avec `photo` (générée par IA), la photo remplace le fond dégradé."""
     from PIL import Image, ImageDraw
 
     w, h = FORMATS.get(reseau, (1080, 1080))
@@ -165,7 +181,7 @@ def render_png(headline: str, message: str, pole: str, reseau: str,
     top, mid, bot = _hex("#0b1830"), _hex("#12306b"), _hex("#1257c4")
     img = Image.new("RGB", (w, h))
     px = img.load()
-    for y in range(h):
+    for y in range(0 if photo is None else h, h):
         for x in range(0, w, 4):
             t = (x / w + y / h) / 2
             a, b, u = (top, mid, t / 0.6) if t < 0.6 else (mid, bot, (t - 0.6) / 0.4)
@@ -180,7 +196,8 @@ def render_png(headline: str, message: str, pole: str, reseau: str,
         rr = r * i // 20
         gd.ellipse((w * 0.85 - rr, h * 0.1 - rr, w * 0.85 + rr, h * 0.1 + rr),
                    fill=(*accent, int(6 * (21 - i) / 20 * 2)))
-    img = Image.alpha_composite(img.convert("RGBA"), glow)
+    base = _photo_background(photo, w, h) if photo else img.convert("RGBA")
+    img = Image.alpha_composite(base, glow)
     d = ImageDraw.Draw(img)
     cr = int(min(w, h) * 0.3)
     d.ellipse((w * 0.92 - cr, h * 0.88 - cr, w * 0.92 + cr, h * 0.88 + cr),

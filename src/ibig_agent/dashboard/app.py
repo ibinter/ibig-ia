@@ -31,7 +31,8 @@ from ..auth import Principal, UserStore, make_session, read_action_token, read_s
 from ..channels.mail import MailMessage
 from ..channels.web import sanitize_html
 from ..config import Mailbox
-from ..db import JournalEntry, PendingAction, Prospect, Ticket
+from ..configstore import service_value
+from ..db import JournalEntry, MediaAsset, PendingAction, Prospect, Ticket
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
@@ -39,7 +40,7 @@ from . import config_routes, social_routes
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
-from .visuals import first_sentence, render_svg
+from .visuals import first_sentence, render_png, render_svg
 
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
@@ -312,8 +313,40 @@ def create_app(rt: Runtime) -> FastAPI:
                                  .order_by(PendingAction.created_at)).all()
         pending = [pa for pa in pending if who.can_decide(pa)]
         prepared = prepared if who.can_handle_level3() else []
+        with rt.sessions() as s:
+            photos = {pid: aid for pid, aid in s.execute(
+                select(MediaAsset.pending_id, MediaAsset.id).where(
+                    MediaAsset.pending_id.in_([pa.id for pa in pending]))).all()}
         return page(request, "validations.html", pending=pending, prepared=prepared,
-                    editable=EDITABLE_KEYS)
+                    editable=EDITABLE_KEYS, photos=photos,
+                    images_on=bool(service_value(rt.sessions, rt.settings, "openai_api_key")))
+
+    @app.post("/validations/{pid}/photo")
+    def make_photo(pid: int, who: Principal = Depends(user)):
+        from ..images import generate_photo
+
+        pa = load(pid)
+        if (not who.can_decide(pa) or pa.status != "pending"
+                or not pa.action_type.startswith("social.")):
+            return back("/validations", "Refusé")
+        pole = rt.org.pole(pa.pole)
+        try:
+            generate_photo(rt.sessions, rt.settings, pa, pole.activite if pole else "",
+                           who.label, rt.image_factory)
+        except Exception as exc:  # noqa: BLE001 — affiché au valideur
+            return back("/validations", f"Photo non générée : {exc}"[:300])
+        return back(f"/validations#p{pid}", "Photo générée : vérifiez le visuel avant de valider")
+
+    @app.post("/validations/{pid}/photo/retirer")
+    def remove_photo(pid: int, who: Principal = Depends(user)):
+        pa = load(pid)
+        if not who.can_decide(pa):
+            return back("/validations", "Refusé")
+        with rt.sessions() as s:
+            for a in s.scalars(select(MediaAsset).where(MediaAsset.pending_id == pid)).all():
+                s.delete(a)
+            s.commit()
+        return back(f"/validations#p{pid}", "Photo retirée : visuel aux couleurs IBIG seul")
 
     @app.post("/validations/{pid}/approuver")
     def approve(pid: int, contenu: str | None = Form(None), who: Principal = Depends(user)):
@@ -393,6 +426,22 @@ def create_app(rt: Runtime) -> FastAPI:
                 error = f"Refusé : {exc}"
         return page(request, "lien_validation.html", pa=pa, who=who, error=error,
                     token=token, done=done)
+
+    @app.get("/visuel/{pid}.png")
+    def visual_png(pid: int, who: Principal = Depends(user)):
+        from ..images import photo_for
+
+        pa = load(pid)
+        if not pa.action_type.startswith("social.") or (
+                who.role == "valideur" and pa.pole not in who.poles):
+            raise HTTPException(404)
+        pole = rt.org.pole(pa.pole)
+        png = render_png(pa.title.split(" · ")[-1], first_sentence(pa.payload.get("texte", "")),
+                         pa.pole, pa.payload.get("reseau", ""),
+                         (pole.activite.split(",")[0] if pole and pole.activite else ""),
+                         photo=photo_for(rt.sessions, pid))
+        return Response(png, media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=300"})
 
     @app.get("/visuel/{pid}.svg")
     def visual(pid: int, who: Principal = Depends(user)):

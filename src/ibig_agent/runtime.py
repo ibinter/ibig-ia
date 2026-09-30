@@ -33,6 +33,7 @@ from .governance import Executor, Governor, as_utc
 from .knowledge import KnowledgeBase
 from .llm import LLM, ClaudeClient
 from .publishing import publish_due, social_executors
+from .semantic import SemanticIndex
 
 log = logging.getLogger(__name__)
 
@@ -139,6 +140,9 @@ class Runtime:
     brevo_factory: Callable = field(default=None)
     # Fabrique du client HTTP des réseaux sociaux (remplacée dans les tests)
     social_client_factory: Callable = field(default=None)
+    semantic: SemanticIndex = field(default=None)
+    # Fabrique du générateur d'images (remplacée dans les tests ; défaut : OpenAI)
+    image_factory: Callable = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -186,6 +190,15 @@ class Runtime:
     def wa_validation(self) -> WhatsAppValidation:
         return WhatsAppValidation(self.settings, self.org, self.governor, self.sessions,
                                   self.whatsapp_clients, self.notifier)
+
+    def index_knowledge(self) -> dict:
+        """Recherche par le sens : met à jour les vecteurs des passages modifiés."""
+        try:
+            return self.semantic.sync(self.kb)
+        except Exception as exc:  # noqa: BLE001 — la recherche par mots-clés continue
+            self.semantic.last_error = str(exc)[:200]
+            log.warning("Indexation de la base impossible : %s", exc)
+            return {"erreur": str(exc)[:200]}
 
     def publish_due(self) -> int:
         return publish_due(self.governor, self.sessions)
@@ -276,6 +289,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
 
     rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
                  whatsapp_clients, connector_factory=connector_for, brevo_factory=BrevoClient)
+    rt.semantic = SemanticIndex(sessions, settings)
+    kb.semantic = rt.semantic.scores
     if from_config:
         sync_mailboxes(rt)
     return rt

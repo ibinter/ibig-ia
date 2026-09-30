@@ -6,7 +6,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine, inspect
 
 from ibig_agent import migrate
-from ibig_agent.db import Base, init_db
+from ibig_agent.db import Base, include_object, init_db
 
 # En CI, les migrations sont aussi jouées sur PostgreSQL (base de production).
 POSTGRES_URL = os.environ.get("IBIG_TEST_POSTGRES_URL")
@@ -37,7 +37,8 @@ def test_migrations_match_models(engine):
     migrate.upgrade(engine)
     assert migrate.current_revision(engine) == migrate.head_revision()
     with engine.connect() as conn:
-        ctx = MigrationContext.configure(conn, opts={"compare_type": True})
+        ctx = MigrationContext.configure(conn, opts={"compare_type": True,
+                                                  "include_object": include_object})
         diff = compare_metadata(ctx, Base.metadata)
     assert diff == [], f"Migration manquante (ibig-agent migrer --nouvelle ...) : {diff}"
 

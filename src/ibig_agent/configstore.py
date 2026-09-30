@@ -30,6 +30,13 @@ def knowledge_overrides(sessions: sessionmaker[Session]) -> dict[str, str]:
 
 def reload_knowledge(rt) -> None:
     rt.kb = KnowledgeBase(rt.settings.knowledge_dir, knowledge_overrides(rt.sessions))
+    semantic = getattr(rt, "semantic", None)
+    if semantic is not None:
+        rt.kb.semantic = semantic.scores
+        # Les passages modifiés sont réindexés en arrière-plan (sans bloquer la page)
+        import threading
+
+        threading.Thread(target=rt.index_knowledge, daemon=True).start()
 
 
 def to_mailbox(row: MailboxAccount, settings: Settings) -> Mailbox:

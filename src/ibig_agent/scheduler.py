@@ -59,6 +59,10 @@ def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     # Publication automatique des posts validés arrivés à leur date (section 8)
     sched.add_job(_safe("publications programmées", lambda: rt.publish_due()), "interval",
                   minutes=5, id="scheduled_posts", max_instances=1, coalesce=True)
+    # Recherche par le sens : réindexation des passages modifiés (et au démarrage)
+    sched.add_job(_safe("index de la base", lambda: rt.index_knowledge()), "interval",
+                  hours=1, id="kb_index", max_instances=1, coalesce=True,
+                  next_run_time=datetime.now(ZoneInfo(tz)) + timedelta(seconds=30))
     # Veille des commentaires des pages Facebook raccordées (avis négatifs)
     sched.add_job(_safe("veille des commentaires", lambda: rt.comments.run()), "interval",
                   hours=1, id="comment_watch", max_instances=1, coalesce=True)

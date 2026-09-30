@@ -14,7 +14,7 @@
 {% endif %}
 <div class="stack">
 {% for a in pending %}
-<article class="card item l2 fade-in">
+<article class="card item l2 fade-in" id="p{{ a.id }}">
   <div class="meta">
     <span class="pill amber">{{ icon('clock') }} niveau 2</span>
     <span class="pill blue">{{ channel_icon(a.channel) }} {{ a.channel }}</span>
@@ -32,12 +32,22 @@
       <div class="inner"><div class="article"><h2>{{ a.payload.get('titre', '') }}</h2>{{ a.payload.contenu_html | apercu }}</div></div></details>
   {% endif %}
   {% if a.action_type.startswith('social.') %}
+  {% set photo = photos.get(a.id) %}
   <div class="visual">
-    <img src="/visuel/{{ a.id }}.svg" alt="Visuel proposé" loading="lazy" id="v{{ a.id }}">
+    {% if photo %}<img src="/visuel/{{ a.id }}.png?p={{ photo }}" alt="Visuel proposé, avec photo" loading="lazy" id="v{{ a.id }}">
+    {% else %}<img src="/visuel/{{ a.id }}.svg" alt="Visuel proposé" loading="lazy" id="v{{ a.id }}">{% endif %}
     <div>
-      <b>Visuel aux couleurs IBIG</b>
-      <p class="muted" style="margin:4px 0 10px">Généré automatiquement pour {{ a.payload.get('reseau', '') | replace('_', ' ') }}, au bon format.</p>
-      <button type="button" class="btn sm" onclick="png({{ a.id }})">{{ icon('arrow-right') }} Télécharger en PNG</button>
+      <b>Visuel aux couleurs IBIG{% if photo %} avec photo{% endif %}</b>
+      <p class="muted" style="margin:4px 0 10px">{% if photo %}Photo générée par IA d'après le brief, habillée aux couleurs IBIG.{% else %}Généré automatiquement pour {{ a.payload.get('reseau', '') | replace('_', ' ') }}, au bon format.{% endif %}</p>
+      <div class="inline" style="gap:8px">
+      {% if photo %}<a class="btn sm" href="/visuel/{{ a.id }}.png?p={{ photo }}" download="visuel-ibig-{{ a.id }}.png">{{ icon('arrow-right') }} Télécharger en PNG</a>
+      {% else %}<button type="button" class="btn sm" onclick="png({{ a.id }})">{{ icon('arrow-right') }} Télécharger en PNG</button>{% endif %}
+      {% if images_on %}
+        <form method="post" action="/validations/{{ a.id }}/photo" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').lastChild.textContent=' Génération… (jusqu\'à 1 min)'"><button class="btn sm">{{ icon('sparkles') }}<span> {{ 'Nouvelle photo' if photo else 'Générer une photo (IA)' }}</span></button></form>
+        {% if photo %}<form method="post" action="/validations/{{ a.id }}/photo/retirer"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer la photo</button></form>{% endif %}
+      {% endif %}
+      </div>
+      {% if not images_on and user.role != 'valideur' %}<p class="muted small" style="margin:8px 0 0">Photo par IA : ajoutez une clé OpenAI dans le menu Services.</p>{% endif %}
       {% if a.payload.get('brief_visuel') %}<div class="summary" style="margin-top:12px"><b>Brief pour un visuel sur mesure :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
     </div>
   </div>
