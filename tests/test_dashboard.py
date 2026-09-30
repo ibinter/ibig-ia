@@ -249,7 +249,7 @@ def test_web_content_form_requires_ready_site(rt, accounts):
     from urllib.parse import unquote
 
     c = client(rt, "dg@ibig.test")
-    assert "Rédiger un article ou une page produit" in c.get("/agents").text
+    assert "Un article ou une page produit" in c.get("/agents").text
     r = c.post("/agents/contenu-web", data={"site": 0, "genre": "page", "sujet": "X"},
                follow_redirects=False)
     assert "Refusé" in unquote(r.headers["location"])  # sites inactifs par défaut
