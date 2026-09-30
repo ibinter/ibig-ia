@@ -28,6 +28,9 @@ set_env() {  # remplace ou ajoute VAR=valeur dans .env sans afficher la valeur
 ecoute() { ss -Hltnp "sport = :$1" 2>/dev/null | grep -v docker-proxy \
   | grep -oE 'users:\(\("[^"]+' | cut -d'"' -f2 | sort -u | xargs || true; }
 
+# Jamais d'arrêt silencieux : toute commande en échec est signalée avec sa ligne
+trap 'stop "Arrêt inattendu à la ligne $LINENO de installer.sh : copiez ce message au support"' ERR
+
 [ "$(id -u)" -eq 0 ] || stop "À lancer en administrateur : sudo bash installer.sh"
 . /etc/os-release 2>/dev/null || stop "Système non reconnu (Ubuntu ou Debian attendu)"
 case "${ID:-}" in ubuntu|debian) ;; *) stop "Système ${ID:-inconnu} : Ubuntu ou Debian attendu" ;; esac
@@ -82,7 +85,7 @@ ok "Version : $(git log -1 --format='%h %s')"
 bleu "5/7 Réglages (.env)"
 if [ -f .env ]; then
   ok ".env existant conservé (supprimez-le pour tout régénérer)"
-  DOMAIN=$(grep -E '^IBIG_DOMAIN=' .env | cut -d= -f2-)
+  DOMAIN=$(grep -E '^IBIG_DOMAIN=' .env | cut -d= -f2- || true)
 else
   echo "Nom de domaine du tableau de bord (ex. agent.ibigsoft.com), dont l'enregistrement DNS"
   echo "de type A pointe vers $IP. Laissez vide pour une adresse temporaire gratuite."
@@ -120,7 +123,7 @@ case "$WEB" in
   *) stop "Les ports 80/443 sont pris par : $WEB. Configurez ce programme pour qu'il relaie
   https://$DOMAIN vers 127.0.0.1:${IBIG_LOCAL_PORT:-18000}, ou libérez les ports." ;;
 esac
-PORT=$(grep -E '^IBIG_LOCAL_PORT=' .env | cut -d= -f2-)
+PORT=$(grep -E '^IBIG_LOCAL_PORT=' .env | cut -d= -f2- || true)
 PORT=${PORT:-18000}
 while [ -n "$(ecoute "$PORT")" ]; do PORT=$((PORT + 1)); done
 set_env IBIG_LOCAL_PORT "$PORT"
