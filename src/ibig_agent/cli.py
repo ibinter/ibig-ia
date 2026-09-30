@@ -36,6 +36,9 @@ def main(argv: list[str] | None = None) -> None:
     demo.add_argument("--port", type=int, default=8000)
     demo.add_argument("--dossier", help="Dossier des données de démonstration (défaut : temporaire)")
     sub.add_parser("revue", help="Produire la revue mensuelle maintenant")
+    isite = sub.add_parser("importer-sites",
+                           help="Remplir la base de connaissances depuis les sites des pôles")
+    isite.add_argument("--pole", action="append", help="Code du pôle (répétable)")
     rec = sub.add_parser("recette", help="Mesure du critère R-02 (classement des mails)")
     rec_sub = rec.add_subparsers(dest="rec_cmd", required=True)
     ech = rec_sub.add_parser("echantillon", help="Tirer un échantillon à vérifier (CSV)")
@@ -104,6 +107,10 @@ def main(argv: list[str] | None = None) -> None:
     rt = build_runtime()
     if args.cmd == "revue":
         print(rt.revue.run().as_text())
+        return
+    if args.cmd == "importer-sites":
+        for code, resume in rt.import_sites(args.pole).items():
+            print(f"{code} : {resume}")
         return
     if args.cmd == "recette":
         from . import recette

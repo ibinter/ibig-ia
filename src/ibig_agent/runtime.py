@@ -143,6 +143,8 @@ class Runtime:
     semantic: SemanticIndex = field(default=None)
     # Fabrique du générateur d'images (remplacée dans les tests ; défaut : OpenAI)
     image_factory: Callable = field(default=None)
+    # Lecteur des sites publics (remplacé dans les tests)
+    site_crawler: object = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:
@@ -199,6 +201,36 @@ class Runtime:
             self.semantic.last_error = str(exc)[:200]
             log.warning("Indexation de la base impossible : %s", exc)
             return {"erreur": str(exc)[:200]}
+
+    def import_sites(self, poles: list[str] | None = None) -> dict[str, str]:
+        """Import de la base de connaissances depuis les sites publics des pôles."""
+        import json
+
+        from .configstore import reload_knowledge, service_value, set_service_value
+        from .site_import import SiteImporter
+
+        codes = poles or [p.code for p in self.org.poles if p.site]
+        importer = SiteImporter(self.org, self.kb, self.llm, self.sessions,
+                                self.site_crawler)
+        results = {}
+        for code in codes:
+            status = json.loads(service_value(self.sessions, self.settings, "import_sites")
+                                or "{}")
+            status[code] = {"etat": "en_cours", "resume": "", "at": utcnow().isoformat()}
+            set_service_value(self.sessions, self.settings, "import_sites",
+                              json.dumps(status), "agent")
+            try:
+                resume, etat = importer.run(code).summary(), "fait"
+            except Exception as exc:  # noqa: BLE001 — noté, pôle suivant
+                resume, etat = str(exc)[:300], "echec"
+            status = json.loads(service_value(self.sessions, self.settings, "import_sites")
+                                or "{}")
+            status[code] = {"etat": etat, "resume": resume, "at": utcnow().isoformat()}
+            set_service_value(self.sessions, self.settings, "import_sites",
+                              json.dumps(status), "agent")
+            results[code] = resume
+        reload_knowledge(self)
+        return results
 
     def publish_due(self) -> int:
         return publish_due(self.governor, self.sessions)

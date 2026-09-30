@@ -5,6 +5,28 @@
 {% block lead %}<p class="lead">La source unique de vérité (section 7) : un agent ne publie jamais un prix, un contact ou une promesse qui n'y figure pas. Complétez chaque « À COMPLÉTER » ici, directement.</p>{% endblock %}
 {% block tools %}<span class="pill green dot">{{ faq_ready }} réponse(s) FAQ prête(s)</span><span class="pill amber dot">{{ faq_todo }} à rédiger</span>{% endblock %}
 {% block content %}
+{% if can_edit %}
+<div class="card" style="margin-bottom:16px" id="import">
+  <div class="card-head"><div><h2>{{ icon('globe') }} Importer depuis vos sites</h2>
+    <div class="sub">L'agent lit le site de chaque pôle et les sites qu'il cite, puis remplit la fiche, le catalogue, les questions fréquentes et les contacts avec ce qui y est écrit — rien d'inventé. Chaque fiche reste « à valider » jusqu'à votre relecture.</div></div>
+    <form method="post" action="/connaissances/importer"><button class="btn primary" {{ 'disabled' if importing }}>{{ icon('sparkles') }} {{ 'Import en cours…' if importing else 'Tout importer' }}</button></form>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Pôle</th><th>Site</th><th>Dernier import</th><th></th></tr></thead>
+    <tbody>
+    {% for p in poles if p.site %}{% set st = imports.get(p.code, {}) %}
+    <tr>
+      <td><b>{{ p.nom }}</b></td>
+      <td><a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site | replace('https://', '') }}</a></td>
+      <td>{% if st.get('etat') == 'fait' %}<span class="pill green dot">fait</span>{% elif st.get('etat') == 'en_cours' %}<span class="pill amber dot">en cours</span>{% elif st.get('etat') == 'echec' %}<span class="pill red dot">échec</span>{% else %}<span class="pill">jamais</span>{% endif %}
+        {% if st.get('resume') %}<span class="sub">{{ st.resume }}</span>{% endif %}</td>
+      <td><form method="post" action="/connaissances/importer"><input type="hidden" name="pole" value="{{ p.code }}"><button class="btn sm" {{ 'disabled' if importing }}>{{ icon('arrow-right') }} Importer</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
 {% for title, ic, why, kind, rows in groups %}
 <div class="card" style="margin-top:{{ '0' if loop.first else '16px' }}">
   <div class="card-head"><div><h2>{{ icon(ic) }} {{ title }}</h2><div class="sub">{{ why }}</div></div>

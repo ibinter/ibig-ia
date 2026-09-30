@@ -72,6 +72,7 @@ class Pole:
     suppleant: str = ""
     commercial: str = ""
     support: str = ""
+    site: str = ""  # site public du pôle (import de la base de connaissances)
 
 
 @dataclass(frozen=True)

@@ -9,6 +9,7 @@
 poles:
   - code: GROUPE
     nom: IBIG SARL (Groupe)
+    site: https://intermark-business.com/
     activite: Communication institutionnelle du groupe
     cibles: Grand public, partenaires, institutions
     valideur: ""
@@ -17,6 +18,7 @@ poles:
     support: ""
   - code: EDUFORM
     nom: IBIG EDUFORM
+    site: https://ibig-eduform.com/
     activite: Formation professionnelle, certifications métiers, insertion
     cibles: Jeunes diplômés, salariés, entreprises
     valideur: ""
@@ -25,6 +27,7 @@ poles:
     support: ""
   - code: IMMOTRUST
     nom: IBIG IMMOTRUST
+    site: https://ibigimmotrust.com/
     activite: Immobilier, BTP, sécurisation des investissements
     cibles: Investisseurs, diaspora, particuliers
     valideur: ""
@@ -33,6 +36,7 @@ poles:
     support: ""
   - code: SOFT
     nom: IBIG SOFT
+    site: https://ibigsoft.com/
     activite: Édition logicielle, SaaS, applications métiers (14 solutions)
     cibles: PME, écoles, cliniques, agences, ONG
     valideur: ""
@@ -41,6 +45,7 @@ poles:
     support: ""
   - code: MARKET
     nom: IBIG MARKET
+    site: https://ibig-market.com/
     activite: Commerce, distribution, e-commerce
     cibles: Particuliers, revendeurs
     valideur: ""
@@ -49,6 +54,7 @@ poles:
     support: ""
   - code: DIGITAL
     nom: IBIG DIGITAL
+    site: https://ibig-digital.com/
     activite: Digitalisation, ERP, intelligence artificielle
     cibles: Entreprises et institutions
     valideur: ""
@@ -57,6 +63,7 @@ poles:
     support: ""
   - code: CONSEIL
     nom: IBIG CONSEIL+
+    site: https://intermark-business.com/conseil/
     activite: Conseil stratégique, ingénierie de projets, structuration
     cibles: Dirigeants, porteurs de projets
     valideur: ""
@@ -65,6 +72,7 @@ poles:
     support: ""
   - code: PARTNERS
     nom: IBIG PARTNERS
+    site: https://www.ibigpartners.com/
     activite: Représentation commerciale, partenariats stratégiques
     cibles: Revendeurs, apporteurs d'affaires
     valideur: ""
@@ -73,6 +81,7 @@ poles:
     support: ""
   - code: MULTISERVICES
     nom: IBIG MULTISERVICES
+    site: https://intermark-business.com/multiservices
     activite: Logistique, RH, transport, communication, tourisme
     cibles: Entreprises, particuliers
     valideur: ""

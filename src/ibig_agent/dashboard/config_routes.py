@@ -153,9 +153,43 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                     if (d.type == kind if kind else d.type not in known)]
             rows = [(d, len(_todo_lines(d.body)), d.path in rt.kb.overrides) for d in docs]
             groups.append((title, icon, why, kind, rows))
+        import json
+
+        try:
+            imports = json.loads(service_value(rt.sessions, rt.settings, "import_sites")
+                                 or "{}")
+        except ValueError:
+            imports = {}
         return page(request, "connaissances.html", groups=groups,
                     can_edit=who.role != "valideur", poles=rt.org.poles,
-                    faq_ready=len(rt.kb.faq), faq_todo=len(rt.kb.faq_pending))
+                    faq_ready=len(rt.kb.faq), faq_todo=len(rt.kb.faq_pending),
+                    imports=imports, importing=bool(_importing))
+
+    _importing: set[str] = set()
+
+    @app.post("/connaissances/importer")
+    def import_sites(pole: str = Form(""), who: Principal = Depends(user)):
+        import threading
+
+        direction_only(who)
+        if rt.llm is None:
+            return back("/connaissances", "Refusé : l'IA n'est pas configurée")
+        codes = [pole] if pole else [p.code for p in rt.org.poles if p.site]
+        if any(c not in rt.org.pole_codes for c in codes):
+            raise HTTPException(400)
+        if _importing:
+            return back("/connaissances", "Un import est déjà en cours : patientez")
+
+        def job():
+            _importing.add("x")
+            try:
+                rt.import_sites(codes)
+            finally:
+                _importing.clear()
+
+        threading.Thread(target=job, daemon=True).start()
+        return back("/connaissances", f"Lecture des sites lancée ({len(codes)} pôle(s)) : "
+                                      "comptez 1 à 3 minutes par pôle, puis actualisez")
 
     def _doc_or_404(path: str):
         if ".." in path or not path.endswith(".md"):

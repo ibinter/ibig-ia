@@ -209,6 +209,15 @@ Menu **Services** :
   chaque publication à valider. Environ 0,04 à 0,06 USD par image, comptés dans le
   plafond mensuel `IBIG_MONTHLY_AI_BUDGET_USD`.
 
+### Remplir la base depuis les sites (section 7)
+
+Menu **Base de connaissances → Importer depuis vos sites → Tout importer** (ou, sur le
+serveur : `docker compose exec agent ibig-agent importer-sites`). L'agent lit le site de
+chaque pôle (`site:` dans `config/poles.yaml`) et les sites qu'il cite, puis remplit fiches,
+catalogues, FAQ et contacts avec ce qui y est écrit. Les fiches restent « à valider » : les
+relire, compléter, puis cocher « Fiche validée ». Un document modifié à la main n'est
+jamais écrasé ; relancer l'import après une mise à jour des sites.
+
 ## 6. Sauvegardes
 
 ```bash
