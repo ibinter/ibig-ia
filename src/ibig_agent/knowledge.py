@@ -167,7 +167,10 @@ class KnowledgeBase:
 
     def file_text(self, rel_path: str) -> str:
         """Texte d'origine (fichier livré avec le logiciel), vide pour un nouveau document."""
-        path = self.root / rel_path
+        root = self.root.resolve()
+        path = (root / rel_path).resolve()
+        if not path.is_relative_to(root):  # chemin absolu, « .. », lien vers l'extérieur
+            return ""
         return path.read_text(encoding="utf-8") if path.is_file() else ""
 
     def raw(self, rel_path: str) -> str:

@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-co
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir ".[postgres,gmail]"
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+    && pip install --no-cache-dir ".[postgres,gmail]"
 
 COPY config ./config
 COPY knowledge ./knowledge

@@ -226,6 +226,10 @@
     if (location.hash && document.getElementById(location.hash.slice(1)) && bar.querySelector('[data-tab="' + location.hash.slice(1) + '"]')) saved = location.hash.slice(1);
     if (saved && bar.querySelector('[data-tab="' + saved + '"]')) open(saved);
   });
+  // Confirmation sans insérer de donnée dans du code JavaScript
+  document.querySelectorAll('form[data-confirm]').forEach(function (f) {
+    f.addEventListener('submit', function (e) { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+  });
   document.querySelectorAll('[data-copy-text]').forEach(function (b) {
     b.addEventListener('click', function () {
       var label = b.innerHTML;

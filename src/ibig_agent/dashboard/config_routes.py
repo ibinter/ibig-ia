@@ -228,7 +228,8 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                                       "comptez 1 à 3 minutes par pôle, puis actualisez")
 
     def _doc_or_404(path: str):
-        if ".." in path or not path.endswith(".md"):
+        if (".." in path or path.startswith(("/", "\\")) or ":" in path
+                or not path.endswith(".md")):
             raise HTTPException(404)
         raw = rt.kb.raw(path)
         if not raw:

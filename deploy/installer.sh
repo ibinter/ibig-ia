@@ -202,6 +202,14 @@ else
 fi
 docker compose exec -T agent ibig-agent diagnostic || true
 
+# Sauvegarde quotidienne à 2 h 15 (section 13) : ajoutée une seule fois à la crontab de root
+if ! crontab -l 2>/dev/null | grep -q 'deploy/sauvegarde.sh'; then
+  (crontab -l 2>/dev/null; echo "15 2 * * * cd $DIR && ./deploy/sauvegarde.sh >> /var/log/ibig-sauvegarde.log 2>&1") | crontab -
+  ok "Sauvegarde quotidienne programmée (2 h 15, dans /var/backups/ibig-agent)"
+else
+  ok "Sauvegarde quotidienne déjà programmée"
+fi
+
 cat <<FIN
 
 $(printf '\033[1;32m')Installation terminée.$(printf '\033[0m')
@@ -211,7 +219,7 @@ $(printf '\033[1;32m')Installation terminée.$(printf '\033[0m')
 
 Les « ÉCHEC » et « ATTENTION » du diagnostic ci-dessus sont normaux à ce stade : boîtes
 mail, valideurs et fiches pôles restent à configurer (docs/mise-en-service.md, section 3).
-Sauvegardes quotidiennes : voir docs/mise-en-service.md, section 6.
+Sauvegardes : quotidiennes sur ce serveur ; copiez-les aussi ailleurs (docs/mise-en-service.md, section 6).
 FIN
 exit 0
 }

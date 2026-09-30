@@ -151,3 +151,18 @@ def test_imported_faq_is_activated_once_marker_removed(rt, sites):
     reload_knowledge(rt)
     entry = next(f for f in rt.kb.faq if f.question == "Y a-t-il un essai gratuit ?")
     assert entry.answer == "Oui, 7 jours." and not entry.a_relire
+
+
+def test_redirect_to_internal_address_is_blocked():
+    hits = []
+
+    def handler(request):
+        hits.append(str(request.url))
+        if request.url.host == "public.example":
+            return httpx.Response(302, headers={"location": "http://169.254.169.254/latest/"})
+        return httpx.Response(200, text="<p>secret</p>", headers={"content-type": "text/html"})
+
+    crawler = Crawler(httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+                      check_host=lambda host: host == "public.example")
+    assert crawler.fetch("https://public.example/")[0] is None
+    assert hits == ["https://public.example/"]  # l'adresse interne n'a jamais été appelée

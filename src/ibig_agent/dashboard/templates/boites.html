@@ -42,7 +42,7 @@
             <small>{{ 'LWS' if m.hebergeur == 'lws' else 'Gmail' }}{% if m.responsable %} · transferts → {{ m.responsable }}{% endif %}{% if not mine %} · réglée sur le serveur{% endif %}</small></div>
           <div class="box-actions">
             <form method="post" action="/boites/tester"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="btn sm" onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester</button></form>
-            {% if mine %}<form method="post" action="/boites/retirer" onsubmit="return confirm('Retirer {{ m.adresse }} ? L\'agent ne la lira plus.')"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="icon-btn" title="Retirer" aria-label="Retirer {{ m.adresse }}">{{ icon('x') }}</button></form>{% endif %}
+            {% if mine %}<form method="post" action="/boites/retirer" data-confirm="Retirer {{ m.adresse }} ? L'agent ne la lira plus."><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="icon-btn" title="Retirer" aria-label="Retirer {{ m.adresse }}">{{ icon('x') }}</button></form>{% endif %}
           </div>
         </div>
       {% endfor %}

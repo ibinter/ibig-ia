@@ -37,6 +37,7 @@ MAX_PAGES = 25          # pages du site du pôle
 MAX_LINKED = 20         # sites cités (page d'accueil + quelques pages)
 LINKED_PAGES = 3
 MAX_CHARS = 150_000     # texte envoyé à Claude
+MAX_PAGE_BYTES = 2_000_000
 SKIP_HOSTS = ("facebook.com", "instagram.com", "linkedin.com", "tiktok.com", "x.com",
               "twitter.com", "youtube.com", "youtu.be", "threads.com", "threads.net",
               "wa.me", "whatsapp.com", "google.com", "goo.gl", "apple.com", "play.google",
@@ -125,7 +126,8 @@ def _public_host(host: str) -> bool:
         return False
     for info in infos:
         ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+        if (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified or not ip.is_global):
             return False
     return True
 
@@ -137,10 +139,18 @@ def _normalize(base: str, href: str) -> str:
 
 class Crawler:
     def __init__(self, client: httpx.Client | None = None, check_host=_public_host) -> None:
-        self.client = client or httpx.Client(timeout=20, follow_redirects=True, headers={
-            "User-Agent": "IBIG-Agent-IA/1.0 (lecture de la base de connaissances)"})
         self.check_host = check_host
         self._allowed: dict[str, bool] = {}
+        # Chaque requête, redirections comprises, est revérifiée : un site public ne peut
+        # pas renvoyer le serveur vers une adresse interne (127.0.0.1, 169.254.169.254…).
+        self.client = client or httpx.Client(
+            timeout=20, follow_redirects=True, max_redirects=5,
+            headers={"User-Agent": "IBIG-Agent-IA/1.0 (lecture de la base de connaissances)"})
+        self.client.event_hooks["request"] = [*self.client.event_hooks["request"], self._guard]
+
+    def _guard(self, request: httpx.Request) -> None:
+        if not self._ok(str(request.url)):
+            raise httpx.RequestError(f"adresse refusée : {request.url.host}", request=request)
 
     def _ok(self, url: str) -> bool:
         host = _host(url)
@@ -154,17 +164,26 @@ class Crawler:
         if not self._ok(url):
             return None, []
         try:
-            resp = self.client.get(url)
+            with self.client.stream("GET", url) as resp:
+                if (resp.status_code != 200
+                        or "html" not in resp.headers.get("content-type", "html")):
+                    return None, []
+                chunks, size = [], 0
+                for chunk in resp.iter_bytes():  # 2 Mo au plus par page
+                    chunks.append(chunk)
+                    size += len(chunk)
+                    if size >= MAX_PAGE_BYTES:
+                        break
+                body = b"".join(chunks)[:MAX_PAGE_BYTES].decode(resp.encoding or "utf-8",
+                                                                "replace")
+                final = str(resp.url)
         except httpx.HTTPError:
-            return None, []
-        if resp.status_code != 200 or "html" not in resp.headers.get("content-type", "html"):
             return None, []
         parser = _TextExtractor()
         try:
-            parser.feed(resp.text[:2_000_000])
+            parser.feed(body)
         except Exception:  # noqa: BLE001 — page mal formée : ignorée
             return None, []
-        final = str(resp.url)
         links = [u for h in parser.links if (u := _normalize(final, h))]
         return Page(final, " ".join(parser.title.split())[:200], parser.text()[:40_000]), links
 

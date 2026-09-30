@@ -12,7 +12,7 @@ import time
 from collections import defaultdict, deque
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
@@ -218,6 +218,12 @@ def install_filters(tz: ZoneInfo) -> None:
         f"{JOURS[datetime.now(tz).weekday()]} {datetime.now(tz).day} "
         f"{MOIS[datetime.now(tz).month - 1].rstrip('.')} {datetime.now(tz).year}")
 SESSION_COOKIE = "ibig_session"
+# Sources autorisées : le site lui-même, les polices Google ; scripts du site (en ligne).
+CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
+       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+       "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; "
+       "connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; "
+       "object-src 'none'")
 RETURN_PAGES = ("/agents", "/rapports", "/objectifs", "/indicateurs", "/boites")
 EDITABLE_KEYS = ("body", "texte", "contenu_html")
 SARA_MAX_QUESTION = 2000
@@ -243,6 +249,30 @@ def create_app(rt: Runtime) -> FastAPI:
     secret = rt.settings.secret_key
     failed_logins: dict[str, deque[float]] = defaultdict(deque)
     sara_calls: dict[str, deque[float]] = defaultdict(deque)
+
+    https = rt.settings.dashboard_url.startswith("https")
+
+    @app.middleware("http")
+    async def protect(request: Request, call_next):
+        # Formulaires : refusés s'ils viennent d'un autre site (y compris un autre
+        # sous-domaine du même domaine, que le cookie SameSite ne suffit pas à écarter).
+        # API SARA, webhooks et liens de validation ont leur propre secret.
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not request.url.path.startswith(
+                ("/api/", "/webhooks/", "/v/")):
+            origin = request.headers.get("origin") or request.headers.get("referer") or ""
+            if origin and urlsplit(origin).netloc != request.headers.get("host", ""):
+                return PlainTextResponse("Requête refusée : elle ne vient pas du tableau de "
+                                         "bord.", status_code=403)
+        response = await call_next(request)
+        headers = response.headers
+        headers.setdefault("X-Frame-Options", "DENY")
+        headers.setdefault("X-Content-Type-Options", "nosniff")
+        headers.setdefault("Referrer-Policy", "same-origin")
+        headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        headers.setdefault("Content-Security-Policy", CSP)
+        if https:
+            headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        return response
 
     @app.exception_handler(NotLoggedIn)
     async def _to_login(request: Request, exc: NotLoggedIn):
@@ -299,6 +329,9 @@ def create_app(rt: Runtime) -> FastAPI:
         principal = users.authenticate(email, password)
         if principal is None:
             attempts.append(now)
+            if len(failed_logins) > 5000:  # adresses inventées en masse : mémoire bornée
+                for k in [k for k, v in failed_logins.items() if now - v[-1] > LOCKOUT_SECONDS]:
+                    failed_logins.pop(k, None)
             return back("/login", "Identifiants invalides")
         failed_logins.pop(key, None)
         resp = RedirectResponse("/", status_code=303)
