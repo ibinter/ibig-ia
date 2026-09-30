@@ -6,6 +6,7 @@ Ils y donnent les objectifs, valident (niveau 2), traitent les dossiers réserv�
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -68,6 +69,20 @@ ACTION_ICONS = {"mail": "mail", "support": "life", "sara": "bot", "whatsapp": "m
                 "legal": "hand", "contract": "hand", "refund": "wallet", "payment": "wallet",
                 "discount": "wallet", "pricing": "wallet", "media": "alert", "crisis": "alert"}
 
+NETWORK_NAMES = {"facebook_page": "Page Facebook", "facebook_groupe": "Groupe Facebook",
+                 "instagram": "Instagram", "threads": "Threads", "linkedin": "LinkedIn",
+                 "tiktok": "TikTok", "whatsapp_chaine": "Chaîne WhatsApp", "x": "X"}
+# Familles pour filtrer les validations
+FAMILIES = {"mail": "Mails", "commercial": "Mails", "support": "Mails", "whatsapp": "WhatsApp",
+            "social": "Publications", "web": "Articles web", "campaign": "Campagnes"}
+
+
+def lisible(text: str) -> str:
+    for code, name in NETWORK_NAMES.items():
+        text = re.sub(rf"(?<![\w-]){code}(?![\w-])", name, text or "")
+    return text
+
+
 HERE = Path(__file__).parent
 TEMPLATES = Jinja2Templates(directory=str(HERE / "templates"))
 # Aperçu des articles : toujours re-nettoyé (le HTML a pu être modifié par un valideur).
@@ -114,6 +129,14 @@ def install_filters(tz: ZoneInfo) -> None:
     def jour_court(dt: datetime) -> str:
         return f"{JOURS[dt.weekday()][:3]}. {dt.day}"
 
+    def jour_iso(value: str) -> str:
+        """« 2026-10-06 » → « mardi 6 oct. »"""
+        try:
+            d = date.fromisoformat(str(value)[:10])
+        except ValueError:
+            return str(value)
+        return f"{JOURS[d.weekday()]} {d.day} {MOIS[d.month - 1]}"
+
     def initiales(nom: str) -> str:
         mots = [m for m in (nom or "?").replace("-", " ").split() if m[:1].isalnum()]
         return "".join(m[0] for m in mots[:2]).upper() or "?"
@@ -125,9 +148,11 @@ def install_filters(tz: ZoneInfo) -> None:
                "resolu": "résolu", "en_cours": "en cours"}
     env.filters["statut"] = lambda v: statuts.get(v, (v or "").replace("_", " "))
     env.filters.update(local=local, quand=quand, depuis=depuis, jour_court=jour_court,
-                       initiales=initiales,
+                       initiales=initiales, jour_iso=jour_iso,
                        action_label=lambda t: ACTION_LABELS.get(t, (t or "").replace(".", " ")),
-                       action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"))
+                       action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"),
+                       lisible=lisible,
+                       famille=lambda t: FAMILIES.get((t or "").split(".")[0], "Autres"))
     env.globals["aujourdhui"] = lambda: (
         f"{JOURS[datetime.now(tz).weekday()]} {datetime.now(tz).day} "
         f"{MOIS[datetime.now(tz).month - 1].rstrip('.')} {datetime.now(tz).year}")

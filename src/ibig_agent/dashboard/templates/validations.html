@@ -5,40 +5,67 @@
 {% block lead %}<p class="lead">Relisez, corrigez si besoin, puis validez : l'action part aussitôt. Rien n'est jamais publié par défaut, même après 24 h.</p>{% endblock %}
 {% block tools %}
 <span class="pill amber dot">{{ pending | length }} à valider</span>
-{% if user.role != 'valideur' %}<span class="pill red dot">{{ prepared | length }} niveau 3</span>{% endif %}
+{% if user.role != 'valideur' %}<span class="pill red dot">{{ prepared | length }} pour un humain</span>{% endif %}
 {% endblock %}
 {% block content %}
-<div class="section-title" style="margin-top:4px">{{ icon('check-circle') }}<h2>À valider</h2><span class="pill amber">niveau 2</span></div>
-{% if not pending %}
-<div class="card"><div class="empty"><div class="bubble">{{ icon('check') }}</div><b>Rien à valider</b>Vous êtes à jour. Les nouvelles propositions de l'agent apparaîtront ici.</div></div>
+{% set families = pending | map(attribute='action_type') | map('famille') | list %}
+{% set poles_here = pending | map(attribute='pole') | reject('equalto', '') | unique | sort | list %}
+
+{% if pending %}
+<div class="filter-bar" role="toolbar" aria-label="Filtrer les validations">
+  <div class="chips">
+    <button type="button" class="chip on" data-f="">Tout <span>{{ pending | length }}</span></button>
+    {% for f in families | unique | sort %}
+    <button type="button" class="chip" data-f="{{ f }}">{{ f }} <span>{{ families | select('equalto', f) | list | length }}</span></button>
+    {% endfor %}
+  </div>
+  {% if poles_here | length > 1 %}
+  <select id="f-pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in poles_here %}<option>{{ p }}</option>{% endfor %}</select>
+  {% endif %}
+</div>
 {% endif %}
+
+<div class="section-title" style="margin-top:4px">{{ icon('check-circle') }}<h2>À valider</h2></div>
+{% if not pending %}
+<div class="card"><div class="empty"><div class="bubble" style="background:var(--ok-soft);color:var(--ok)">{{ icon('check') }}</div><b>Rien à valider</b>Vous êtes à jour. Les nouvelles propositions de l'agent apparaîtront ici.</div></div>
+{% endif %}
+<p class="muted filter-empty" hidden>Aucune proposition pour ce filtre.</p>
 <div class="stack">
 {% for a in pending %}
-<article class="card item l2 fade-in" id="p{{ a.id }}">
-  <div class="meta">
-    <span class="pill amber">{{ icon('clock') }} niveau 2</span>
-    <span class="pill blue">{{ channel_icon(a.channel) }} {{ a.channel }}</span>
-    {% if a.pole %}<span class="pill violet">{{ a.pole }}</span>{% endif %}
-    {% if a.flagged_at %}<span class="pill red dot">en attente depuis plus de 24 h</span>{% endif %}
-    <span class="muted">{{ a.account }} · agent {{ a.agent }} · {{ a.created_at | quand }}</span>
+{% set photo = photos.get(a.id) %}
+{% set txt = a.payload.get('body') or a.payload.get('texte') or a.payload.get('contenu_html') or '' %}
+<article class="card vitem fade-in {{ 'late' if a.flagged_at }}" id="p{{ a.id }}" data-f="{{ a.action_type | famille }}" data-pole="{{ a.pole }}">
+  <header class="vhead">
+    <span class="vico">{{ icon(a.action_type | action_icon) }}</span>
+    <div class="vtitle">
+      <div class="vkind">{{ a.action_type | action_label }}{% if a.pole %} · <b>{{ a.pole }}</b>{% endif %}{% if a.account %} · {{ a.account | lisible }}{% endif %}</div>
+      <h3>{{ a.title | lisible }}</h3>
+    </div>
+    <div class="vwhen">
+      {% if a.flagged_at %}<span class="pill red dot">plus de 24 h</span>{% endif %}
+      <span class="muted small">{{ a.created_at | depuis }}</span>
+    </div>
+  </header>
+
+  {% if a.action_type.startswith('social.') and a.payload.get('date') %}
+  <div class="vfacts">
+    <span>{{ icon('calendar') }} Publication prévue le <b>{{ a.payload.date | jour_iso }}</b></span>
+    <span>{{ icon('share') }} {{ a.payload.get('reseau', '') | lisible }}{% if a.payload.get('compte') %} · {{ a.payload.compte }}{% endif %}</span>
+    {% if a.action_type == 'social.manual_post' %}<span>{{ icon('hand') }} À publier à la main après validation</span>{% endif %}
   </div>
-  <h3>{{ a.title }}</h3>
+  {% endif %}
   {% if a.payload.get('resume') %}<div class="summary"><b>Résumé :</b> {{ a.payload.resume }}</div>{% endif %}
   {% if a.payload.get('original') %}
     <details><summary>{{ icon('mail') }} Message d'origine</summary><div class="inner"><pre>{{ a.payload.original }}</pre></div></details>
   {% endif %}
-  {% if a.payload.get('contenu_html') %}
-    <details open><summary>{{ icon('eye') }} Aperçu de l'article</summary>
-      <div class="inner"><div class="article"><h2>{{ a.payload.get('titre', '') }}</h2>{{ a.payload.contenu_html | apercu }}</div></div></details>
-  {% endif %}
+
   {% if a.action_type.startswith('social.') %}
-  {% set photo = photos.get(a.id) %}
   <div class="visual">
     {% if photo %}<img src="/visuel/{{ a.id }}.png?p={{ photo }}" alt="Visuel proposé, avec photo" loading="lazy" id="v{{ a.id }}">
     {% else %}<img src="/visuel/{{ a.id }}.svg" alt="Visuel proposé" loading="lazy" id="v{{ a.id }}">{% endif %}
     <div>
       <b>Visuel aux couleurs IBIG{% if photo %} avec photo{% endif %}</b>
-      <p class="muted" style="margin:4px 0 10px">{% if photo %}Photo générée par IA d'après le brief, habillée aux couleurs IBIG.{% else %}Généré automatiquement pour {{ a.payload.get('reseau', '') | replace('_', ' ') }}, au bon format.{% endif %}</p>
+      <p class="muted" style="margin:4px 0 10px">{% if photo %}Photo générée par IA d'après le brief, habillée aux couleurs IBIG.{% else %}Généré automatiquement au bon format pour {{ a.payload.get('reseau', '') | lisible }}.{% endif %}</p>
       <div class="inline" style="gap:8px">
       {% if photo %}<a class="btn sm" href="/visuel/{{ a.id }}.png?p={{ photo }}" download="visuel-ibig-{{ a.id }}.png">{{ icon('arrow-right') }} Télécharger en PNG</a>
       {% else %}<button type="button" class="btn sm" onclick="png({{ a.id }})">{{ icon('arrow-right') }} Télécharger en PNG</button>{% endif %}
@@ -52,55 +79,75 @@
     </div>
   </div>
   {% elif a.payload.get('brief_visuel') %}<div class="summary"><b>Brief visuel :</b> {{ a.payload.brief_visuel }}</div>{% endif %}
+
+  {% if a.payload.get('contenu_html') %}
+    <div class="vfacts">
+      {% if a.payload.get('mot_cle') %}<span>{{ icon('target') }} Mot-clé : <b>{{ a.payload.mot_cle }}</b></span>{% endif %}
+      {% if a.payload.get('type_contenu') == 'page' %}<span>{{ icon('globe') }} Page produit{% if a.payload.get('produit') %} : {{ a.payload.produit }}{% endif %}</span>{% endif %}
+      {% if a.payload.get('meta_description') %}<span>{{ icon('eye') }} {{ a.payload.meta_description }}</span>{% endif %}
+    </div>
+    <div class="article vpreview"><h2>{{ a.payload.get('titre', '') }}</h2>{{ a.payload.contenu_html | apercu }}</div>
+  {% endif %}
+
   {% for src in a.payload.get('sources', []) %}
-    <div class="source">{{ icon('book') }}<span><b>{{ src.titre }}</b> — {{ src.section }} : « {{ src.extrait }} »</span></div>
+    <div class="source">{{ icon('book') }}<span><b>{{ src.titre or src.get('chiffre', '') }}</b> — {{ src.section or src.get('source', '') }}{% if src.extrait %} : « {{ src.extrait }} »{% endif %}</span></div>
   {% endfor %}
   {% for al in a.payload.get('alertes', []) %}
-    <div class="alert" style="margin-top:8px">{{ icon('alert') }}<span>Absent de la base de connaissances — {{ al }}</span></div>
+    <div class="alert" style="margin-top:8px">{{ icon('alert') }}<span>À vérifier : {{ al }}</span></div>
   {% endfor %}
-  <form method="post" action="/validations/{{ a.id }}/approuver" style="margin-top:14px">
+
+  <form method="post" action="/validations/{{ a.id }}/approuver" id="ok{{ a.id }}">
     {% for k in editable if k in a.payload %}
-      <label class="field"><span>{{ icon('edit') }} Texte qui partira (modifiable)</span>
+      {% if k == 'contenu_html' %}
+      <details class="vedit"><summary>{{ icon('edit') }} Modifier le texte de l'article (HTML)</summary><div class="inner">
+        <textarea name="contenu" class="mono">{{ a.payload[k] }}</textarea></div></details>
+      {% else %}
+      <label class="field"><span>{{ icon('edit') }} Texte qui partira — modifiable</span>
       <textarea name="contenu">{{ a.payload[k] }}</textarea></label>
+      {% endif %}
     {% endfor %}
-    {% set txt = a.payload.get('body') or a.payload.get('texte') or a.payload.get('contenu_html') or '' %}
     {% if 'COMPLÉTER' in txt.upper() %}<div class="alert amber">{{ icon('alert') }}<span>Texte incomplet : remplacez « À COMPLÉTER » avant de valider.</span></div>{% endif %}
-    <div class="actions"><button class="btn ok">{{ icon('check') }} Valider et envoyer</button></div>
   </form>
-  <form method="post" action="/validations/{{ a.id }}/rejeter" class="actions">
-    <input class="grow" type="text" name="motif" placeholder="Motif du rejet (aide l'agent à s'améliorer)">
-    <button class="btn ghost-bad">{{ icon('x') }} Rejeter</button>
-  </form>
+  <div class="vactions">
+    <button class="btn ok" form="ok{{ a.id }}">{{ icon('check') }} Valider et envoyer</button>
+    <form method="post" action="/validations/{{ a.id }}/rejeter" class="vreject">
+      <input type="text" name="motif" placeholder="Motif du rejet (aide l'agent à s'améliorer)">
+      <button class="btn ghost-bad">{{ icon('x') }} Rejeter</button>
+    </form>
+  </div>
 </article>
 {% endfor %}
 </div>
 
-<div class="section-title" id="niveau3">{{ icon('hand') }}<h2>Réservé à un humain</h2><span class="pill red">niveau 3</span></div>
+{% if user.role != 'valideur' %}
+<div class="section-title" id="niveau3">{{ icon('hand') }}<h2>Réservé à un humain</h2><span class="pill red">{{ prepared | length }}</span></div>
 <p class="muted" style="margin-top:-6px">L'agent a préparé ces dossiers ; il n'agira pas. Traitez-les vous-même, puis marquez-les comme traités.</p>
 {% if not prepared %}
 <div class="card"><div class="empty"><div class="bubble">{{ icon('shield-check') }}</div><b>Aucun dossier</b>Plaintes, litiges, messages suspects et sujets sensibles arriveront ici.</div></div>
 {% endif %}
 <div class="stack">
 {% for a in prepared %}
-<article class="card item l3 fade-in">
-  <div class="meta">
-    <span class="pill red">{{ icon('hand') }} niveau 3</span>
-    <span class="pill">{{ a.action_type }}</span>
-    {% if a.pole %}<span class="pill violet">{{ a.pole }}</span>{% endif %}
-    <span class="muted">{{ a.account }} · {{ a.created_at | quand }}</span>
-  </div>
-  <h3>{{ a.title }}</h3>
+<article class="card vitem human fade-in">
+  <header class="vhead">
+    <span class="vico">{{ icon(a.action_type | action_icon) }}</span>
+    <div class="vtitle">
+      <div class="vkind">{{ a.action_type | action_label }}{% if a.pole %} · <b>{{ a.pole }}</b>{% endif %}{% if a.account %} · {{ a.account }}{% endif %}</div>
+      <h3>{{ a.title }}</h3>
+    </div>
+    <div class="vwhen"><span class="muted small">{{ a.created_at | depuis }}</span></div>
+  </header>
   {% if a.payload.get('motifs') %}<div class="alert">{{ icon('shield') }}<span>Motifs suspects : {{ a.payload.motifs | join(', ') }}</span></div>{% endif %}
   {% if a.payload.get('resume') %}<div class="summary"><b>Résumé :</b> {{ a.payload.resume }}</div>{% endif %}
-  {% if a.payload.get('raison') %}<p class="muted">{{ a.payload.raison }}</p>{% endif %}
-  {% if a.payload.get('body') %}<details><summary>{{ icon('edit') }} Brouillon préparé</summary><div class="inner"><pre>{{ a.payload.body }}</pre></div></details>{% endif %}
-  <form method="post" action="/validations/{{ a.id }}/traite" class="actions">
-    <input class="grow" type="text" name="note" placeholder="Note (facultatif)">
+  {% if a.payload.get('raison') %}<p class="muted" style="margin:0">{{ a.payload.raison }}</p>{% endif %}
+  {% if a.payload.get('body') %}<details><summary>{{ icon('edit') }} Brouillon préparé par l'agent</summary><div class="inner"><pre>{{ a.payload.body }}</pre></div></details>{% endif %}
+  <form method="post" action="/validations/{{ a.id }}/traite" class="vreject">
+    <input type="text" name="note" placeholder="Note : ce qui a été fait (facultatif)">
     <button class="btn">{{ icon('check') }} Marquer comme traité</button>
   </form>
 </article>
 {% endfor %}
 </div>
+{% endif %}
 <script>
 function png(id) {
   fetch('/visuel/' + id + '.svg').then(function (r) { return r.text(); }).then(function (svg) {
@@ -114,5 +161,25 @@ function png(id) {
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   });
 }
+(function () {
+  var fam = '', pole = '';
+  var items = document.querySelectorAll('.vitem[data-f]');
+  function apply() {
+    var shown = 0;
+    items.forEach(function (el) {
+      var ok = (!fam || el.dataset.f === fam) && (!pole || el.dataset.pole === pole);
+      el.hidden = !ok; if (ok) shown++;
+    });
+    var empty = document.querySelector('.filter-empty'); if (empty) empty.hidden = shown > 0;
+  }
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); fam = b.dataset.f; apply();
+    });
+  });
+  var sel = document.getElementById('f-pole');
+  if (sel) sel.addEventListener('change', function () { pole = sel.value; apply(); });
+})();
 </script>
 {% endblock %}
