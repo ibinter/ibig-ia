@@ -306,3 +306,38 @@ def test_admin_sets_validator_phone(rt, accounts):
     r = c.post(f"/utilisateurs/{awa.id}/telephone", data={"telephone": "abc"},
                follow_redirects=False)
     assert "Refusé" in unquote(r.headers["location"])
+
+
+def test_accounts_channels_and_whatsapp_numbers_from_dashboard(rt, accounts, meta):
+    c = login(rt, "dg@ibig.test")
+    r = c.post("/reseaux/comptes", data={"reseau": "whatsapp_chaine",
+                                         "compte": "Chaîne IBIG SOFT", "pole": "SOFT"},
+               follow_redirects=False)
+    assert "à publier à la main" in unquote(r.headers["location"])
+    assert any(a.compte == "Chaîne IBIG SOFT" and not a.publication_auto
+               for a in rt.org.social_accounts)
+    c.post("/reseaux/comptes", data={"reseau": "facebook_page", "compte": "IBIG Digital",
+                                     "pole": "DIGITAL"})
+    assert any(a.compte == "IBIG Digital" and a.publication_auto
+               for a in rt.org.social_accounts)
+    # Un compte de canaux.yaml ne se retire pas d'ici
+    r = c.post("/reseaux/comptes/retirer", data={"reseau": "facebook_page",
+                                                 "compte": "IBIG Soft"},
+               follow_redirects=False)
+    assert "Refusé" in unquote(r.headers["location"])
+    c.post("/reseaux/comptes/retirer", data={"reseau": "facebook_page",
+                                             "compte": "IBIG Digital"})
+    assert not any(a.compte == "IBIG Digital" for a in rt.org.social_accounts)
+
+    r = c.post("/reseaux/whatsapp", data={"nom": "EDUFORM accueil", "numero": "+225 07 12 34 56 78",
+                                          "phone_number_id": "1098", "pole": "EDUFORM",
+                                          "jeton": "jeton-secret"}, follow_redirects=False)
+    assert "+2250712345678" in unquote(r.headers["location"])
+    client = rt.whatsapp_clients["1098"]
+    assert client.number.token() == "jeton-secret"
+    assert "jeton-secret" not in c.get("/reseaux").text
+    c.post("/reseaux/whatsapp/retirer", data={"phone_number_id": "1098"})
+    assert "1098" not in rt.whatsapp_clients
+    assert login(rt, "awa@ibig.test").post("/reseaux/whatsapp", data={
+        "nom": "x", "numero": "2250700000000", "phone_number_id": "1", "pole": "SOFT",
+        "jeton": "t"}).status_code == 403

@@ -17,9 +17,12 @@
   <div class="switch-row" style="border:0;padding:0">
     <div class="name"><span class="ico">{{ channel_icon(r.a.reseau.split('_')[0]) }}</span>
       <div><b>{{ r.a.compte }}</b><div class="muted">{{ r.label }} · pôle {{ r.a.pole }}</div></div></div>
+    <span class="inline" style="gap:8px">
     {% if r.connected %}<span class="pill green dot">publication automatique</span>
     {% elif r.auto %}<span class="pill amber dot">à raccorder</span>
     {% else %}<span class="pill dot">publication manuelle</span>{% endif %}
+    {% if can_edit and (r.a.reseau, r.a.compte) in mine %}<form method="post" action="/reseaux/comptes/retirer" onsubmit="return confirm('Retirer ce compte ?')"><input type="hidden" name="reseau" value="{{ r.a.reseau }}"><input type="hidden" name="compte" value="{{ r.a.compte }}"><button class="icon-btn" title="Retirer" aria-label="Retirer">{{ icon('x') }}</button></form>{% endif %}
+    </span>
   </div>
   {% if not r.auto %}
     <p class="muted small" style="margin:10px 0 0">Pas d'API de publication ouverte pour ce type de compte : l'agent prépare le texte et le visuel, l'équipe publie.</p>
@@ -43,6 +46,48 @@
   {% endif %}
 </article>
 {% endfor %}
+</div>
+
+{% if can_edit %}
+<form class="card" method="post" action="/reseaux/comptes" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('share') }} Ajouter un compte ou une chaîne WhatsApp</h2>
+    <div class="sub">Page, groupe, compte ou chaîne rattaché à un pôle : l'agent Communication en tient compte dès le prochain calendrier.</div></div></div>
+  <div class="grid g-3" style="gap:12px">
+    <label class="field"><span>Réseau</span><select name="reseau" style="width:100%">{% for k, v in labels.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Nom du compte</span><input type="text" name="compte" required placeholder="Ex. : IBIG EduForm, @ibigdigital, Chaîne IBIG SOFT"></label>
+    <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+  </div>
+  <button class="btn primary">{{ icon('check') }} Ajouter</button>
+</form>
+{% endif %}
+
+<div class="section-title">{{ icon('message') }}<h2>Numéros WhatsApp Business</h2><span class="pill">API officielle de Meta</span></div>
+<div class="card">
+  {% if not numbers %}<div class="empty"><div class="bubble">{{ icon('message') }}</div><b>Aucun numéro raccordé</b>Réponses aux clients (fenêtre de 24 h, consentement, STOP) et validation « OK 123 » par les valideurs.</div>{% endif %}
+  {% for n, mine_n in numbers %}
+  <div class="switch-row">
+    <div class="name"><span class="ico">{{ icon('message') }}</span><div><b>{{ n.nom }}</b><div class="muted">+{{ n.numero }} · pôle {{ n.pole }}{% if not mine_n %} · réglé sur le serveur{% endif %}</div></div></div>
+    {% if can_edit %}<span class="inline" style="gap:8px">
+      <form method="post" action="/reseaux/whatsapp/tester"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm">{{ icon('shield-check') }} Tester</button></form>
+      {% if mine_n %}<form method="post" action="/reseaux/whatsapp/retirer" onsubmit="return confirm('Retirer ce numéro ?')"><input type="hidden" name="phone_number_id" value="{{ n.phone_number_id }}"><button class="btn sm ghost-bad">{{ icon('x') }} Retirer</button></form>{% endif %}
+    </span>{% endif %}
+  </div>
+  {% endfor %}
+  {% if can_edit %}
+  <details {{ 'open' if not numbers }}><summary>{{ icon('shield') }} Raccorder un numéro</summary><div class="inner">
+    <p class="muted small" style="margin:0 0 10px">Meta Business → WhatsApp Manager → API : l'identifiant du numéro (Phone number ID) et un jeton d'accès permanent (utilisateur système, droits whatsapp_business_messaging). Le webhook se règle sur <code>/webhooks/whatsapp</code>.</p>
+    <form method="post" action="/reseaux/whatsapp" autocomplete="off">
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Nom</span><input type="text" name="nom" required placeholder="IBIG EDUFORM — accueil"></label>
+        <label class="field"><span>Numéro</span><input type="tel" name="numero" required placeholder="+225 07 00 00 00 00"></label>
+        <label class="field"><span>Identifiant du numéro (Phone number ID)</span><input type="text" name="phone_number_id" required inputmode="numeric"></label>
+        <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+      </div>
+      <label class="field"><span>Jeton d'accès permanent</span><input type="password" name="jeton" autocomplete="new-password" placeholder="EAAG…"></label>
+      <button class="btn primary">{{ icon('check') }} Raccorder le numéro</button>
+    </form>
+  </div></details>
+  {% endif %}
 </div>
 
 <div class="section-title">{{ icon('calendar') }}<h2>Publications programmées</h2></div>

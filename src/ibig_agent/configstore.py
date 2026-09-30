@@ -14,8 +14,16 @@ from datetime import datetime
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from .config import Mailbox, Settings
-from .db import Directive, KnowledgeEdit, MailboxAccount, ServiceSetting, utcnow
+from .config import Mailbox, Settings, SocialAccount, WhatsAppNumber
+from .db import (
+    Directive,
+    KnowledgeEdit,
+    MailboxAccount,
+    ServiceSetting,
+    SocialAccountRow,
+    WhatsAppAccount,
+    utcnow,
+)
 from .knowledge import KnowledgeBase
 from .vault import VaultError, decrypt, encrypt
 
@@ -72,6 +80,51 @@ def sync_mailboxes(rt) -> None:
         rt.org.mailboxes.append(box)
         rt.connectors[box.adresse] = rt.connector_factory(box)
         rt.dashboard_boxes.add(box.adresse)
+
+
+def sync_whatsapp(rt) -> None:
+    """Numéros WhatsApp du tableau de bord (jeton du coffre), appliqués à chaud ; ceux de
+    whatsapp.yaml gardent la priorité."""
+    from .channels.whatsapp import WhatsAppClient
+
+    for pnid in list(rt.dashboard_numbers):
+        rt.whatsapp_clients.pop(pnid, None)
+    rt.org.whatsapp[:] = [n for n in rt.org.whatsapp
+                          if n.phone_number_id not in rt.dashboard_numbers]
+    rt.dashboard_numbers.clear()
+    known = {n.phone_number_id for n in rt.org.whatsapp}
+    with rt.sessions() as s:
+        rows = s.scalars(select(WhatsAppAccount)).all()
+    for row in rows:
+        if row.phone_number_id in known:
+            continue
+        try:
+            token = decrypt(rt.settings.secret_key, row.token_enc) if row.token_enc else ""
+        except VaultError:
+            token = ""
+        number = WhatsAppNumber(nom=row.nom, numero=row.numero,
+                                phone_number_id=row.phone_number_id, pole=row.pole,
+                                token_value=token)
+        rt.org.whatsapp.append(number)
+        rt.whatsapp_clients[row.phone_number_id] = WhatsAppClient(
+            number, rt.settings.whatsapp_api_version)
+        rt.dashboard_numbers.add(row.phone_number_id)
+
+
+def sync_social_accounts(rt) -> None:
+    """Comptes et chaînes ajoutés dans le tableau de bord, à la suite de canaux.yaml."""
+    rt.org.social_accounts[:] = [a for a in rt.org.social_accounts
+                                 if (a.reseau, a.compte) not in rt.dashboard_accounts]
+    rt.dashboard_accounts.clear()
+    known = {(a.reseau, a.compte) for a in rt.org.social_accounts}
+    with rt.sessions() as s:
+        rows = s.scalars(select(SocialAccountRow).order_by(SocialAccountRow.id)).all()
+    for row in rows:
+        if (row.reseau, row.compte) in known:
+            continue
+        rt.org.social_accounts.append(SocialAccount(row.reseau, row.compte, row.pole,
+                                                    row.publication_auto))
+        rt.dashboard_accounts.add((row.reseau, row.compte))
 
 
 def with_lws_defaults(box: Mailbox) -> Mailbox:

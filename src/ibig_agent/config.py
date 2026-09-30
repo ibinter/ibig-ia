@@ -130,10 +130,13 @@ class WhatsAppNumber:
     numero: str
     phone_number_id: str
     pole: str
-    token_env: str
+    token_env: str = ""
+    # Jeton saisi dans le tableau de bord (déchiffré du coffre), prioritaire
+    token_value: str = field(default="", repr=False, compare=False)
 
     def token(self) -> str:
-        value = os.environ.get(self.token_env, "") if self.token_env else ""
+        value = self.token_value or (os.environ.get(self.token_env, "")
+                                     if self.token_env else "")
         if not value:
             raise RuntimeError(f"Jeton manquant pour {self.numero} (variable {self.token_env})")
         return value

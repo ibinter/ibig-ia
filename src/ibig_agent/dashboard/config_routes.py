@@ -479,6 +479,61 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         sync_mailboxes(rt)
         return back("/boites", f"{adresse} raccordée : testez la connexion ci-dessous")
 
+    @app.post("/boites/lot")
+    def add_mailboxes(lignes: str = Form(...), pole: str = Form(...),
+                      hebergeur: str = Form("lws"), who: Principal = Depends(user)):
+        """Plusieurs boîtes d'un coup : une par ligne, « adresse ; mot de passe », avec
+        facultativement « ; PÔLE ; responsable des transferts »."""
+        direction_only(who)
+        if pole not in rt.org.pole_codes or hebergeur not in ("lws", "gmail"):
+            return back("/boites", "Refusé : choisissez un pôle")
+        server = {m.adresse for m in rt.org.mailboxes} - rt.dashboard_boxes
+        added, refused = [], []
+        rows = [ln for ln in lignes.replace("\r", "").split("\n") if ln.strip()][:200]
+        with rt.sessions() as s:
+            for n, line in enumerate(rows, 1):
+                sep = "\t" if "\t" in line else ";"
+                parts = [p.strip() for p in line.split(sep)]
+                adresse = parts[0].lower() if parts else ""
+                secret = parts[1] if len(parts) > 1 else ""
+                box_pole = parts[2].upper() if len(parts) > 2 and parts[2] else pole
+                resp = parts[3].lower() if len(parts) > 3 else ""
+                if (not EMAIL.match(adresse) or not secret or box_pole not in
+                        rt.org.pole_codes or adresse in server
+                        or (resp and not EMAIL.match(resp))):
+                    refused.append(f"ligne {n}" + (f" ({adresse})" if EMAIL.match(adresse)
+                                                   else ""))
+                    continue  # le mot de passe n'est jamais réaffiché
+                box = with_lws_defaults(Mailbox(adresse=adresse, hebergeur=hebergeur,
+                                                pole=box_pole))
+                s.merge(MailboxAccount(
+                    adresse=adresse, hebergeur=hebergeur, pole=box_pole, responsable=resp,
+                    imap_host=box.imap_host, smtp_host=box.smtp_host,
+                    secret_enc=encrypt(rt.settings.secret_key, secret), active=True,
+                    updated_by=who.label, updated_at=utcnow()))
+                added.append(adresse)
+            s.commit()
+        sync_mailboxes(rt)
+        msg = f"{len(added)} boîte(s) raccordée(s)"
+        if refused:
+            msg += f" ; refusé : {', '.join(refused[:10])} (format : adresse ; mot de passe)"
+        return back("/boites", msg + (" — testez-les ci-dessous" if added else ""))
+
+    @app.post("/boites/tester-tout")
+    def test_all_mailboxes(who: Principal = Depends(user)):
+        direction_only(who)
+        ok, ko = 0, []
+        for adresse, conn in list(rt.connectors.items()):
+            if not hasattr(conn, "check"):
+                continue
+            try:
+                conn.check()
+                ok += 1
+            except Exception:  # noqa: BLE001 — résumé affiché
+                ko.append(adresse)
+        return back("/boites", f"{ok} boîte(s) OK" + (
+            f" ; en échec : {', '.join(ko[:15])}" if ko else ""))
+
     @app.post("/boites/tester")
     def test_mailbox(adresse: str = Form(...), who: Principal = Depends(user)):
         direction_only(who)

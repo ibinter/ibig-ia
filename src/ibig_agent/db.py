@@ -341,6 +341,35 @@ class MediaAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class WhatsAppAccount(Base):
+    """Numéro WhatsApp Business raccordé depuis le tableau de bord ; jeton chiffré."""
+
+    __tablename__ = "whatsapp_accounts"
+
+    phone_number_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    nom: Mapped[str] = mapped_column(String(200))
+    numero: Mapped[str] = mapped_column(String(32))
+    pole: Mapped[str] = mapped_column(String(40))
+    token_enc: Mapped[str] = mapped_column(Text, default="")
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SocialAccountRow(Base):
+    """Compte de réseau social ou chaîne WhatsApp ajouté depuis le tableau de bord."""
+
+    __tablename__ = "social_account_rows"
+    __table_args__ = (UniqueConstraint("reseau", "compte"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reseau: Mapped[str] = mapped_column(String(40))
+    compte: Mapped[str] = mapped_column(String(200))
+    pole: Mapped[str] = mapped_column(String(40))
+    publication_auto: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

@@ -1,12 +1,43 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
-{% block title %}Boîtes mail{% endblock %}
-{% block heading %}Boîtes mail{% endblock %}
-{% block lead %}<p class="lead">Les boîtes que l'agent Messagerie relève toutes les 5 minutes (section 9, option A : raccordement direct). Les mots de passe sont chiffrés dans le coffre de l'agent et ne sont jamais réaffichés.</p>{% endblock %}
+{% block title %}Boîtes mail<form class="card" method="post" action="/boites/lot" autocomplete="off" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('inbox') }} Ajouter plusieurs boîtes d'un coup</h2>
+    <div class="sub">Une boîte par ligne : <code>adresse ; mot de passe</code>, et si besoin <code>; PÔLE ; responsable des transferts</code>. Les mots de passe sont chiffrés et jamais réaffichés.</div></div></div>
+  <textarea name="lignes" required style="min-height:160px;font-family:ui-monospace,monospace" placeholder="contact@ibigsoft.com ; motdepasse1&#10;formation@ibig-eduform.com ; motdepasse2 ; EDUFORM&#10;immo@ibigimmotrust.com ; motdepasse3 ; IMMOTRUST ; agent.immo@ibigimmotrust.com"></textarea>
+  <div class="actions">
+    <label class="inline" style="gap:8px">Pôle par défaut <select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    <label class="inline" style="gap:8px">Hébergeur <select name="hebergeur"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+    <button class="btn primary">{{ icon('check') }} Raccorder toutes ces boîtes</button>
+  </div>
+</form>
+{% endblock %}
+{% block heading %}Boîtes mail<form class="card" method="post" action="/boites/lot" autocomplete="off" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('inbox') }} Ajouter plusieurs boîtes d'un coup</h2>
+    <div class="sub">Une boîte par ligne : <code>adresse ; mot de passe</code>, et si besoin <code>; PÔLE ; responsable des transferts</code>. Les mots de passe sont chiffrés et jamais réaffichés.</div></div></div>
+  <textarea name="lignes" required style="min-height:160px;font-family:ui-monospace,monospace" placeholder="contact@ibigsoft.com ; motdepasse1&#10;formation@ibig-eduform.com ; motdepasse2 ; EDUFORM&#10;immo@ibigimmotrust.com ; motdepasse3 ; IMMOTRUST ; agent.immo@ibigimmotrust.com"></textarea>
+  <div class="actions">
+    <label class="inline" style="gap:8px">Pôle par défaut <select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    <label class="inline" style="gap:8px">Hébergeur <select name="hebergeur"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+    <button class="btn primary">{{ icon('check') }} Raccorder toutes ces boîtes</button>
+  </div>
+</form>
+{% endblock %}
+{% block lead %}<p class="lead">Les boîtes que l'agent Messagerie relève toutes les 5 minutes (section 9, option A : raccordement direct). Les mots de passe sont chiffrés dans le coffre de l'agent et ne sont jamais réaffichés.</p><form class="card" method="post" action="/boites/lot" autocomplete="off" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('inbox') }} Ajouter plusieurs boîtes d'un coup</h2>
+    <div class="sub">Une boîte par ligne : <code>adresse ; mot de passe</code>, et si besoin <code>; PÔLE ; responsable des transferts</code>. Les mots de passe sont chiffrés et jamais réaffichés.</div></div></div>
+  <textarea name="lignes" required style="min-height:160px;font-family:ui-monospace,monospace" placeholder="contact@ibigsoft.com ; motdepasse1&#10;formation@ibig-eduform.com ; motdepasse2 ; EDUFORM&#10;immo@ibigimmotrust.com ; motdepasse3 ; IMMOTRUST ; agent.immo@ibigimmotrust.com"></textarea>
+  <div class="actions">
+    <label class="inline" style="gap:8px">Pôle par défaut <select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    <label class="inline" style="gap:8px">Hébergeur <select name="hebergeur"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+    <button class="btn primary">{{ icon('check') }} Raccorder toutes ces boîtes</button>
+  </div>
+</form>
+{% endblock %}
 {% block content %}
 <div class="grid g-main">
   <div class="card">
-    <div class="card-head"><div><h2>{{ icon('inbox') }} Boîtes raccordées</h2><div class="sub">{{ boxes | length }} boîte(s)</div></div></div>
+    <div class="card-head"><div><h2>{{ icon('inbox') }} Boîtes raccordées</h2><div class="sub">{{ boxes | length }} boîte(s)</div></div>
+      {% if boxes %}<form method="post" action="/boites/tester-tout"><button class="btn sm" onclick="this.innerHTML='Test en cours…'">{{ icon('shield-check') }} Tester toutes les boîtes</button></form>{% endif %}</div>
     {% if not boxes %}<div class="empty"><div class="bubble" style="background:var(--warn-soft);color:var(--warn)">{{ icon('mail') }}</div><b>Aucune boîte raccordée</b>Ajoutez la première avec le formulaire : c'est elle qui donnera du travail à l'agent.</div>{% endif %}
     {% for m, mine, row in boxes %}
     <div class="switch-row">
@@ -38,4 +69,14 @@
   </form>
 </div>
 <script>function sw(){var g=document.getElementById('heb').value==='gmail';document.getElementById('f-gmail').style.display=g?'flex':'none';document.querySelector('#f-pass span').textContent=g?'Jeton Gmail (JSON)':'Mot de passe de la boîte';}</script>
+<form class="card" method="post" action="/boites/lot" autocomplete="off" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('inbox') }} Ajouter plusieurs boîtes d'un coup</h2>
+    <div class="sub">Une boîte par ligne : <code>adresse ; mot de passe</code>, et si besoin <code>; PÔLE ; responsable des transferts</code>. Les mots de passe sont chiffrés et jamais réaffichés.</div></div></div>
+  <textarea name="lignes" required style="min-height:160px;font-family:ui-monospace,monospace" placeholder="contact@ibigsoft.com ; motdepasse1&#10;formation@ibig-eduform.com ; motdepasse2 ; EDUFORM&#10;immo@ibigimmotrust.com ; motdepasse3 ; IMMOTRUST ; agent.immo@ibigimmotrust.com"></textarea>
+  <div class="actions">
+    <label class="inline" style="gap:8px">Pôle par défaut <select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    <label class="inline" style="gap:8px">Hébergeur <select name="hebergeur"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+    <button class="btn primary">{{ icon('check') }} Raccorder toutes ces boîtes</button>
+  </div>
+</form>
 {% endblock %}

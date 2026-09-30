@@ -86,8 +86,8 @@ def setup_steps(rt: Runtime) -> list[Step]:
              else f"{len(kb.faq_pending)} réponse(s) à rédiger"),
         Step("canaux", "share", "Réseaux sociaux, sites et WhatsApp", bool(channels),
              "Publications préparées chaque semaine, articles de blog, messages WhatsApp.",
-             "Plus tard, une fois les mails rodés : config/canaux.yaml, sites.yaml, "
-             "whatsapp.yaml.",
+             "Menu « Réseaux sociaux » : ajouter les comptes et chaînes WhatsApp manquants, "
+             "raccorder les numéros WhatsApp Business (jeton Meta).",
              f"branchés : {', '.join(channels)}" if channels else "à brancher après les mails",
              optional=True),
         Step("publication", "share", "Publier automatiquement sur les réseaux", auto_on > 0,

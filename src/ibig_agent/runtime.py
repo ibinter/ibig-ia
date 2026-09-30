@@ -27,7 +27,13 @@ from .channels.mail import MailConnector, connector_for
 from .channels.web import WebConnector, sanitize_html, web_connector_for
 from .channels.whatsapp import WINDOW_HOURS, WhatsAppClient
 from .config import OrgConfig, Settings, get_settings, load_org_config
-from .configstore import directives_text, knowledge_overrides, sync_mailboxes
+from .configstore import (
+    directives_text,
+    knowledge_overrides,
+    sync_mailboxes,
+    sync_social_accounts,
+    sync_whatsapp,
+)
 from .db import WhatsAppContact, make_engine, open_db, utcnow
 from .governance import Executor, Governor, as_utc
 from .knowledge import KnowledgeBase
@@ -136,6 +142,9 @@ class Runtime:
     whatsapp_clients: dict[str, WhatsAppClient] = field(default_factory=dict)
     # Boîtes raccordées depuis le tableau de bord, et fabrique de leurs connecteurs
     dashboard_boxes: set[str] = field(default_factory=set)
+    # Numéros WhatsApp et comptes sociaux ajoutés depuis le tableau de bord
+    dashboard_numbers: set[str] = field(default_factory=set)
+    dashboard_accounts: set[tuple[str, str]] = field(default_factory=set)
     connector_factory: Callable = field(default=None)
     brevo_factory: Callable = field(default=None)
     # Fabrique du client HTTP des réseaux sociaux (remplacée dans les tests)
@@ -305,6 +314,7 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}
     if web_connectors is None:
         web_connectors = {s.url: c for s in org.sites if (c := web_connector_for(s))}
+    whatsapp_given = whatsapp_clients is not None
     if whatsapp_clients is None:
         whatsapp_clients = {n.phone_number_id: WhatsAppClient(n, settings.whatsapp_api_version)
                             for n in org.whatsapp}
@@ -325,4 +335,7 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     kb.semantic = rt.semantic.scores
     if from_config:
         sync_mailboxes(rt)
+    sync_social_accounts(rt)
+    if not whatsapp_given:
+        sync_whatsapp(rt)
     return rt

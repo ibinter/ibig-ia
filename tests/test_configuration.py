@@ -152,3 +152,34 @@ def test_branded_visual_for_each_post(rt, dg):
     assert login(rt, "awa@ibig.test").get(f"/visuel/{pid}.svg").status_code == 200  # SOFT
     tall = ET.fromstring(render_svg("Titre", "Message", "EDUFORM", "tiktok"))
     assert tall.get("height") == "1920"
+
+
+def test_bulk_mailboxes_are_added_encrypted(rt):
+    from urllib.parse import unquote
+
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+    from ibig_agent.db import MailboxAccount
+
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction",
+                                          "mot-de-passe-solide")
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    lignes = ("a@ibigsoft.com ; secret-a\n"
+              "b@ibig-eduform.com\tsecret;b\tEDUFORM\n"
+              "pas-une-adresse ; x\n"
+              "c@ibigsoft.com\n")
+    r = c.post("/boites/lot", data={"lignes": lignes, "pole": "SOFT"},
+               follow_redirects=False)
+    msg = unquote(r.headers["location"])
+    assert "2 boîte(s) raccordée(s)" in msg and "ligne 3" in msg and "ligne 4" in msg
+    assert "secret" not in msg
+    with rt.sessions() as s:
+        rows = {m.adresse: m for m in s.query(MailboxAccount).all()}
+    assert rows["a@ibigsoft.com"].pole == "SOFT"
+    # Collé depuis Excel (tabulations) : un « ; » dans le mot de passe est conservé
+    assert rows["b@ibig-eduform.com"].pole == "EDUFORM"
+    assert "secret-a" not in rows["a@ibigsoft.com"].secret_enc
+    assert "a@ibigsoft.com" in rt.connectors
