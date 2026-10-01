@@ -83,7 +83,7 @@ class Diagnostic:
                      "IBIG_NOTIFICATION_MAILBOX vide : aucune alerte par mail")
         elif mb not in self.rt.connectors:
             self.add("Réglages", "boîte des alertes", FAIL,
-                     f"{mb} n'est pas déclarée dans config/mailboxes.yaml")
+                     f"{mb} n'est pas raccordée (menu Boîtes mail)")
         else:
             self.add("Réglages", "boîte des alertes", OK, mb)
         key = s.sara_api_key
@@ -153,13 +153,13 @@ class Diagnostic:
 
     def mailboxes(self) -> None:
         if not self.rt.connectors:
-            self.add("Mails", "boîtes", FAIL, "aucune boîte dans config/mailboxes.yaml")
+            self.add("Mails", "boîtes", FAIL, "aucune boîte raccordée : menu Boîtes mail du tableau de bord")
         for addr, conn in self.rt.connectors.items():
             self.probe("Mails", addr, conn.check)
 
     def whatsapp(self) -> None:
         if not self.rt.org.whatsapp:
-            self.add("WhatsApp", "numéros", OK, "aucun numéro raccordé (config/whatsapp.yaml)")
+            self.add("WhatsApp", "numéros", OK, "aucun numéro raccordé (menu Réseaux sociaux, onglet WhatsApp)")
             return
         s = self.rt.settings
         for label, value in (("secret de l'application", s.whatsapp_app_secret),
