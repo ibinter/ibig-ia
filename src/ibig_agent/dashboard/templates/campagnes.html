@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Campagnes mail{% endblock %}
+{% block heading %}Campagnes mail{% endblock %}
+{% block lead %}<p class="lead">Newsletters et annonces aux contacts qui l'ont accepté (section 9). L'agent rédige à partir de la base de connaissances, vous validez, puis Brevo envoie — jamais depuis vos boîtes LWS ou Gmail.</p>{% endblock %}
+{% block tools %}{% if configured %}<span class="pill green dot">Brevo raccordé</span>{% else %}<span class="pill amber dot">Brevo à raccorder</span>{% endif %}{% endblock %}
+{% block content %}
+{% set sent = history | selectattr('status', 'equalto', 'executed') | list | length %}
+{% set waiting = history | selectattr('status', 'equalto', 'pending') | list | length %}
+{% set refused = history | selectattr('status', 'in', ['rejected', 'failed']) | list | length %}
+
+<ol class="flow-steps">
+  <li><span>1</span><b>Vous choisissez</b><small>la liste de contacts et le sujet</small></li>
+  <li><span>2</span><b>L'agent rédige</b><small>objet, pré-en-tête, contenu, sans rien inventer</small></li>
+  <li><span>3</span><b>Vous validez</b><small>dans « Validations », après relecture</small></li>
+  <li><span>4</span><b>Brevo envoie</b><small>avec le lien de désinscription</small></li>
+</ol>
+
+<div class="cal-stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="cal-stat s-green"><b>{{ sent }}</b><span>envoyée{{ 's' if sent > 1 }}</span></div>
+  <div class="cal-stat s-amber"><b>{{ waiting }}</b><span>à valider</span></div>
+  <div class="cal-stat s-red"><b>{{ refused }}</b><span>rejetée{{ 's' if refused > 1 }} ou en échec</span></div>
+</div>
+
+<div class="grid g-main">
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('list') }} Historique</h2><div class="sub">Les 30 dernières campagnes</div></div></div>
+    {% if not history %}<div class="empty"><div class="bubble">{{ icon('mail') }}</div><b>Aucune campagne pour l'instant</b>{{ 'Rédigez la première avec le formulaire.' if configured else 'Raccordez Brevo pour rédiger la première.' }}</div>{% endif %}
+    <ul class="prio-list">
+    {% for c in history %}
+      <li><a href="{{ '/validations#p' ~ c.id if c.status == 'pending' else '/journal' }}">
+        <span class="todo-ico" style="background:var(--brand-soft);color:var(--brand)">{{ icon('mail') }}</span>
+        <span class="todo-txt"><b>{{ c.payload.get('subject', c.title) }}</b>
+          <small>{{ c.pole }} · liste « {{ c.payload.get('liste', '') }} » · {{ c.created_at | quand }}</small></span>
+        <span class="pill {{ {'pending': 'amber', 'executed': 'green', 'rejected': 'red', 'failed': 'red'}.get(c.status, '') }}">{{ {'executed': 'envoyée'}.get(c.status, c.status | statut) }}</span>
+      </a></li>
+    {% endfor %}
+    </ul>
+  </div>
+
+  {% if configured %}
+  <form class="card" method="post" action="/campagnes" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Nouvelle campagne</h2><div class="sub">Expéditeur : {{ sender_name or '—' }} &lt;{{ sender_email or 'à régler dans Services' }}&gt;</div></div></div>
+    {% if error %}<div class="alert">{{ icon('alert') }}<span>{{ error }}</span></div>{% endif %}
+    <label class="field"><span>Liste de contacts Brevo</span>
+      <select name="liste" style="width:100%" required>{% for l in lists %}<option value="{{ l.id }}|{{ l.name }}">{{ l.name }} ({{ l.subscribers }} contacts)</option>{% endfor %}</select></label>
+    <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : nos formations certifiantes d'octobre"></label>
+    <button class="btn primary lg" style="width:100%;justify-content:center" {{ 'disabled' if not lists }} onclick="this.innerHTML='Rédaction en cours…'">{{ icon('sparkles') }} Rédiger la campagne</button>
+    <p class="muted small" style="margin:10px 0 0">Rien ne part avant votre validation.</p>
+  </form>
+  {% else %}
+  <div class="card setup-card" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('mail') }} Raccorder Brevo</h2><div class="sub">Une seule fois, environ 15 minutes</div></div></div>
+    <ol class="how-list">
+      <li><b>Créer un compte</b> sur brevo.com (offre gratuite possible pour démarrer).</li>
+      <li><b>Authentifier votre domaine</b> d'envoi (SPF, DKIM, DMARC) : vos campagnes n'arrivent pas en indésirables.</li>
+      <li><b>Importer vos contacts</b> qui ont accepté vos messages, en listes (par pôle par exemple).</li>
+      <li><b>Créer une clé API</b> (menu SMTP &amp; API) et la coller dans Services.</li>
+    </ol>
+    <a class="btn primary" href="/services" style="width:100%;justify-content:center">{{ icon('arrow-right') }} Ouvrir Services</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

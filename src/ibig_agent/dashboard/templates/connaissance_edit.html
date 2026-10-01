@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ meta.get('titre', path) }}{% endblock %}
+{% block eyebrow %}<a href="/connaissances">← Base de connaissances</a>{% endblock %}
+{% block heading %}{{ meta.get('titre', path) }}{% endblock %}
+{% block lead %}<p class="lead">{% if meta.get('type') == 'fiche_pole' %}Fiche du pôle {{ meta.get('pole') }} : l'agent s'en sert pour publier, écrire les articles et répondre.{% elif meta.get('type') == 'faq' %}Chaque « ## question » suivie de sa réponse. Une réponse sans « À COMPLÉTER » part <b>automatiquement</b> : faites-la relire.{% elif meta.get('type') == 'guide' %}Guide utilisateur : l'agent Support y puise ses réponses et cite chaque passage mot pour mot.{% else %}Document commun à tout le groupe.{% endif %}</p>{% endblock %}
+{% block tools %}{% if edited %}<span class="pill blue dot">modifié dans le tableau de bord</span>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <form class="card" method="post" action="/connaissances/document">
+    <input type="hidden" name="chemin" value="{{ path }}">
+    <div class="card-head"><div><h2>{{ icon('edit') }} Contenu</h2><div class="sub">« ## » ouvre une rubrique · « - » une ligne de liste</div></div></div>
+    <textarea name="contenu" style="min-height:560px;font:14px/1.65 ui-monospace,Menlo,monospace" {{ 'readonly' if not can_edit }}>{{ body }}</textarea>
+    {% if can_edit %}
+      {% if meta.get('type') == 'fiche_pole' %}
+      <label class="inline" style="margin:14px 0;font-weight:600"><input type="checkbox" name="valide" value="1" {{ 'checked' if meta.get('statut') != 'a_completer' }}> Fiche relue et validée : les agents peuvent l'utiliser pour publier</label>
+      <p class="muted small" style="margin:-6px 0 12px">La validation ne prend effet que lorsqu'il ne reste plus aucun « À COMPLÉTER ».</p>
+      {% elif meta.get('type') == 'guide' %}
+      <label class="inline" style="margin:14px 0;font-weight:600"><input type="checkbox" name="reponses_auto" value="1" {{ 'checked' if meta.get('reponses_auto') }}> Guide relu : le Support peut répondre seul quand toutes ses citations sont vérifiées</label>
+      {% endif %}
+      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
+    {% endif %}
+  </form>
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('alert') }} Reste à compléter</h2><div class="sub">{{ todo | length }} passage(s)</div></div></div>
+      {% if todo %}<ul class="todo-list">{% for t in todo %}<li>{{ t }}</li>{% endfor %}</ul>
+      {% else %}<div class="empty" style="padding:20px"><div class="bubble">{{ icon('check') }}</div><b>Rien à compléter</b></div>{% endif %}
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:8px">Conseils</h3>
+      <ul class="agent-does">
+        <li>{{ icon('check') }}<span>Écrivez les prix exacts (ex. « 15 000 FCFA par mois ») ou « sur devis ».</span></li>
+        <li>{{ icon('check') }}<span>Donnez les contacts officiels : l'agent refuse tout contact absent de la base.</span></li>
+        <li>{{ icon('check') }}<span>Remplacez chaque « À COMPLÉTER » ; supprimez les lignes sans objet.</span></li>
+      </ul>
+      {% if edited and can_edit %}
+      <hr class="divider">
+      <form method="post" action="/connaissances/restaurer" onsubmit="return confirm('Revenir à la version d\'origine ? Vos modifications seront perdues.')">
+        <input type="hidden" name="chemin" value="{{ path }}"><button class="btn sm ghost-bad">{{ icon('x') }} Revenir à la version d'origine</button></form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

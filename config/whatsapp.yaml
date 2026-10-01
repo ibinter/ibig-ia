@@ -1,0 +1,12 @@
+# Numéros WhatsApp Business raccordés à la plateforme officielle de Meta (API Cloud),
+# section 10. On commence par 1 ou 2 numéros commerciaux à fort volume ; les autres
+# restent sur l'application. À compléter après la migration des numéros chez Meta.
+#
+# phone_number_id : identifiant du numéro dans le gestionnaire WhatsApp de Meta
+# token_env       : NOM de la variable contenant le jeton (utilisateur système Meta)
+numeros: []
+#  - nom: IBIG SOFT commercial
+#    numero: "+225 00 00 00 00 00"
+#    phone_number_id: "000000000000000"
+#    pole: SOFT
+#    token_env: WHATSAPP_TOKEN_IBIGSOFT

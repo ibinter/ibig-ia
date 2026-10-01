@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Indicateurs{% endblock %}
+{% block heading %}Indicateurs de réussite{% endblock %}
+{% block lead %}<p class="lead">Les cibles de la section 3 du cahier des charges, mesurées du {{ report.debut | quand(false) }} au {{ report.fin | quand(false) }}</p>{% endblock %}
+{% block tools %}
+<div class="seg">{% for j in (7, 30, 90) %}<a href="?jours={{ j }}" class="{{ 'on' if j == jours }}">{{ j }} jours</a>{% endfor %}</div>
+{% endblock %}
+{% block content %}
+{% set ok = report.items | selectattr('etat', 'equalto', 'ok') | list | length %}
+{% set bad = report.items | selectattr('etat', 'equalto', 'alerte') | list | length %}
+{% set wait = report.items | length - ok - bad %}
+{% set measured = ok + bad %}
+{% set pct = (100 * ok / measured) | round | int if measured else 0 %}
+{% set GOALS = {
+  'Heures': ('clock', 'Soulager l\'équipe'), 'Mails': ('inbox', 'Ne rien laisser passer'),
+  'Délai': ('mail', 'Répondre vite'), 'Publications': ('share', 'Publier régulièrement'),
+  'Prospects': ('target', 'Convertir'), 'Contenus': ('shield-check', 'Rester fiable'),
+  'Actions': ('lock', 'Garder la main'), 'Brouillons': ('edit', 'Qualité des brouillons')} %}
+{% set ALERTS = {'pic': ('trending', 'Pic de messages'), 'negatif': ('alert', 'Clients mécontents'),
+                 'sans_reponse': ('clock', 'Mails sans réponse')} %}
+
+<section class="score-hero">
+  <div class="score-ring">
+    <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="ring-bg"/>
+      <circle cx="50" cy="50" r="42" class="ring-val {{ 'good' if pct >= 75 else ('mid' if pct >= 40 else 'low') }}" stroke-dasharray="{{ (263.9 * pct / 100) | round(1) }} 263.9"/></svg>
+    <div class="ring-txt"><b>{{ ok }}<small>/{{ measured }}</small></b><span>cibles atteintes</span></div>
+  </div>
+  <div class="score-txt">
+    <h2>{% if not measured %}Pas encore assez d'activité pour mesurer{% elif bad == 0 %}Toutes les cibles mesurées sont atteintes{% else %}{{ bad }} cible{{ 's' if bad > 1 }} à surveiller{% endif %}</h2>
+    <p class="muted">{% if bad %}Sous la cible : {% for i in report.items if i.etat == 'alerte' %}<b>{{ i.nom | lower }}</b>{{ ', ' if not loop.last }}{% endfor %}.{% else %}Les indicateurs sont recalculés à chaque ouverture de la page.{% endif %}{% if wait %} {{ wait }} indicateur{{ 's' if wait > 1 }} attend{{ 'ent' if wait > 1 }} encore des données.{% endif %}</p>
+    <div class="inline" style="gap:8px;margin-top:10px">
+      <span class="pill green dot">{{ ok }} atteinte{{ 's' if ok > 1 }}</span>
+      <span class="pill red dot">{{ bad }} sous la cible</span>
+      <span class="pill dot">{{ wait }} à mesurer</span>
+      <span class="pill amber dot">{{ alerts | length }} alerte{{ 's' if alerts | length > 1 }} de veille</span>
+    </div>
+  </div>
+  {% if user.role != 'valideur' %}
+  <div class="score-actions">
+    <form method="post" action="/agents/lancer/indicateurs"><input type="hidden" name="retour" value="/indicateurs">
+      <button class="btn" onclick="this.innerHTML='En cours…'">{{ icon('file') }} Envoyer le bilan à la direction</button></form>
+    <form method="post" action="/agents/lancer/veille"><input type="hidden" name="retour" value="/indicateurs">
+      <button class="btn" onclick="this.innerHTML='En cours…'">{{ icon('eye') }} Vérifier les alertes maintenant</button></form>
+  </div>
+  {% endif %}
+</section>
+
+<div class="ind-grid">
+{% for i in report.items %}
+  {% set g = GOALS.get(i.nom.split(' ')[0], ('chart', '')) %}
+  <article class="card ind e-{{ i.etat }}">
+    <header>
+      <span class="ind-ico">{{ icon(g[0]) }}</span>
+      <div class="ind-name"><small>{{ g[1] }}</small><h3>{{ i.nom }}</h3></div>
+      {% if i.etat == 'ok' %}<span class="pill green dot">atteint</span>{% elif i.etat == 'alerte' %}<span class="pill red dot">sous la cible</span>{% else %}<span class="pill dot">à mesurer</span>{% endif %}
+    </header>
+    {% if i.nom.startswith('Publications par pôle') %}
+      <div class="pole-bars">
+        {% for part in i.valeur.split(', ') if ' ' in part %}{% set bits = part.rsplit(' ', 1) %}{% set n = bits[1] | float %}
+        <div class="pb {{ 'ok' if n >= 3 else 'ko' }}"><span class="pb-name">{{ bits[0] }}</span>
+          <span class="pb-track"><span class="pb-fill" style="width:{{ [n / 6 * 100, 100] | min }}%"></span><span class="pb-target" title="cible : 3"></span></span>
+          <b>{{ '%.1f' | format(n) | replace('.0', '') }}</b></div>
+        {% endfor %}
+      </div>
+      <p class="ind-target">{{ icon('target') }} cible : {{ i.cible }} par semaine (repère au milieu de la barre)</p>
+    {% else %}
+      <div class="ind-val"><span class="{{ 'long' if i.valeur | length > 18 }}">{{ i.valeur }}</span></div>
+      <p class="ind-target">{{ icon('target') }} cible : {{ i.cible }}</p>
+      {% if i.nom.startswith('Prospects') and i.detail %}
+        <div class="pills" style="margin-top:8px">{% for part in i.detail.split(', ') %}<span class="pill violet">{{ part }}</span>{% endfor %}</div>
+      {% elif i.detail %}<p class="ind-detail">{{ i.detail }}</p>{% endif %}
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('alert') }} Alertes de veille</h2><div class="sub">Pics de messages, clients insatisfaits et mails restés sans réponse</div></div></div>
+    {% if not alerts %}
+    <div class="empty"><div class="bubble" style="background:var(--ok-soft);color:var(--ok)">{{ icon('shield-check') }}</div><b>Aucune alerte</b>La veille tourne toutes les 15 minutes : rien d'anormal pour l'instant.</div>
+    {% else %}
+    <ul class="alert-list">
+      {% for a in alerts %}{% set k = ALERTS.get(a.details.get('kind', ''), ('alert', a.details.get('kind', 'Alerte'))) %}
+      <li>
+        <details>
+          <summary>
+            <span class="todo-ico lv3">{{ icon(k[0]) }}</span>
+            <span class="todo-txt"><b>{{ a.summary | replace('[IBIG] ', '') }}</b><small>{{ k[1] }}{% if a.pole %} · {{ a.pole }}{% endif %} · {{ a.created_at | quand }}</small></span>
+            <span class="muted small">{{ a.created_at | depuis }}</span>
+          </summary>
+          <pre class="alert-text">{{ a.details.get('texte', '') }}</pre>
+        </details>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  {% if user.role != 'valideur' %}
+  <form class="card" method="post" action="/indicateurs/reference" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('clock') }} Temps passé avant l'agent</h2>
+      <div class="sub">Pour calculer l'objectif « −60 % d'heures de communication manuelle ».</div></div></div>
+    <p class="muted small" style="margin-top:0">Combien d'heures par semaine l'équipe passait-elle, avant l'agent, à trier les mails, répondre, rédiger les publications et les articles ?</p>
+    <div class="inline" style="gap:8px;flex-wrap:nowrap;margin-bottom:10px">
+      <input type="text" name="heures" inputmode="decimal" value="{{ baseline }}" placeholder="Ex. : 25" style="max-width:120px">
+      <span class="muted" style="white-space:nowrap">heures par semaine</span>
+    </div>
+    <button class="btn primary" style="width:100%;justify-content:center">{{ icon('check') }} Enregistrer</button>
+    <p class="muted small" style="margin:12px 0 0">Temps estimé par action : 25 min par publication, 6 min par réponse, 2 h par article… moins le temps de relecture des validations.</p>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

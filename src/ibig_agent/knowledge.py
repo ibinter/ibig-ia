@@ -1,0 +1,387 @@
+"""Base de connaissances : source unique de vérité (section 7).
+
+Un agent ne publie jamais un prix, un contact ou une promesse qui n'y figure pas.
+`verify_facts` contrôle chaque contenu produit avant qu'il ne parte en validation.
+
+Cette version lit des fichiers Markdown versionnés (knowledge/). La recherche
+sémantique (pgvector) viendra se brancher derrière `search()` sans changer l'API.
+"""
+
+from __future__ import annotations
+
+import re
+import unicodedata
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import yaml
+
+
+@dataclass
+class Document:
+    path: str
+    titre: str
+    pole: str
+    type: str
+    body: str
+    meta: dict = field(default_factory=dict)
+
+
+@dataclass
+class Passage:
+    """Section d'un document (découpage aux intertitres ## et ###), citable par son id."""
+
+    id: str
+    doc: Document
+    heading: str
+    text: str
+
+    @property
+    def auto_ok(self) -> bool:
+        """Un humain a validé ce document comme source de réponses automatiques."""
+        return self.doc.meta.get("reponses_auto") is True
+
+
+# Marqueur des informations à fournir par IBIG : un texte qui le contient n'est jamais
+# utilisé pour répondre (FAQ automatique, passage cité par le Support).
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+# Repère d'une réponse importée d'un site : à supprimer après relecture pour l'activer
+IMPORT_MARK = re.compile(r"<!--\s*(source\s*:|importé)", re.IGNORECASE)
+# Similarité de sens minimale pour retenir un passage sans mot commun avec la question
+SENSE_MIN = 0.45
+PLACEHOLDER = re.compile(r"[àa]\s+compl[ée]ter", re.IGNORECASE)
+
+
+def is_placeholder(text: str) -> bool:
+    return bool(PLACEHOLDER.search(text))
+
+
+def normalize_quote(text: str) -> str:
+    """Pour vérifier une citation : casse, espaces, apostrophes et emphase ignorés."""
+    text = text.replace("’", "'").replace("«", '"').replace("»", '"')
+    text = re.sub(r"[*_`]", "", text.lower())
+    return re.sub(r"\s+", " ", text).strip(" .;:")
+
+
+@dataclass
+class FaqEntry:
+    id: str
+    pole: str
+    question: str
+    answer: str
+    # Réponse importée d'un site : pas d'envoi automatique avant relecture humaine
+    a_relire: bool = False
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
+    )
+
+
+def _tokens(text: str) -> list[str]:
+    return [t for t in re.findall(r"[a-z0-9]+", _strip_accents(text.lower())) if len(t) > 2]
+
+
+# Mots trop fréquents pour départager des passages (après suppression des accents).
+STOPWORDS = {
+    "les", "des", "une", "est", "son", "ses", "aux", "avec", "pour", "par", "sur", "dans",
+    "que", "qui", "quoi", "quel", "quelle", "quels", "quelles", "comment", "combien",
+    "pourquoi", "quand", "ont", "sont", "etre", "avoir", "fait", "faire", "vous", "nous",
+    "votre", "vos", "notre", "nos", "leur", "leurs", "cette", "ces", "cet", "mon", "mes",
+    "ton", "tes", "plus", "moins", "tres", "bien", "aussi", "mais", "donc", "car", "pas",
+    "the", "and", "for", "you", "are", "with", "this", "that", "what", "how", "can", "your",
+}
+
+
+def _keywords(text: str) -> list[str]:
+    return [t for t in _tokens(text) if t not in STOPWORDS]
+
+
+def _slug(text: str) -> str:
+    return "-".join(_tokens(text))[:60] or "entree"
+
+
+def split_front_matter(raw: str) -> tuple[dict, str]:
+    if raw.startswith("---"):
+        _, fm, body = raw.split("---", 2)
+        return yaml.safe_load(fm) or {}, body
+    return {}, raw
+
+
+def parse_text(rel_path: str, raw: str) -> Document:
+    meta, body = split_front_matter(raw)
+    return Document(
+        path=rel_path,
+        titre=str(meta.get("titre", Path(rel_path).stem)),
+        pole=str(meta.get("pole", "") or ""),
+        type=str(meta.get("type", "") or ""),
+        body=body.strip(),
+        meta=meta,
+    )
+
+
+# --- Extraction des faits sensibles --------------------------------------------------
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_URL = re.compile(r"(?:https?://|www\.)[^\s)>\]\"']+", re.IGNORECASE)
+_PHONE = re.compile(r"(?:\+|00)?\d[\d .-]{7,}\d")
+_PRICE = re.compile(
+    r"\d[\d .,]*\s?(?:f\s?cfa|fcfa|xof|cfa|€|eur|euros?|\$|usd|dollars?)(?![a-z])"
+    r"|(?:€|\$)\s?\d[\d .,]*",
+    re.IGNORECASE,
+)
+_DATE = re.compile(r"\d{4}[-/.]\d{2}[-/.]\d{2}|\d{2}[-/.]\d{2}[-/.]\d{4}")
+_PERCENT = re.compile(r"\d+(?:[.,]\d+)?\s?%")
+
+
+def _digits(s: str) -> str:
+    return re.sub(r"\D", "", s)
+
+
+def _norm_url(u: str) -> str:
+    u = re.sub(r"^https?://", "", u.lower()).removeprefix("www.")
+    return u.rstrip("/.,;:")
+
+
+@dataclass
+class FactIssue:
+    kind: str  # email | url | telephone | prix | pourcentage | formulation_interdite
+    value: str
+
+    def __str__(self) -> str:
+        return f"{self.kind} : {self.value}"
+
+
+class KnowledgeBase:
+    def __init__(self, root: Path, overrides: dict[str, str] | None = None) -> None:
+        self.root = Path(root)
+        # Documents modifiés ou créés depuis le tableau de bord (chemin relatif -> texte)
+        self.overrides = dict(overrides or {})
+        self.documents: list[Document] = []
+        self.faq: list[FaqEntry] = []
+        self.passages: list[Passage] = []
+        # Recherche par le sens (semantic.SemanticIndex.scores), branchée par le runtime :
+        # question -> {id de passage: similarité}. Sans elle : mots-clés seuls.
+        self.semantic = None
+        self.reload()
+
+    def file_text(self, rel_path: str) -> str:
+        """Texte d'origine (fichier livré avec le logiciel), vide pour un nouveau document."""
+        root = self.root.resolve()
+        path = (root / rel_path).resolve()
+        if not path.is_relative_to(root):  # chemin absolu, « .. », lien vers l'extérieur
+            return ""
+        return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+    def raw(self, rel_path: str) -> str:
+        return self.overrides.get(rel_path) or self.file_text(rel_path)
+
+    def reload(self) -> None:
+        texts = {
+            str(p.relative_to(self.root)): p.read_text(encoding="utf-8")
+            for p in sorted(self.root.rglob("*.md"))
+            if p.name != "README.md" and not p.name.startswith("_")
+        }
+        texts.update(self.overrides)
+        self.documents = [parse_text(path, raw) for path, raw in sorted(texts.items())]
+        self.faq, self.faq_pending = [], []
+        for doc in self.documents:
+            if doc.type == "faq":
+                for entry in self._faq_entries(doc):
+                    # Réponse encore à rédiger : jamais envoyée automatiquement.
+                    pending = is_placeholder(entry.answer) or entry.a_relire
+                    (self.faq_pending if pending else self.faq).append(entry)
+        self.passages = [p for d in self.documents for p in self._split(d)]
+        # Les publications passées calent le style mais ne font pas foi : un prix ou un
+        # contact d'une ancienne publication ne valide jamais un nouveau contenu.
+        corpus = "\n".join(d.body for d in self.documents if d.type != "publication")
+        self._emails = {e.lower() for e in _EMAIL.findall(corpus)}
+        self._urls = {_norm_url(u) for u in _URL.findall(corpus)}
+        self._phones = {_digits(p) for p in _PHONE.findall(corpus)}
+        self._prices = {_digits(p) for p in _PRICE.findall(corpus)}
+        self._percents = {_digits(p) for p in _PERCENT.findall(corpus)}
+        self._forbidden = self._forbidden_phrases()
+
+    @staticmethod
+    def _faq_entries(doc: Document) -> list[FaqEntry]:
+        entries = []
+        stem = Path(doc.path).stem
+        for block in re.split(r"^##\s+", doc.body, flags=re.MULTILINE)[1:]:
+            question, _, answer = block.partition("\n")
+            question = question.strip().removeprefix("Q:").strip()
+            review = bool(IMPORT_MARK.search(answer))
+            # Les commentaires (repères, consignes) ne partent jamais chez un client.
+            answer = HTML_COMMENT.sub("", answer).strip()
+            if answer:
+                entries.append(FaqEntry(f"{stem}#{_slug(question)}", doc.pole, question,
+                                        answer, review))
+        return entries
+
+    @staticmethod
+    def _split(doc: Document) -> list[Passage]:
+        parts = re.split(r"^(#{2,3}\s+.+)$", doc.body, flags=re.MULTILINE)
+        passages, heading = [], doc.titre
+        if parts[0].strip():
+            passages.append((heading, parts[0].strip()))
+        for i in range(1, len(parts), 2):
+            heading = parts[i].lstrip("#").strip()
+            if parts[i + 1].strip():
+                passages.append((heading, parts[i + 1].strip()))
+        return [Passage(f"{doc.path}#{n}", doc, h, t) for n, (h, t) in enumerate(passages, 1)]
+
+    def _forbidden_phrases(self) -> list[str]:
+        phrases = []
+        for doc in self.documents:
+            if doc.type != "interdits":
+                continue
+            section = re.split(r"^##\s+Formulations", doc.body, flags=re.MULTILINE)
+            if len(section) < 2:
+                continue
+            for line in section[1].splitlines():
+                if line.startswith("## "):
+                    break
+                m = re.match(r"\s*[-*]\s*[«\"“]?\s*(.+?)\s*[»\"”]?\s*$", line)
+                if m:
+                    phrases.append(m.group(1).lower())
+        return phrases
+
+    # ------------------------------------------------------------------ lecture
+    def docs_for_pole(self, pole: str) -> list[Document]:
+        return [d for d in self.documents if d.pole in (pole, "GROUPE")]
+
+    def faq_for_pole(self, pole: str) -> list[FaqEntry]:
+        return [f for f in self.faq if f.pole in (pole, "GROUPE")]
+
+    def faq_by_id(self, faq_id: str) -> FaqEntry | None:
+        return next((f for f in self.faq if f.id == faq_id), None)
+
+    def _sense(self, query: str) -> dict[str, float]:
+        return self.semantic(query) if self.semantic and query.strip() else {}
+
+    @staticmethod
+    def _kw_score(q: set[str], text: str) -> float:
+        words = _keywords(text)
+        return sum(1 for w in words if w in q) / (1 + len(words) ** 0.5)
+
+    def _rank(self, items: list, kw: dict, sense: dict, k: int) -> list:
+        """Hybride : mots-clés (ramenés entre 0 et 1) + similarité de sens. Un élément sans
+        mot commun n'est retenu que si son sens est vraiment proche de la question."""
+        top = max(kw.values(), default=0) or 1
+        scored = []
+        for key, item in items:
+            s_kw, s_sense = kw.get(key, 0) / top, sense.get(key, 0.0)
+            if s_kw > 0 or s_sense >= SENSE_MIN:
+                scored.append((s_kw + (2 * s_sense if sense else 0), item))
+        return [it for _, it in sorted(scored, key=lambda x: -x[0])[:k]]
+
+    def search(self, query: str, pole: str | None = None, k: int = 4) -> list[Document]:
+        q = set(_keywords(query))
+        docs = [d for d in self.documents if not pole or d.pole in (pole, "GROUPE")]
+        kw = {d.path: self._kw_score(q, d.titre + " " + d.body) for d in docs}
+        sense: dict[str, float] = {}
+        for pid, sc in self._sense(query).items():
+            path = pid.rsplit("#", 1)[0]
+            sense[path] = max(sense.get(path, 0.0), sc)
+        return self._rank([(d.path, d) for d in docs], kw, sense, k)
+
+    def search_passages(self, query: str, pole: str, k: int = 6,
+                        types: tuple[str, ...] = ("guide", "faq", "catalogue", "fiche_pole",
+                                                  "contacts")) -> list[Passage]:
+        q = set(_keywords(query))
+        items = [p for p in self.passages
+                 if p.doc.type in types and p.doc.pole in (pole, "GROUPE")
+                 and not is_placeholder(p.text)]
+        kw = {p.id: self._kw_score(q, f"{p.doc.titre} {p.heading} {p.text}") for p in items}
+        return self._rank([(p.id, p) for p in items], kw, self._sense(query), k)
+
+    def products(self, pole: str | None = None) -> list[str]:
+        """Solutions, formations et offres des catalogues (colonne « Solution »,
+        « Formation », « Produit » ou « Offre »), sans les lignes à compléter."""
+        names: list[str] = []
+        for d in self.documents:
+            if d.type != "catalogue" or (pole and d.pole not in (pole, "GROUPE")):
+                continue
+            col = None
+            for line in d.body.splitlines():
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if not line.strip().startswith("|") or set("".join(cells)) <= set("-: "):
+                    continue
+                if col is None:
+                    col = next((i for i, c in enumerate(cells) if _strip_accents(c).lower()
+                                in ("solution", "formation", "produit", "offre")), None)
+                    if col is None:
+                        break
+                    continue
+                if col < len(cells) and cells[col] and not is_placeholder(cells[col]):
+                    names.append(cells[col])
+        return list(dict.fromkeys(names))
+
+    def passage(self, passage_id: str) -> Passage | None:
+        return next((p for p in self.passages if p.id == passage_id), None)
+
+    def style_examples(self, pole: str, reseau: str = "", limit: int = 4,
+                       max_chars: int = 4000) -> str:
+        """Publications réussies du pôle (ou du groupe), pour caler le ton (section 7)."""
+        docs = [d for d in self.documents if d.type == "publication"
+                and d.pole in (pole, "GROUPE", "")]
+        docs.sort(key=lambda d: (d.pole != pole, d.meta.get("reseau") != reseau))
+        parts, size = [], 0
+        for d in docs[:limit]:
+            chunk = (f"- [{d.meta.get('reseau', '?')}, {d.pole or 'groupe'}] "
+                     f"{d.body.strip()[:900]}\n")
+            if size + len(chunk) > max_chars:
+                break
+            parts.append(chunk)
+            size += len(chunk)
+        if not parts:
+            return ""
+        return ("Exemples de publications réussies d'IBIG, pour le ton et le format "
+                "UNIQUEMENT (ne pas les copier ; leurs prix, dates et chiffres ne font pas foi) "
+                ":\n" + "".join(parts))
+
+    def context_for(self, pole: str, query: str = "", max_chars: int = 12000) -> str:
+        """Contexte stable pour un pôle : charte, fiche, contacts, interdits, FAQ."""
+        wanted = ("charte", "fiche_pole", "contacts", "interdits", "catalogue", "faq")
+        docs = [d for d in self.docs_for_pole(pole) if d.type in wanted]
+        if query:
+            docs += [d for d in self.search(query, pole) if d not in docs]
+        parts, size = [], 0
+        for d in docs:
+            chunk = f"### {d.titre} ({d.path})\n{d.body}\n"
+            if size + len(chunk) > max_chars:
+                break
+            parts.append(chunk)
+            size += len(chunk)
+        return "\n".join(parts)
+
+    # --------------------------------------------------------------- contrôle
+    def verify_facts(self, text: str) -> list[FactIssue]:
+        """Liste les faits du texte absents de la base (R-05 : zéro erreur publiée)."""
+        issues: list[FactIssue] = []
+        for e in _EMAIL.findall(text):
+            if e.lower() not in self._emails:
+                issues.append(FactIssue("email", e))
+        text_wo_emails = _EMAIL.sub(" ", text)
+        for u in _URL.findall(text_wo_emails):
+            nu = _norm_url(u)
+            if not any(nu == k or nu.startswith(k + "/") for k in self._urls):
+                issues.append(FactIssue("url", u))
+        text_wo_urls = _URL.sub(" ", text_wo_emails)
+        for p in _PRICE.findall(text_wo_urls):
+            if _digits(p) not in self._prices:
+                issues.append(FactIssue("prix", p.strip()))
+        text_wo_prices = _PRICE.sub(" ", text_wo_urls)
+        for p in _PHONE.findall(text_wo_prices):
+            if _DATE.fullmatch(p.strip()):
+                continue
+            d = _digits(p)
+            if len(d) >= 8 and not any(d.endswith(k[-8:]) for k in self._phones if len(k) >= 8):
+                issues.append(FactIssue("telephone", p.strip()))
+        for p in _PERCENT.findall(text_wo_prices):
+            if _digits(p) not in self._percents:
+                issues.append(FactIssue("pourcentage", p.strip()))
+        low = text.lower()
+        for phrase in self._forbidden:
+            if phrase and phrase in low:
+                issues.append(FactIssue("formulation_interdite", phrase))
+        return issues

@@ -1,0 +1,58 @@
+# Déploiement sur le VPS (section 14) : agent + PostgreSQL avec pgvector.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ibig_agent
+      POSTGRES_USER: ibig
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ibig -d ibig_agent"]
+      interval: 10s
+      retries: 5
+
+  agent:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      IBIG_DATABASE_URL: postgresql+psycopg://ibig:${POSTGRES_PASSWORD}@db:5432/ibig_agent
+    volumes:
+      # Configuration et base de connaissances tenues à jour sans reconstruire l'image
+      - ./config:/app/config:ro
+      - ./knowledge:/app/knowledge:ro
+      # Articles livrés en HTML pour les sites sans back-office
+      - ./exports:/app/exports
+    # Publié sur 127.0.0.1 seulement (injoignable depuis Internet) : utilisé quand un
+    # nginx déjà présent sur le serveur sert le HTTPS à la place de Caddy.
+    expose: ["8000"]
+    ports: ["127.0.0.1:${IBIG_LOCAL_PORT:-18000}:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "10"}
+
+  # HTTPS intégré, actif avec COMPOSE_PROFILES=caddy dans .env (serveur dédié). Laisser
+  # COMPOSE_PROFILES vide si un nginx existant occupe déjà les ports 80 et 443.
+  caddy:
+    image: caddy:2
+    profiles: ["caddy"]
+    restart: unless-stopped
+    environment:
+      IBIG_DOMAIN: ${IBIG_DOMAIN:?définir IBIG_DOMAIN dans .env (ex. agent.exemple.ci)}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [agent]
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

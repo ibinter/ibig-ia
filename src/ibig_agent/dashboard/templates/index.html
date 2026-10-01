@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon, channel_icon %}
+{% block title %}Accueil{% endblock %}
+{% block heading %}Bonjour, {{ user.name.split(' ')[0] if user.role == 'valideur' else user.name }}{% endblock %}
+{% block lead %}
+<p class="lead">{% if stats.pending %}<b>{{ stats.pending }}</b> proposition{{ 's' if stats.pending > 1 }} attend{{ 'ent' if stats.pending > 1 }} votre validation.
+  {% else %}Tout est à jour : aucune proposition n'attend votre validation.{% endif %}
+  {% if user.role == 'valideur' %}Vos pôles : {{ user.poles | join(', ') or 'aucun pôle attribué' }}.{% endif %}</p>
+{% endblock %}
+{% block tools %}<a class="btn primary" href="/validations">{{ icon('check-circle') }} Ouvrir les validations</a>{% endblock %}
+{% block content %}
+{% set stopped = states.values() | selectattr('stopped') | list %}
+{% if stopped %}
+<div class="banner">{{ icon('power') }}<span>Agent suspendu sur :
+  {% for s in stopped %}<b>{{ 'tout le périmètre' if s.channel == '*' else s.channel }}</b>{{ ', ' if not loop.last }}{% endfor %}.</span>
+  <a class="btn sm ghost-bad" href="/arret" style="margin-left:auto">Gérer</a></div>
+{% endif %}
+
+{% if steps and setup[0] < setup[1] %}
+{% set nxt = (steps | rejectattr('done') | rejectattr('optional') | first) %}
+<a class="setup-strip fade-in" href="/demarrage">
+  <span class="setup-strip-ico">{{ icon('sparkles') }}</span>
+  <span class="setup-strip-txt"><small>Mise en route · {{ setup[0] }} sur {{ setup[1] }}</small><b>Prochaine étape : {{ nxt.title | lower }}</b></span>
+  <span class="setup-strip-bar"><span style="width:{{ (setup[0] / setup[1] * 100) | round(0) }}%"></span></span>
+  <span class="btn sm">Voir quoi faire {{ icon('arrow-right') }}</span>
+</a>
+{% endif %}
+
+{# ------------------------------------------------ chiffres clés #}
+<div class="grid g-4">
+  <a class="card kpi hero fade-in" href="/validations">
+    <div class="ico">{{ icon('check-circle') }}</div>
+    <div class="val">{{ stats.pending }}</div>
+    <div class="lbl">à valider</div>
+    <div class="foot">{{ icon('arrow-right') }} Relire et envoyer</div>
+  </a>
+  {% if user.role == 'valideur' %}
+  <a class="card kpi t-red fade-in" href="/tickets">
+    <div class="ico">{{ icon('life') }}</div>
+    <div class="val">{{ stats.open_tickets }}</div>
+    <div class="lbl">tickets de support ouverts</div>
+    <div class="foot">Questions transmises à un humain</div>
+  </a>
+  {% else %}
+  <a class="card kpi t-red fade-in" href="/validations#niveau3">
+    <div class="ico">{{ icon('hand') }}</div>
+    <div class="val">{{ stats.prepared }}</div>
+    <div class="lbl">dossiers sensibles pour vous</div>
+    <div class="foot">Plaintes, litiges, suspects</div>
+  </a>
+  {% endif %}
+  <a class="card kpi t-blue fade-in" href="/journal">
+    <div class="ico">{{ icon('mail') }}</div>
+    <div class="val">{{ stats.mails_24h }}</div>
+    <div class="lbl">mails lus en 24 h</div>
+    <div class="foot">{{ stats.mails_total }} traités au total</div>
+  </a>
+  <a class="card kpi t-amber fade-in" href="/prospects">
+    <div class="ico">{{ icon('flame') }}</div>
+    <div class="val">{{ stats.prospects }}</div>
+    <div class="lbl">prospects</div>
+    <div class="foot">{% if stats.hot_prospects %}<span class="pill red">{{ stats.hot_prospects }} chaud{{ 's' if stats.hot_prospects > 1 }}</span>{% else %}Aucun prospect chaud{% endif %}</div>
+  </a>
+</div>
+
+{# ------------------------------------------------ priorités + à venir #}
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head"><div><h2>À traiter en priorité</h2><div class="sub">Les éléments en retard d'abord, puis les plus anciens</div></div>
+      <a class="btn sm" href="/validations">Tout voir {{ icon('arrow-right') }}</a></div>
+    {% if stats.priority %}
+    <ul class="prio-list">
+      {% for pa in stats.priority %}
+      <li>
+        <a href="/validations{{ '#niveau3' if pa.level == 3 else '#p' ~ pa.id }}">
+          <span class="todo-ico lv{{ pa.level }}">{{ icon(pa.action_type | action_icon) }}</span>
+          <span class="todo-txt"><b>{{ pa.title }}</b>
+            <small>{{ pa.action_type | action_label }}{% if pa.pole %} · {{ pa.pole }}{% endif %} · {{ pa.created_at | depuis }}</small></span>
+          {% if pa.flagged_at %}<span class="pill red dot">plus de 24 h</span>
+          {% elif pa.level == 3 %}<span class="pill red">humain</span>
+          {% else %}<span class="pill amber">à valider</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty"><div class="bubble" style="background:var(--ok-soft);color:var(--ok)">{{ icon('check') }}</div><b>Rien en attente</b>Les propositions de l'agent apparaîtront ici dès qu'il en préparera.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h2>À venir et alertes</h2><div class="sub">Publications programmées, veille</div></div></div>
+    {% if stats.upcoming %}
+    <h3 class="mini-h">{{ icon('calendar') }} Publications programmées</h3>
+    <ul class="mini-list">
+      {% for p in stats.upcoming %}
+      <li><span class="mini-date">{{ p.publish_at | quand }}</span>
+        <span class="mini-txt"><b>{{ p.titre or p.compte }}</b><small>{{ p.compte }} · {{ p.reseau | replace('_', ' ') }}</small></span>
+        {% if p.status == 'echec' %}<span class="pill red">échec</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if stats.alerts %}
+    <h3 class="mini-h">{{ icon('eye') }} Alertes de veille (7 jours)</h3>
+    <ul class="mini-list">
+      {% for a in stats.alerts %}
+      <li><span class="mini-date">{{ a.created_at | depuis }}</span>
+        <span class="mini-txt"><b>{{ a.summary }}</b>{% if a.pole %}<small>{{ a.pole }}</small>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if not stats.upcoming and not stats.alerts %}
+    <div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Rien de prévu</b>Les publications validées pour un compte raccordé et les alertes de veille s'afficheront ici.</div>
+    {% endif %}
+    <div class="inline" style="gap:8px;margin-top:14px">
+      <a class="pill {{ 'red' if stats.open_tickets else 'green' }}" href="/tickets">{{ icon('life') }} {{ stats.open_tickets }} ticket{{ 's' if stats.open_tickets > 1 }} ouvert{{ 's' if stats.open_tickets > 1 }}</a>
+      <span class="pill {{ 'red' if stats.suspicious_24h else 'green' }}">{{ icon('shield') }} {{ stats.suspicious_24h }} suspect{{ 's' if stats.suspicious_24h > 1 }} (24 h)</span>
+    </div>
+  </div>
+</div>
+
+{# ------------------------------------------------ activité + budget / pôles #}
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head">
+      <div><h2>Activité des 14 derniers jours</h2><div class="sub">Mails reçus et traités par l'agent</div></div>
+      <span class="pill blue">{{ stats.activity_total }} au total</span>
+    </div>
+    {% set top = stats.activity_max or 1 %}
+    <div class="bars">
+      {% for d in stats.activity %}
+      <div class="bar">
+        <div class="col {{ 'zero' if not d.count }}" data-n="{{ d.count }} mail{{ 's' if d.count > 1 }}" style="height:{{ [d.count / top * 100, 2] | max }}%; animation-delay:{{ loop.index0 * 30 }}ms"></div>
+        <small>{{ d.day | jour_court }}</small>
+      </div>
+      {% endfor %}
+    </div>
+    {% if not stats.activity_total %}<p class="muted" style="text-align:center;margin:14px 0 0">Aucun mail pour l'instant : la courbe se remplira dès qu'une boîte mail sera raccordée{% if user.role != 'valideur' %} (<a href="/boites">boîtes mail</a>){% endif %}.</p>{% endif %}
+  </div>
+
+  <div class="card">
+    {% if user.role != 'valideur' %}
+    {% set pct = (stats.ai_ratio * 100) | round(0) | int %}
+    <div class="card-head"><div><h2>Budget IA du mois</h2><div class="sub">Alerte à 80 %, arrêt au plafond</div></div>
+      <span class="pill {{ 'red' if pct >= 80 else 'green' }}">{{ pct }} %</span></div>
+    <div class="budget-line"><b>{{ '%.2f' | format(stats.ai_spend) }} $</b><span class="muted">sur {{ stats.ai_budget | round(0) | int }} $</span></div>
+    <div class="hbar"><div class="track"><div class="fill" style="width:{{ [pct, 1] | max }}%;{{ 'background:var(--bad)' if pct >= 80 }}"></div></div></div>
+    <hr class="divider">
+    {% endif %}
+    <h3 class="mini-h">{{ icon('chart') }} Mails par pôle (30 jours)</h3>
+    {% if stats.by_pole %}
+      {% for pole, n in stats.by_pole %}
+      <div class="hbar"><div class="top-line"><b>{{ pole }}</b><span class="muted">{{ n }}</span></div>
+        <div class="track"><div class="fill" style="width:{{ (n / stats.by_pole_max * 100) | round(1) }}%"></div></div></div>
+      {% endfor %}
+    {% else %}
+      <p class="muted" style="margin:0">Aucun mail sur la période.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ------------------------------------------------ journal + canaux #}
+<div class="grid g-main" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head"><div><h2>Dernières actions de l'agent</h2><div class="sub">Tout est journalisé, avec qui a validé et quand</div></div>
+      <a class="btn sm" href="/journal">Tout le journal {{ icon('arrow-right') }}</a></div>
+    {% if stats.recent %}
+    <ul class="feed">
+      {% for r in stats.recent %}
+      <li><span class="dot lv{{ r.level }}">{{ icon(r.action_type | action_icon) }}</span>
+        <span class="txt"><b>{{ r.summary or (r.action_type | action_label) }}</b>
+          <small>{{ r.action_type | action_label }}{% if r.pole %} · {{ r.pole }}{% endif %} · {{ r.created_at | depuis }}</small></span>
+        <span class="pill {{ {'executed': 'green', 'pending': 'amber', 'queued': 'amber', 'prepared': 'red', 'failed': 'red', 'rejected': 'red', 'blocked': 'red', 'flagged': 'amber'}.get(r.status, '') }}">{{ r.status | statut }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty"><div class="bubble">{{ icon('sparkles') }}</div><b>Prêt à démarrer</b>Les actions de l'agent apparaîtront ici.</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h2>Canaux</h2><div class="sub">Vert : actif · rouge : suspendu</div></div>
+      <a class="btn sm ghost-bad" href="/arret">{{ icon('power') }} Arrêt</a></div>
+    <div class="chan-list">
+      {% for c in channels %}{% set st = states.get(c) %}{% set off = (st and st.stopped) or (states.get('*') and states.get('*').stopped) %}
+      <div class="chan {{ 'off' if off }}"><span class="led"></span>{{ channel_icon(c) }}<span>{{ {'sara': 'SARA', 'whatsapp': 'WhatsApp', 'linkedin': 'LinkedIn', 'tiktok': 'TikTok', 'x': 'X', 'emailing': 'Campagnes mail'}.get(c, c | capitalize) }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if report %}
+<details class="card report-card" style="margin-top:16px">
+  <summary><span>{{ icon('file') }} Synthèse des dernières 24 h</span><small class="muted">Rapport de l'agent chef, envoyé chaque matin à 8 h</small></summary>
+  <div class="report-text"><pre>{{ report }}</pre></div>
+  <a class="btn sm" href="/rapports" style="margin-top:12px">Tous les rapports {{ icon('arrow-right') }}</a>
+</details>
+{% endif %}
+{% endblock %}

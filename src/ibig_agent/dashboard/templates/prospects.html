@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Prospects{% endblock %}
+{% block heading %}Prospects{% endblock %}
+{% block lead %}<p class="lead">L'agent Commercial crée une fiche à chaque demande, la note de 0 à 100 et prépare les relances à J+3, J+7 et J+14 (à valider). « Stop » arrête les relances d'un prospect.</p>{% endblock %}
+{% block content %}
+{% set COLS = [
+  ('todo', 'À traiter', ['nouveau', 'qualifie'], 'amber'),
+  ('talk', 'En discussion', ['en_discussion', 'relance'], 'blue'),
+  ('won', 'Gagnés', ['gagne'], 'green'),
+  ('lost', 'Perdus ou sans suite', ['perdu', 'sans_suite'], 'red')] %}
+{% set hot = rows | selectattr('temperature', 'equalto', 'chaud') | list | length %}
+{% set trials = rows | selectattr('trial_ends_at') | list | length %}
+{% set won = rows | selectattr('status', 'equalto', 'gagne') | list | length %}
+{% set poles_here = rows | map(attribute='pole') | reject('equalto', '') | unique | sort | list %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-red"><b>{{ hot }}</b><span>chaud{{ 's' if hot > 1 }} : à appeler</span></div>
+  <div class="cal-stat s-blue"><b>{{ rows | length }}</b><span>prospect{{ 's' if rows | length > 1 }} au total</span></div>
+  <div class="cal-stat s-violet"><b>{{ trials }}</b><span>essai{{ 's' if trials > 1 }} en cours</span></div>
+  <div class="cal-stat s-green"><b>{{ won }}</b><span>gagné{{ 's' if won > 1 }}</span></div>
+</div>
+
+{% if rows %}
+<div class="filter-bar">
+  <div class="chips">
+    <button type="button" class="chip on" data-t="">Tous</button>
+    <button type="button" class="chip" data-t="chaud">🔥 Chauds</button>
+    <button type="button" class="chip" data-t="tiede">Tièdes</button>
+    <button type="button" class="chip" data-t="froid">Froids</button>
+  </div>
+  {% if poles_here | length > 1 %}<select id="f-pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in poles_here %}<option>{{ p }}</option>{% endfor %}</select>{% endif %}
+</div>
+<div class="kanban">
+  {% for key, title, statuses, col in COLS %}
+  {% set items = rows | selectattr('status', 'in', statuses) | list %}
+  <section class="kcol k-{{ col }}">
+    <header><b>{{ title }}</b><span class="pill {{ col }}">{{ items | length }}</span></header>
+    {% for p in items %}
+    <article class="kcard" data-t="{{ p.temperature }}" data-pole="{{ p.pole }}">
+      <div class="kcard-head">
+        <span class="avatar" style="width:34px;height:34px;font-size:12px">{{ (p.name or p.email) | initiales }}</span>
+        <div class="kname"><b>{{ p.name or p.email.split('@')[0] }}</b><small>{{ p.email }}</small></div>
+        <span class="pill violet">{{ p.pole }}</span>
+      </div>
+      {% if p.qualified_at %}
+      <div class="kscore"><span class="temp t-{{ p.temperature }}">{{ {'chaud': '🔥 chaud', 'tiede': 'tiède', 'froid': 'froid'}.get(p.temperature, p.temperature) }}</span>
+        <span class="track"><span class="fill {{ 'hot' if p.temperature == 'chaud' else ('warm' if p.temperature == 'tiede' else 'cold') }}" style="width:{{ [p.score, 100] | min }}%"></span></span><b>{{ p.score }}</b></div>
+      {% else %}<span class="pill">à qualifier</span>{% endif %}
+      {% if p.need %}<p class="kneed">{{ p.need[:160] }}{% if p.solution %} <span class="muted">→ {{ p.solution }}</span>{% endif %}</p>{% endif %}
+      {% if p.next_step %}<div class="knext">{{ icon('arrow-right') }}<span>{{ p.next_step }}</span></div>{% endif %}
+      <div class="kmeta">
+        {% if p.trial_ends_at %}<span>{{ icon('clock') }} essai → {{ p.trial_ends_at | quand(false) }}</span>{% endif %}
+        {% if p.demo_at %}<span>{{ icon('calendar') }} démo {{ p.demo_at | quand }}</span>{% endif %}
+        {% if p.followups_sent %}<span>{{ icon('mail') }} {{ p.followups_sent }} relance{{ 's' if p.followups_sent > 1 }}</span>{% endif %}
+        {% if p.stop_followups %}<span style="color:var(--bad)">{{ icon('pause') }} relances arrêtées</span>{% endif %}
+      </div>
+      <form method="post" action="/prospects/{{ p.id }}/statut" class="kact">
+        <select name="statut" aria-label="Changer le statut">
+          <option value="gagne">Marquer gagné</option><option value="perdu">Marquer perdu</option>
+          <option value="stop">Arrêter les relances</option><option value="reprise">Reprendre</option>
+        </select><button class="btn sm">OK</button>
+      </form>
+    </article>
+    {% else %}<p class="kempty">Aucun prospect</p>{% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('target') }}</div><b>Pas encore de prospect</b>L'agent Commercial crée une fiche à chaque demande d'information ou de devis reçue par mail ou WhatsApp. Essayez avec le scénario « Demande de devis » de <a href="/essai">Essayer l'agent</a>.</div></div>
+{% endif %}
+<script>
+(function () {
+  var t = '', pole = '';
+  function apply() {
+    document.querySelectorAll('.kcard').forEach(function (el) {
+      el.hidden = (t && el.dataset.t !== t) || (pole && el.dataset.pole !== pole);
+    });
+  }
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); t = b.dataset.t; apply();
+    });
+  });
+  var sel = document.getElementById('f-pole');
+  if (sel) sel.addEventListener('change', function () { pole = sel.value; apply(); });
+})();
+</script>
+{% endblock %}

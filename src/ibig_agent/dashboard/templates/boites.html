@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Boîtes mail{% endblock %}
+{% block heading %}Boîtes mail{% endblock %}
+{% block lead %}<p class="lead">Les boîtes que l'agent Messagerie relève toutes les 5 minutes (section 9, option A : raccordement direct). Les mots de passe sont chiffrés dans le coffre de l'agent et ne sont jamais réaffichés.</p>{% endblock %}
+{% block tools %}{% if boxes %}<form method="post" action="/boites/tester-tout"><button class="btn" onclick="this.innerHTML='Test en cours…'">{{ icon('shield-check') }} Tester toutes les boîtes</button></form>{% endif %}{% endblock %}
+{% block content %}
+{% set lws = boxes | selectattr('0.hebergeur', 'equalto', 'lws') | list | length %}
+{% set covered = boxes | map(attribute='0.pole') | unique | list %}
+{% set missing = poles | rejectattr('code', 'in', covered) | list %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-blue"><b>{{ boxes | length }}</b><span>boîte{{ 's' if boxes | length > 1 }} relevée{{ 's' if boxes | length > 1 }}</span></div>
+  <div class="cal-stat s-violet"><b>{{ lws }}</b><span>chez LWS</span></div>
+  <div class="cal-stat s-red"><b>{{ boxes | length - lws }}</b><span>Gmail</span></div>
+  <div class="cal-stat s-{{ 'green' if not missing else 'amber' }}"><b>{{ poles | length - missing | length }}/{{ poles | length }}</b><span>pôles couverts</span></div>
+</div>
+
+{% if missing and boxes %}
+<div class="alert amber" style="margin-bottom:14px">{{ icon('alert') }}<span>Aucune boîte pour : <b>{{ missing | map(attribute='code') | join(', ') }}</b>. Les mails de ces pôles ne sont pas encore traités par l'agent.</span></div>
+{% endif %}
+
+<div class="grid g-main">
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('inbox') }} Boîtes raccordées</h2><div class="sub">Classées par pôle</div></div>
+      {% if boxes | length > 4 %}<div class="inline" style="gap:8px">
+        <select id="f-pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for c in covered | sort %}<option>{{ c }}</option>{% endfor %}</select>
+        <input type="search" id="q" placeholder="Chercher une adresse…" style="width:190px">
+      </div>{% endif %}
+    </div>
+    {% if not boxes %}
+    <div class="empty"><div class="bubble" style="background:var(--warn-soft);color:var(--warn)">{{ icon('mail') }}</div><b>Aucune boîte raccordée</b>Ajoutez la première avec le formulaire : c'est elle qui donnera du travail à l'agent. Vous avez beaucoup de boîtes ? Utilisez l'onglet « Plusieurs » pour les raccorder d'un coup.</div>
+    {% endif %}
+    {% for pole, items in boxes | groupby('0.pole') %}
+    <section class="box-group" data-pole="{{ pole }}">
+      <h4 class="tl-day">{{ pole }} <span class="pill">{{ items | length }}</span></h4>
+      <div class="box-list">
+      {% for m, mine, row in items %}
+        <div class="box" data-pole="{{ m.pole }}">
+          <span class="acc-ico" style="background:{{ '#ea4335' if m.hebergeur == 'gmail' else 'var(--brand)' }}">{{ icon('mail') }}</span>
+          <div class="acc-name"><b>{{ m.adresse }}</b>
+            <small>{{ 'LWS' if m.hebergeur == 'lws' else 'Gmail' }}{% if m.responsable %} · transferts → {{ m.responsable }}{% endif %}{% if not mine %} · réglée sur le serveur{% endif %}</small></div>
+          <div class="box-actions">
+            <form method="post" action="/boites/tester"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="btn sm" onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester</button></form>
+            {% if mine %}<form method="post" action="/boites/retirer" data-confirm="Retirer {{ m.adresse }} ? L'agent ne la lira plus."><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="icon-btn" title="Retirer" aria-label="Retirer {{ m.adresse }}">{{ icon('x') }}</button></form>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+    <p class="muted filter-empty" hidden style="text-align:center">Aucune boîte pour ce filtre.</p>
+  </div>
+
+  <div class="card" style="align-self:start">
+    <div class="tabs" role="tablist" data-remember="boites">
+      <button type="button" class="tab on" data-tab="b-one">{{ icon('mail') }} Une boîte</button>
+      <button type="button" class="tab" data-tab="b-many">{{ icon('inbox') }} Plusieurs</button>
+    </div>
+    <form class="tab-panel" id="b-one" method="post" action="/boites" autocomplete="off">
+      <p class="muted small" style="margin-top:0">Idéalement un accès dédié à l'agent (section 13).</p>
+      <label class="field"><span>Adresse mail</span><input type="email" name="adresse" required placeholder="contact@ibigsoft.com"></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Hébergeur</span><select name="hebergeur" id="heb" style="width:100%" onchange="sw()"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+        <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+      </div>
+      <label class="field" id="f-pass"><span>Mot de passe de la boîte</span><input type="password" name="secret" id="secret" required autocomplete="new-password"></label>
+      <div id="f-gmail" style="display:none" class="alert amber">{{ icon('alert') }}<span>Gmail : collez ci-dessus le jeton produit par <code>ibig-agent gmail-jeton</code> (jamais le mot de passe du compte). Voir le guide de mise en service.</span></div>
+      <details><summary>Options</summary><div class="inner">
+        <label class="field"><span>Transférer les messages « autres » à (facultatif)</span><input type="email" name="responsable" placeholder="responsable@ibigsoft.com"></label>
+        <label class="field"><span>Signature des réponses</span><textarea name="signature" style="min-height:80px" placeholder="L'équipe IBIG SOFT&#10;www.ibigsoft.com"></textarea></label>
+        <div class="grid g-2" style="gap:12px">
+          <label class="field"><span>Serveur IMAP (LWS)</span><input type="text" name="imap_host" placeholder="mail.lws-hosting.com"></label>
+          <label class="field"><span>Serveur SMTP (LWS)</span><input type="text" name="smtp_host" placeholder="mail.lws-hosting.com"></label>
+        </div></div></details>
+      <button class="btn primary lg" style="width:100%;justify-content:center">{{ icon('check') }} Raccorder la boîte</button>
+      <p class="muted small" style="margin:10px 0 0">Ensuite, cliquez sur « Tester ». Rien n'est lu ni envoyé pendant le test.</p>
+    </form>
+    <form class="tab-panel" id="b-many" method="post" action="/boites/lot" autocomplete="off" hidden>
+      <p class="muted small" style="margin-top:0">Une boîte par ligne : <code>adresse ; mot de passe</code>, et si besoin <code>; PÔLE ; responsable des transferts</code>. Jusqu'à 200 lignes.</p>
+      <textarea name="lignes" id="lignes" required class="mono" style="min-height:190px" placeholder="contact@ibigsoft.com ; motdepasse1&#10;formation@ibig-eduform.com ; motdepasse2 ; EDUFORM&#10;immo@ibigimmotrust.com ; motdepasse3 ; IMMOTRUST ; agent.immo@ibigimmotrust.com"></textarea>
+      <small class="muted counter" id="nl">0 ligne</small>
+      <div class="grid g-2" style="gap:12px;margin-top:8px">
+        <label class="field"><span>Pôle par défaut</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Hébergeur</span><select name="hebergeur" style="width:100%"><option value="lws">LWS</option><option value="gmail">Gmail</option></select></label>
+      </div>
+      <button class="btn primary lg" style="width:100%;justify-content:center">{{ icon('check') }} Raccorder toutes ces boîtes</button>
+      <p class="muted small" style="margin:10px 0 0">Les lignes mal formées sont refusées une à une ; les mots de passe sont chiffrés et jamais réaffichés.</p>
+    </form>
+  </div>
+</div>
+<script>
+function sw(){var g=document.getElementById('heb').value==='gmail';document.getElementById('f-gmail').style.display=g?'flex':'none';document.querySelector('#f-pass span').textContent=g?'Jeton Gmail (JSON)':'Mot de passe de la boîte';}
+(function () {
+  var pole = '', q = '';
+  function apply() {
+    var shown = 0;
+    document.querySelectorAll('.box-group').forEach(function (g) {
+      var any = 0;
+      g.querySelectorAll('.box').forEach(function (b) {
+        var ok = (!pole || b.dataset.pole === pole) && (!q || b.textContent.toLowerCase().indexOf(q) !== -1);
+        b.hidden = !ok; if (ok) any++;
+      });
+      g.hidden = !any; shown += any;
+    });
+    var e = document.querySelector('.filter-empty'); if (e) e.hidden = shown > 0;
+  }
+  var sel = document.getElementById('f-pole'); if (sel) sel.addEventListener('change', function () { pole = sel.value; apply(); });
+  var s = document.getElementById('q'); if (s) s.addEventListener('input', function () { q = s.value.toLowerCase(); apply(); });
+  var l = document.getElementById('lignes'), nl = document.getElementById('nl');
+  l.addEventListener('input', function () { var n = l.value.split('\n').filter(function (x) { return x.trim(); }).length; nl.textContent = n + ' ligne' + (n > 1 ? 's' : ''); });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Agents IA{% endblock %}
+{% block heading %}Les agents IA{% endblock %}
+{% block lead %}<p class="lead">Un agent chef et six agents spécialisés (section 6). Ils préparent, vous décidez : tout ce qu'ils produisent passe par <a href="/validations">Validations</a>.</p>{% endblock %}
+{% block tools %}
+{% set ready = cards | selectattr('ready') | list | length %}
+<span class="pill green dot">{{ ready }} actif{{ 's' if ready > 1 }}</span>
+{% if cards | length - ready %}<span class="pill amber dot">{{ cards | length - ready }} en attente</span>{% endif %}
+{% endblock %}
+{% block content %}
+{% set chef = cards | selectattr('key', 'equalto', 'chef') | first %}
+{% set team = cards | rejectattr('key', 'equalto', 'chef') | list %}
+
+{# ------------------------------------------------ l'équipe en un coup d'œil #}
+<section class="team fade-in">
+  <a class="team-chef" href="#a-{{ chef.key }}">
+    <span class="agent-ico c-{{ chef.color }}">{{ icon(chef.icon) }}</span>
+    <span><b>{{ chef.name }}</b><small>{{ chef.mission }}</small></span>
+    <span class="team-led {{ 'on' if chef.ready }}"></span>
+  </a>
+  <div class="team-line" aria-hidden="true"></div>
+  <div class="team-row">
+    {% for c in team %}
+    <a class="team-member" href="#a-{{ c.key }}">
+      <span class="agent-ico c-{{ c.color }}">{{ icon(c.icon) }}</span>
+      <b>{{ c.name | replace('Agent ', '') }}</b>
+      <small>{% if c.key in running %}en cours…{% elif c.ready %}actif{% else %}en attente{% endif %} · {{ c.count_30d }} action{{ 's' if c.count_30d > 1 }} (30 j)</small>
+      <span class="team-led {{ 'on' if c.ready }} {{ 'busy' if c.key in running }}"></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# ------------------------------------------------ demander un travail #}
+<section class="card ask fade-in" id="demander">
+  <div class="card-head"><div><h2>{{ icon('sparkles') }} Demander un travail</h2><div class="sub">L'agent rédige ; le résultat arrive dans Validations. Rien ne part sans votre accord.</div></div></div>
+  {% if not can_run %}
+  <p class="muted" style="margin:0">Les demandes sont réservées aux comptes de direction.</p>
+  {% else %}
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab on" data-tab="publication">{{ icon('share') }} Une publication</button>
+    <button type="button" class="tab" data-tab="contenu-web">{{ icon('globe') }} Un article ou une page produit</button>
+    <button type="button" class="tab" data-tab="rapide">{{ icon('play') }} Actions rapides</button>
+  </div>
+
+  <div class="tab-panel" id="publication">
+    <form method="post" action="/agents/publication">
+      <div class="grid g-3" style="gap:12px">
+        <label class="field"><span>Compte</span>
+          <select name="compte" style="width:100%">{% for i, a in accounts %}<option value="{{ i }}">{{ a.compte }} — {{ a.reseau | lisible }} ({{ a.pole }})</option>{% endfor %}</select></label>
+        <label class="field"><span>Date de publication</span><input type="date" name="jour" value="{{ jour }}"></label>
+        <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : la rentrée scolaire avec IBIG School"></label>
+      </div>
+      <div class="actions">
+        <button class="btn primary" onclick="this.innerHTML='Rédaction en cours (20 à 40 s)…'">{{ icon('sparkles') }} Rédiger la publication</button>
+        <span class="muted small">Texte, brief visuel et visuel aux couleurs IBIG, adaptés au réseau.</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="tab-panel" id="contenu-web" hidden>
+    {% if not sites %}
+    <div class="empty"><div class="bubble">{{ icon('globe') }}</div><b>Aucun site prêt</b>Activez un site (config/sites.yaml) et validez la fiche de son pôle.</div>
+    {% else %}
+    <form method="post" action="/agents/contenu-web">
+      <div class="grid g-3" style="gap:12px">
+        <label class="field"><span>Site</span>
+          <select name="site" style="width:100%">{% for i, st in sites %}<option value="{{ i }}">{{ st.nom }} ({{ st.pole }})</option>{% endfor %}</select></label>
+        <label class="field"><span>Type</span>
+          <select name="genre" style="width:100%"><option value="article">Article de blog</option><option value="page">Page produit</option></select></label>
+        <label class="field"><span>Sujet ou produit</span><input type="text" name="sujet" list="produits" placeholder="Ex. : Scolaby (facultatif pour un article)"></label>
+      </div>
+      <datalist id="produits">{% for p in products %}<option value="{{ p }}">{% endfor %}</datalist>
+      <div class="actions">
+        <button class="btn primary" onclick="this.innerHTML='Rédaction en cours (1 à 2 min)…'">{{ icon('sparkles') }} Rédiger le brouillon</button>
+        <span class="muted small">Mot-clé, meta description, liens vers vos offres ; déposé en brouillon sur le site après validation.</span>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="tab-panel" id="rapide" hidden>
+    <div class="quick">
+      {% for c in cards %}{% for a in c.actions %}
+      {% if a.enabled %}
+      <form method="post" action="/agents/lancer/{{ a.key }}"><button class="quick-btn" onclick="this.classList.add('busy')">
+        <span class="agent-ico c-{{ c.color }}">{{ icon(a.icon) }}</span><span><b>{{ a.label }}</b><small>{{ c.name }}</small></span></button></form>
+      {% else %}
+      <div class="quick-btn off" title="{{ a.reason }}"><span class="agent-ico c-{{ c.color }}">{{ icon(a.icon) }}</span><span><b>{{ a.label }}</b><small>{{ a.reason }}</small></span></div>
+      {% endif %}
+      {% endfor %}{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------ fiches des agents #}
+<div class="section-title">{{ icon('bot') }}<h2>Chaque agent en détail</h2></div>
+<div class="agents">
+{% for c in cards %}
+<article class="card agent fade-in" id="a-{{ c.key }}">
+  <div class="agent-head">
+    <span class="agent-ico c-{{ c.color }}">{{ icon(c.icon) }}</span>
+    <div style="flex:1;min-width:0">
+      <h2>{{ c.name }}</h2>
+      <div class="muted small">{{ c.autonomy }}</div>
+    </div>
+    {% if c.key in running %}<span class="pill blue dot">en cours…</span>
+    {% elif c.ready %}<span class="pill green dot">actif</span>
+    {% else %}<span class="pill amber dot">en attente</span>{% endif %}
+  </div>
+  <p class="agent-mission">{{ c.mission }}</p>
+  <ul class="agent-does">{% for d in c.does %}<li>{{ icon('check') }}<span>{{ d }}</span></li>{% endfor %}</ul>
+  <div class="agent-facts">
+    <span>{{ icon('clock') }} {{ c.when }}</span>
+    <span>{{ icon('shield-check') }} {{ c.status }}</span>
+    <span>{{ icon('list') }} {{ c.count_30d }} action{{ 's' if c.count_30d > 1 }} en 30 j · dernière {{ c.last | depuis if c.last else 'aucune' }}</span>
+  </div>
+  {% if c.actions or c.links %}
+  <div class="actions">
+    {% for a in c.actions %}
+      {% if can_run and a.enabled %}
+      <form method="post" action="/agents/lancer/{{ a.key }}"><button class="btn sm {{ 'primary' if loop.first }}" onclick="this.innerHTML='Lancement…'">{{ icon(a.icon) }} {{ a.label }}</button></form>
+      {% else %}
+      <button class="btn sm" disabled title="{{ a.reason or 'Réservé à la direction' }}" style="opacity:.55;cursor:not-allowed">{{ icon(a.icon) }} {{ a.label }}</button>
+      {% endif %}
+    {% endfor %}
+    {% for href, label in c.links %}<a class="btn sm ghost" href="{{ '#demander' if href in ('#publication', '#contenu-web') else href }}" {% if href in ('#publication', '#contenu-web') %}data-open="{{ href[1:] }}"{% endif %}>{{ label }} {{ icon('arrow-right') }}</a>{% endfor %}
+  </div>
+  {% set off = c.actions | rejectattr('enabled') | list %}
+  {% if off %}<p class="muted small" style="margin:8px 0 0">{{ icon('clock') }} {{ off | map(attribute='label') | join(', ') }} : {{ off[0].reason }}.</p>{% endif %}
+  {% endif %}
+</article>
+{% endfor %}
+</div>
+<script>
+(function () {
+  function open(name) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t.dataset.tab === name); });
+    document.querySelectorAll('.tab-panel').forEach(function (p) { p.hidden = p.id !== name; });
+  }
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () { open(t.dataset.tab); });
+  });
+  document.querySelectorAll('[data-open]').forEach(function (a) {
+    a.addEventListener('click', function () { open(a.dataset.open); });
+  });
+  var h = location.hash.slice(1);
+  if (h === 'publication' || h === 'contenu-web') {
+    open(h); document.getElementById('demander').scrollIntoView();
+  }
+})();
+</script>
+{% endblock %}
