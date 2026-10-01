@@ -27,6 +27,21 @@ ROLES = ("admin", "direction", "valideur")
 _ITERATIONS = 310_000
 SESSION_SECONDS = 12 * 3600
 ACTION_LINK_SECONDS = 48 * 3600
+MIN_PASSWORD = 10
+
+
+def check_password_rules(password: str, email: str = "") -> None:
+    """Règles minimales d'un mot de passe choisi au tableau de bord (ValueError sinon)."""
+    if len(password) < MIN_PASSWORD:
+        raise ValueError(f"au moins {MIN_PASSWORD} caractères")
+    if len(set(password)) < 4:
+        raise ValueError("trop répétitif")
+    local = email.split("@")[0].lower()
+    if local and len(local) >= 4 and local in password.lower():
+        raise ValueError("ne doit pas contenir votre adresse mail")
+    if password.lower() in {"motdepasse1", "motdepasse123", "azertyuiop", "1234567890",
+                            "0123456789", "password123", "ibigsoft2026", "intermark2026"}:
+        raise ValueError("trop courant")
 
 
 def hash_password(password: str) -> str:
@@ -53,24 +68,42 @@ def _sign(secret: str, payload: str) -> str:
 
 
 def make_session(secret: str, user_id: int, now: float | None = None) -> str:
-    expires = int((now or time.time()) + SESSION_SECONDS)
-    payload = f"{user_id}:{expires}"
+    now = time.time() if now is None else now
+    expires = int(now + SESSION_SECONDS)
+    # Date d'ouverture à la microseconde : « déconnecter partout » ferme aussi les
+    # sessions ouvertes dans la même seconde.
+    payload = f"{user_id}:{expires}:{int(now * 1_000_000)}"
     return f"{payload}:{_sign(secret, payload)}"
 
 
 def read_session(secret: str, cookie: str, now: float | None = None) -> int | None:
+    found = read_session_full(secret, cookie, now)
+    return found[0] if found else None
+
+
+def read_session_full(secret: str, cookie: str,
+                      now: float | None = None) -> tuple[int, float] | None:
+    """(compte, date d'ouverture de la session en secondes) si le cookie est valide."""
+    parts = cookie.split(":")
+    if len(parts) == 4:
+        user_id, expires, issued, signature = parts
+        payload = f"{user_id}:{expires}:{issued}"
+    elif len(parts) == 3:  # cookies d'avant la date d'ouverture
+        user_id, expires, signature = parts
+        payload, issued = f"{user_id}:{expires}", None
+    else:
+        return None
+    if not hmac.compare_digest(signature, _sign(secret, payload)):
+        return None
     try:
-        user_id, expires, signature = cookie.split(":")
+        if int(expires) < (time.time() if now is None else now):
+            return None
+        opened = int(issued) / 1_000_000 if issued else int(expires) - SESSION_SECONDS
+        return int(user_id), opened
     except ValueError:
         return None
-    if not hmac.compare_digest(signature, _sign(secret, f"{user_id}:{expires}")):
-        return None
-    if int(expires) < (now or time.time()):
-        return None
-    return int(user_id)
 
 
-# ------------------------------------------------------------------ liens de validation
 def make_action_token(secret: str, pending_id: int, user_id: int,
                       now: float | None = None) -> str:
     """Lien « valider en un clic » envoyé par mail (section 12) : propre à une action et
@@ -170,12 +203,51 @@ class UserStore:
             return None
         return self._principal(user)
 
-    def get(self, user_id: int) -> Principal | None:
+    def get(self, user_id: int, issued_at: float | None = None) -> Principal | None:
         with self._sessions() as s:
             user = s.get(User, user_id)
         if user is None or not user.active:
             return None
+        if (issued_at is not None and user.sessions_valid_after is not None
+                and issued_at < _ts(user.sessions_valid_after)):
+            return None  # session ouverte avant un changement de mot de passe
         return self._principal(user)
+
+    def change_password(self, user_id: int, current: str, new: str) -> None:
+        """Par la personne elle-même : ancien mot de passe exigé ; ses autres sessions
+        (autres appareils) sont fermées."""
+        with self._sessions() as s:
+            user = s.get(User, user_id)
+            if user is None or not user.active:
+                raise ValueError("compte introuvable")
+            if not verify_password(current, user.password_hash):
+                raise ValueError("mot de passe actuel incorrect")
+            if verify_password(new, user.password_hash):
+                raise ValueError("le nouveau mot de passe doit être différent")
+            check_password_rules(new, user.email)
+            user.password_hash = hash_password(new)
+            user.sessions_valid_after = _now_s()
+            s.commit()
+
+    def reset_password(self, user_id: int, new: str) -> str:
+        """Par l'administration : nouveau mot de passe, toutes les sessions fermées."""
+        with self._sessions() as s:
+            user = s.get(User, user_id)
+            if user is None:
+                raise ValueError("compte introuvable")
+            check_password_rules(new, user.email)
+            user.password_hash = hash_password(new)
+            user.sessions_valid_after = _now_s()
+            s.commit()
+            return user.email
+
+    def revoke_sessions(self, user_id: int) -> None:
+        """« Déconnecter tous mes appareils »."""
+        with self._sessions() as s:
+            user = s.get(User, user_id)
+            if user is not None:
+                user.sessions_valid_after = _now_s()
+                s.commit()
 
     def by_email(self, email: str) -> Principal | None:
         with self._sessions() as s:
@@ -212,3 +284,15 @@ class UserStore:
     def _principal(self, user: User) -> Principal:
         return Principal(user.id, user.email, user.name, user.role,
                          tuple(self.org.poles_of(user.email)))
+
+
+def _now_s():
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC)
+
+
+def _ts(dt) -> float:
+    from datetime import UTC
+
+    return (dt if dt.tzinfo else dt.replace(tzinfo=UTC)).timestamp()

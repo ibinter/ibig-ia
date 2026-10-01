@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=20">
+<link rel="stylesheet" href="/static/app.css?v=21">
 <script>try { if (localStorage.getItem('side-mini') === '1') document.documentElement.classList.add('side-mini'); } catch (e) {}</script>
 <script type="speculationrules">{"prefetch": [{"source": "document", "where": {"selector_matches": ".nav a, .side-foot a"}, "eagerness": "moderate"}]}</script>
 </head>
@@ -55,7 +55,7 @@
       {% endcall %}
       {% call group('pilotage', 'Pilotage') %}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}
-        {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{% endif %}
+        {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{{ nav('/sante', 'shield-check', 'Santé des tâches', badges.get('sante', 0)) }}{% endif %}
       {% endcall %}
       {% call group('configuration', 'Configuration') %}
         {{ nav('/objectifs', 'target', 'Objectifs') }}
@@ -70,9 +70,11 @@
     <div class="side-foot">
       {{ nav('/arret', 'power', "Bouton d'arrêt", cls='stop') }}
       <div class="me">
-        <span class="avatar" title="{{ user.name }}">{{ user.name | initiales }}</span>
-        <span class="who"><b>{{ user.name }}</b>
-          <small>{{ {'admin': 'Administration', 'direction': 'Direction', 'valideur': 'Valideur'}.get(user.role, user.role) }}{% if user.poles %} · {{ user.poles | join(', ') }}{% endif %}</small></span>
+        <a class="me-link {{ 'on' if path == '/compte' }}" href="/compte" data-tip="Mon compte" title="Mon compte : mot de passe, sessions">
+          <span class="avatar">{{ user.name | initiales }}</span>
+          <span class="who"><b>{{ user.name }}</b>
+            <small>{{ {'admin': 'Administration', 'direction': 'Direction', 'valideur': 'Valideur'}.get(user.role, user.role) }}{% if user.poles %} · {{ user.poles | join(', ') }}{% endif %}</small></span>
+        </a>
         <form method="post" action="/logout"><button class="icon-btn" title="Se déconnecter" aria-label="Se déconnecter">{{ icon('logout') }}</button></form>
       </div>
     </div>

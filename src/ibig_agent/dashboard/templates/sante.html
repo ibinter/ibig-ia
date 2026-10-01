@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Santé des tâches{% endblock %}
+{% block heading %}Santé des tâches automatiques{% endblock %}
+{% block lead %}<p class="lead">Ce que l'agent fait tout seul, à heures fixes : dernière exécution, durée, résultat ou erreur. Après {{ 3 }} échecs de suite, la direction est alertée par mail et au Journal.</p>{% endblock %}
+{% block content %}
+{% set ns = namespace(ok=0, ko=0, never=0) %}
+{% for spec, st, nxt in jobs %}
+  {% if not st or not st.runs %}{% set ns.never = ns.never + 1 %}{% elif st.failures %}{% set ns.ko = ns.ko + 1 %}{% else %}{% set ns.ok = ns.ok + 1 %}{% endif %}
+{% endfor %}
+
+{% if not scheduler_on %}
+<div class="alert amber" style="margin-bottom:14px">{{ icon('alert') }}<span>Le planificateur ne tourne pas dans ce processus (lancement avec <code>--sans-planificateur</code>) : les tâches ne partent pas seules. Les heures de prochaine exécution ne sont pas connues.</span></div>
+{% endif %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-green"><b>{{ ns.ok }}</b><span>en bonne santé</span></div>
+  <div class="cal-stat s-red"><b>{{ ns.ko }}</b><span>en échec</span></div>
+  <div class="cal-stat s-blue"><b>{{ ns.never }}</b><span>pas encore exécutée{{ 's' if ns.never > 1 }}</span></div>
+  <div class="cal-stat s-{{ 'green' if scheduler_on else 'amber' }}"><b>{{ jobs | length }}</b><span>tâches · planificateur {{ 'actif' if scheduler_on else 'arrêté' }}</span></div>
+</div>
+
+<div class="filter-bar">
+  <div class="chips">
+    <button type="button" class="chip on" data-s="">Toutes <span>{{ jobs | length }}</span></button>
+    <button type="button" class="chip" data-s="ko">En échec <span>{{ ns.ko }}</span></button>
+    <button type="button" class="chip" data-s="ok">En bonne santé <span>{{ ns.ok }}</span></button>
+    <button type="button" class="chip" data-s="never">Jamais exécutées <span>{{ ns.never }}</span></button>
+  </div>
+</div>
+
+<div class="job-list">
+{% for spec, st, nxt in jobs %}
+  {% set state = 'never' if not st or not st.runs else ('ko' if st.failures else 'ok') %}
+  {% set busy = (st and st.running) or ('job:' ~ spec.id) in running %}
+  <article class="card job j-{{ state }}" data-s="{{ state }}">
+    <div class="job-main">
+      <span class="job-dot">{{ icon({'ok': 'check', 'ko': 'x', 'never': 'clock'}[state]) }}</span>
+      <div class="job-name">
+        <b>{{ spec.name }}</b>
+        <small>{{ spec.frequency }}{% if nxt %} · prochaine : {{ nxt | quand }}{% endif %}</small>
+      </div>
+      <div class="job-facts">
+        {% if busy %}<span class="pill blue dot">en cours</span>
+        {% elif state == 'ok' %}<span class="pill green dot">OK</span>
+        {% elif state == 'ko' %}<span class="pill red dot">{{ st.failures }} échec{{ 's' if st.failures > 1 }} de suite</span>
+        {% else %}<span class="pill dot">jamais exécutée</span>{% endif %}
+        {% if st and st.last_end %}<span class="muted small" title="{{ st.last_end | quand }}">{{ icon('clock') }} {{ st.last_end | depuis }}{% if st.duration_ms %} · {{ (st.duration_ms / 1000) | round(1) }} s{% endif %}</span>{% endif %}
+      </div>
+      {% if spec.manual %}
+      <form method="post" action="/sante/{{ spec.id }}/lancer"><button class="btn sm" {{ 'disabled' if busy }} onclick="this.innerHTML='Lancement…'">{{ icon('play') }} Lancer</button></form>
+      {% endif %}
+    </div>
+    {% if st and (st.last_error and st.failures or st.last_result) %}
+    <div class="job-detail">
+      {% if st.failures and st.last_error %}
+      <div class="job-err">{{ icon('alert') }}<div><b>Dernière erreur{% if st.last_error_at %} · {{ st.last_error_at | quand }}{% endif %}</b><code>{{ st.last_error }}</code></div></div>
+      {% if st.last_ok %}<p class="muted small" style="margin:6px 0 0">Dernier succès : {{ st.last_ok | quand }}</p>{% endif %}
+      {% elif st.last_result %}<p class="muted small job-res">Résultat : {{ st.last_result }}</p>{% endif %}
+      <p class="muted small" style="margin:4px 0 0">{{ st.runs }} exécution{{ 's' if st.runs > 1 }}{% if st.total_failures %} · {{ st.total_failures }} échec{{ 's' if st.total_failures > 1 }} au total{% endif %}</p>
+    </div>
+    {% endif %}
+  </article>
+{% endfor %}
+</div>
+<p class="muted filter-empty" hidden style="text-align:center">Aucune tâche pour ce filtre.</p>
+<script>
+(function () {
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); var s = b.dataset.s, n = 0;
+      document.querySelectorAll('.job').forEach(function (j) { j.hidden = s && j.dataset.s !== s; if (!j.hidden) n++; });
+      document.querySelector('.filter-empty').hidden = n > 0;
+    });
+  });
+})();
+</script>
+{% endblock %}

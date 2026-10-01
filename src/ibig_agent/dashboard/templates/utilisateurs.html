@@ -42,6 +42,19 @@
             <input type="tel" name="telephone" value="{{ '+' ~ u.phone if u.phone else '' }}" placeholder="+225 07 00 00 00 00"></label>
           <button class="btn sm" title="Enregistrer le numéro">{{ icon('check') }} Enregistrer</button>
         </form>
+        <details class="user-reset">
+          <summary>{{ icon('lock') }} {{ 'Changer mon mot de passe' if u.id == user.id else 'Réinitialiser le mot de passe' }}</summary>
+          {% if u.id == user.id %}<p class="muted small"><a href="/compte">Passez par « Mon compte »</a> : l'ancien mot de passe y est demandé.</p>
+          {% else %}
+          <form method="post" action="/utilisateurs/{{ u.id }}/mot-de-passe" autocomplete="off"
+                data-confirm="Changer le mot de passe de {{ u.name }} ? Ses sessions ouvertes seront fermées.">
+            <input type="password" name="nouveau" required minlength="10" placeholder="Nouveau mot de passe (10 caractères min.)" autocomplete="new-password">
+            <input type="password" name="confirmation" required minlength="10" placeholder="Confirmer" autocomplete="new-password">
+            <button class="btn sm">{{ icon('check') }} Enregistrer</button>
+            <p class="muted small" style="margin:0">Communiquez-le à la personne de vive voix ; elle le changera dans « Mon compte ».</p>
+          </form>
+          {% endif %}
+        </details>
       </article>
       {% endfor %}
     </div>

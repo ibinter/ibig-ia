@@ -28,12 +28,20 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from sqlalchemy import desc, func, select
 
-from ..auth import Principal, UserStore, make_session, read_action_token, read_session
+from ..auth import (
+    MIN_PASSWORD,
+    SESSION_SECONDS,
+    Principal,
+    UserStore,
+    make_session,
+    read_action_token,
+    read_session_full,
+)
 from ..channels.mail import MailMessage
 from ..channels.web import sanitize_html
 from ..config import Mailbox
 from ..configstore import service_value
-from ..db import JournalEntry, MediaAsset, PendingAction, Prospect, Ticket
+from ..db import JobStatus, JournalEntry, MediaAsset, PendingAction, Prospect, Ticket, User
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
@@ -66,6 +74,7 @@ ACTION_LABELS = {
     "prospect.gagne": "Prospect gagné", "prospect.perdu": "Prospect perdu",
     "prospect.stop": "Relances arrêtées", "prospect.reprise": "Relances reprises",
     "channel.stop": "Canal suspendu", "channel.resume": "Canal réactivé",
+    "system.job_failed": "Tâche automatique en échec",
     "kb.import": "Import depuis les sites", "approval.stale": "Validation en retard (24 h)",
     "killswitch.stop": "Bouton d'arrêt", "mail.manual_triage": "Mail à trier à la main",
     "privacy.erase": "Effacement de données", "privacy.purge": "Purge des données",
@@ -77,7 +86,8 @@ ACTION_ICONS = {"mail": "mail", "support": "life", "sara": "bot", "whatsapp": "m
                 "security": "shield", "complaint": "alert", "channel": "power", "killswitch": "power",
                 "approval": "clock", "privacy": "lock", "prospect": "target", "kb": "book",
                 "legal": "hand", "contract": "hand", "refund": "wallet", "payment": "wallet",
-                "discount": "wallet", "pricing": "wallet", "media": "alert", "crisis": "alert"}
+                "discount": "wallet", "pricing": "wallet", "media": "alert", "crisis": "alert",
+                "system": "alert"}
 
 NETWORK_NAMES = {"facebook_page": "Page Facebook", "facebook_groupe": "Groupe Facebook",
                  "instagram": "Instagram", "threads": "Threads", "linkedin": "LinkedIn",
@@ -211,6 +221,7 @@ def install_filters(tz: ZoneInfo) -> None:
                        initiales=initiales, jour_iso=jour_iso, jour_titre=jour_titre, heure=heure,
                        action_label=lambda t: ACTION_LABELS.get(t, (t or "").replace(".", " ")),
                        action_icon=lambda t: ACTION_ICONS.get((t or "").split(".")[0], "sparkles"),
+                       heure_ts=lambda ts: heure(datetime.fromtimestamp(ts, UTC)),
                        lisible=lisible, rapport=report_blocks, genre_rapport=report_kind,
                        jours_restants=lambda v: (local(v).date() - datetime.now(tz).date()).days,
                        famille=lambda t: FAMILIES.get((t or "").split(".")[0], "Autres"))
@@ -279,8 +290,8 @@ def create_app(rt: Runtime) -> FastAPI:
         return RedirectResponse("/login", status_code=303)
 
     def user(request: Request) -> Principal:
-        user_id = read_session(secret, request.cookies.get(SESSION_COOKIE, ""))
-        principal = users.get(user_id) if user_id is not None else None
+        found = read_session_full(secret, request.cookies.get(SESSION_COOKIE, ""))
+        principal = users.get(found[0], issued_at=found[1]) if found else None
         if principal is None:
             raise NotLoggedIn()
         request.state.user = principal
@@ -334,10 +345,11 @@ def create_app(rt: Runtime) -> FastAPI:
                     failed_logins.pop(k, None)
             return back("/login", "Identifiants invalides")
         failed_logins.pop(key, None)
-        resp = RedirectResponse("/", status_code=303)
-        resp.set_cookie(SESSION_COOKIE, make_session(secret, principal.id), httponly=True,
-                        samesite="strict", secure=rt.settings.dashboard_url.startswith("https"),
-                        max_age=12 * 3600)
+        return with_session(RedirectResponse("/", status_code=303), principal.id)
+
+    def with_session(resp, user_id: int):
+        resp.set_cookie(SESSION_COOKIE, make_session(secret, user_id), httponly=True,
+                        samesite="strict", secure=https, max_age=12 * 3600)
         return resp
 
     @app.post("/logout")
@@ -881,6 +893,90 @@ def create_app(rt: Runtime) -> FastAPI:
         return page(request, "utilisateurs.html", rows=rows, poles=rt.org.poles,
                     whatsapp_ready=bool(rt.whatsapp_clients),
                     template=rt.settings.whatsapp_validation_template)
+
+    @app.post("/utilisateurs/{uid}/mot-de-passe")
+    def reset_password(uid: int, nouveau: str = Form(...), confirmation: str = Form(...),
+                       who: Principal = Depends(user)):
+        if who.role != "admin":
+            raise HTTPException(403)
+        if nouveau != confirmation:
+            return back("/utilisateurs", "Refusé : les deux saisies ne correspondent pas")
+        try:
+            email = users.reset_password(uid, nouveau)
+        except ValueError as exc:
+            return back("/utilisateurs", f"Refusé : mot de passe {exc}")
+        msg = f"Mot de passe de {email} changé : ses sessions ouvertes sont fermées"
+        resp = back("/utilisateurs", msg)
+        return with_session(resp, who.id) if uid == who.id else resp
+
+    # ---------------------------------------------------------------- mon compte
+    @app.get("/compte", response_class=HTMLResponse)
+    def my_account(request: Request, who: Principal = Depends(user)):
+        found = read_session_full(secret, request.cookies.get(SESSION_COOKIE, ""))
+        with rt.sessions() as s:
+            row = s.get(User, who.id)
+        return page(request, "compte.html", me=row, min_password=MIN_PASSWORD,
+                    session_end=(found[1] + SESSION_SECONDS) if found else 0)
+
+    @app.post("/compte/mot-de-passe")
+    def change_password(actuel: str = Form(...), nouveau: str = Form(...),
+                        confirmation: str = Form(...), who: Principal = Depends(user)):
+        if nouveau != confirmation:
+            return back("/compte", "Refusé : les deux saisies du nouveau mot de passe "
+                                   "ne correspondent pas")
+        try:
+            users.change_password(who.id, actuel, nouveau)
+        except ValueError as exc:
+            return back("/compte", f"Refusé : {exc}")
+        # Nouvelle session sur cet appareil ; les autres appareils sont déconnectés.
+        return with_session(back("/compte", "Mot de passe changé : vos autres appareils "
+                                            "sont déconnectés"), who.id)
+
+    @app.post("/compte/deconnecter-partout")
+    def logout_everywhere(who: Principal = Depends(user)):
+        users.revoke_sessions(who.id)
+        return with_session(back("/compte", "Vos autres appareils sont déconnectés"), who.id)
+
+    # ---------------------------------------------------------------- santé des tâches
+    @app.get("/sante", response_class=HTMLResponse)
+    def job_health(request: Request, who: Principal = Depends(user)):
+        from ..scheduler import job_specs
+
+        if who.role == "valideur":
+            raise HTTPException(403)
+        with rt.sessions() as s:
+            rows = {r.job_id: r for r in s.scalars(select(JobStatus)).all()}
+        sched = rt.scheduler
+        jobs = []
+        for spec in job_specs(rt):
+            job = sched.get_job(spec.id) if sched is not None else None
+            jobs.append((spec, rows.get(spec.id), getattr(job, "next_run_time", None)))
+        # En échec d'abord, l'ordre habituel ensuite
+        jobs.sort(key=lambda j: not (j[1] and j[1].failures))
+        return page(request, "sante.html", jobs=jobs, scheduler_on=sched is not None,
+                    running=set(running))
+
+    @app.post("/sante/{job_id}/lancer")
+    def run_job(job_id: str, tasks: BackgroundTasks, who: Principal = Depends(user)):
+        from ..scheduler import job_specs, tracked
+
+        if who.role == "valideur":
+            raise HTTPException(403)
+        spec = next((j for j in job_specs(rt) if j.id == job_id and j.manual), None)
+        if spec is None:
+            raise HTTPException(404)
+        if f"job:{job_id}" in running:
+            return back("/sante", "Déjà en cours : patientez quelques instants")
+
+        def job():
+            running.add(f"job:{job_id}")
+            try:
+                tracked(rt, spec.id, spec.name, spec.fn)()
+            finally:
+                running.discard(f"job:{job_id}")
+
+        tasks.add_task(job)
+        return back("/sante", f"« {spec.name} » lancée : actualisez dans quelques instants")
 
     @app.post("/utilisateurs/{uid}/telephone")
     def set_phone(uid: int, telephone: str = Form(""), who: Principal = Depends(user)):

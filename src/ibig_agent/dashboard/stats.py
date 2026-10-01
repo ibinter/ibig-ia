@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from ..auth import Principal
 from ..db import (
     AIUsage,
+    JobStatus,
     JournalEntry,
     PendingAction,
     ProcessedMessage,
@@ -161,4 +162,8 @@ def nav_counts(s: Session, who: Principal) -> dict[str, int]:
             prepared += n
     tickets = s.scalar(_scope(select(func.count()).select_from(Ticket)
                               .where(Ticket.status == "ouvert"), Ticket.pole, who)) or 0
-    return {"validations": pending + prepared, "tickets": tickets}
+    failing = 0
+    if who.role != "valideur":
+        failing = s.scalar(select(func.count()).select_from(JobStatus)
+                           .where(JobStatus.failures > 0)) or 0
+    return {"validations": pending + prepared, "tickets": tickets, "sante": failing}

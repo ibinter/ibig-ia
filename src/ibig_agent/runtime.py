@@ -154,6 +154,8 @@ class Runtime:
     image_factory: Callable = field(default=None)
     # Lecteur des sites publics (remplacé dans les tests)
     site_crawler: object = field(default=None)
+    # Planificateur en marche (santé des tâches : prochaines exécutions)
+    scheduler: object = field(default=None)
 
     @property
     def messagerie(self) -> MessagerieAgent:

@@ -200,6 +200,9 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(32), default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Sessions ouvertes avant cette date refusées (mot de passe changé, « déconnecter partout »)
+    sessions_valid_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                                 nullable=True)
 
 
 class AIUsage(Base):
@@ -368,6 +371,28 @@ class SocialAccountRow(Base):
     publication_auto: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[str] = mapped_column(String(300), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobStatus(Base):
+    """Santé d'une tâche planifiée : dernière exécution, dernier échec, échecs de suite."""
+
+    __tablename__ = "job_status"
+
+    job_id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    last_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_ok: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                           nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    last_result: Mapped[str] = mapped_column(String(500), default="")
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    running: Mapped[bool] = mapped_column(Boolean, default=False)
+    runs: Mapped[int] = mapped_column(Integer, default=0)
+    failures: Mapped[int] = mapped_column(Integer, default=0)        # échecs de suite
+    total_failures: Mapped[int] = mapped_column(Integer, default=0)
+    alerted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
