@@ -220,17 +220,43 @@ jamais écrasé ; relancer l'import après une mise à jour des sites.
 
 ## 6. Sauvegardes
 
+Chaque nuit à 2 h 15, `deploy/sauvegarde.sh` (programmé par l'installateur) réunit la
+base, `.env` et les boîtes mail dans **une archive chiffrée** (AES-256), la relit, la garde
+30 jours sur le serveur (plus celle du 1er de chaque mois pendant 12 mois) et la **copie hors
+du serveur**. Le résultat s'affiche dans **Santé des tâches** ; après deux jours sans
+sauvegarde réussie, la direction est alertée.
+
 ```bash
-sudo crontab -e
+sudo crontab -e     # si l'installateur ne l'a pas fait
 15 2 * * * cd /opt/ibig-ia && ./deploy/sauvegarde.sh >> /var/log/ibig-sauvegarde.log 2>&1
 ```
 
-30 jours de sauvegardes quotidiennes, plus celle du 1er de chaque mois pendant 12 mois.
-**Copier aussi hors du VPS** et tester une restauration une fois par trimestre :
+**1. Phrase de chiffrement** (une fois) : `./deploy/sauvegarde.sh --init`. Elle est affichée
+une seule fois et gardée dans `/root/.ibig-sauvegarde.key`. **La recopier hors du serveur**
+(gestionnaire de mots de passe de la direction) : sans elle, une sauvegarde ne peut pas
+être relue si le serveur est perdu.
+
+**2. Copie hors du serveur** : une ligne dans `.env`, au choix :
 
 ```bash
-docker compose exec -T db pg_restore -U ibig -d ibig_agent --clean < base-AAAAMMJJ-HHMM.dump
+# Stockage objet (Backblaze B2, S3, OVH, Google Drive…) : configurer d'abord « rclone config »
+IBIG_BACKUP_RCLONE=b2:ibig-sauvegardes
+# ou un autre serveur, par SSH (clé sans mot de passe déjà installée : ssh-copy-id)
+IBIG_BACKUP_SSH=sauve@autre-serveur.exemple.ci:/sauvegardes
 ```
+
+La copie distante est conservée 90 jours (`IBIG_BACKUP_REMOTE_DAYS`). Tester tout de suite :
+`./deploy/sauvegarde.sh` puis vérifier la page **Santé des tâches**.
+
+**3. Restaurer** (tester une fois par trimestre) :
+
+```bash
+./deploy/restauration.sh /var/backups/ibig-agent/ibig-AAAAMMJJ-HHMM.tar.gz.gpg
+./deploy/restauration.sh <archive> --avec-config   # nouveau serveur : remet aussi .env
+```
+
+Le script vérifie l'archive, demande de taper `RESTAURER`, arrête l'agent, remplace la
+base et relance l'agent.
 
 ## 7. Exploitation courante
 
@@ -276,5 +302,6 @@ Deux semaines d'essai réel ; chaque critère bloquant doit être atteint.
 2. **Comprendre** : page Journal (quoi, quand, sur quel compte, validé par qui).
 3. **Secret compromis** : le changer à la source (boîte, WordPress, clé API), mettre à
    jour `.env`, `docker compose up -d`, puis `ibig-agent diagnostic`.
-4. **Serveur perdu** : nouveau VPS (sections 1 à 4), restaurer la dernière sauvegarde de
-   la base et de la configuration, diagnostic, puis réactiver les canaux.
+4. **Serveur perdu** : nouveau VPS (sections 1 à 4), récupérer la dernière archive de la
+   copie hors serveur, `./deploy/restauration.sh <archive> --avec-config` (la phrase de
+   chiffrement est demandée), diagnostic, puis réactiver les canaux.

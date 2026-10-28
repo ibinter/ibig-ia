@@ -48,6 +48,7 @@ class Diagnostic:
         self.database()
         self.governance()
         self.knowledge()
+        self.backups()
         if self.online:
             self.ai()
             self.mailboxes()
@@ -91,6 +92,21 @@ class Diagnostic:
                  "activée" if len(key) >= 32 else "désactivée (IBIG_SARA_API_KEY < 32 car.)")
         self.add("Réglages", "plafond IA mensuel", OK if s.monthly_ai_budget_usd > 0 else FAIL,
                  f"{s.monthly_ai_budget_usd:.0f} USD, alerte à {s.budget_alert_ratio:.0%}")
+
+    def backups(self) -> None:
+        from .backups import read_status
+
+        st = read_status(self.rt.settings.state_dir)
+        if not st.found:
+            prod = self.rt.settings.dashboard_url.startswith("https://")
+            self.add("Sauvegardes", "dernière sauvegarde", WARN if prod else OK,
+                     st.problems[0] if prod else "non suivie hors production")
+            return
+        status = FAIL if st.problems else (WARN if st.advice else OK)
+        when = st.date.strftime("%d/%m/%Y %H:%M") if st.date else "date inconnue"
+        detail = "; ".join(st.problems + st.advice) or (
+            f"{when}, chiffrée, copiée vers {st.offsite}")
+        self.add("Sauvegardes", "dernière sauvegarde", status, detail)
 
     def database(self) -> None:
         engine = self.rt.sessions.kw["bind"]

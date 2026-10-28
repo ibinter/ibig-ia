@@ -202,7 +202,9 @@ def main(argv: list[str] | None = None) -> None:
                              "le tableau de bord")
         if not args.sans_planificateur:
             build_scheduler(rt).start()
-        uvicorn.run(create_app(rt), host=args.host, port=args.port)
+        # Adresse IP réelle des visiteurs (limite des tentatives de connexion par adresse)
+        uvicorn.run(create_app(rt), host=args.host, port=args.port, proxy_headers=True,
+                    forwarded_allow_ips=rt.settings.trusted_proxies)
 
 
 def _migrate(args: argparse.Namespace) -> None:

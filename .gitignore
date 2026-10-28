@@ -11,3 +11,4 @@ config/mailboxes.yaml
 secrets/
 build/
 exports/
+state/

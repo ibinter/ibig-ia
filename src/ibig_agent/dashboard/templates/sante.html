@@ -2,7 +2,7 @@
 {% from "_icons.html" import icon %}
 {% block title %}Santé des tâches{% endblock %}
 {% block heading %}Santé des tâches automatiques{% endblock %}
-{% block lead %}<p class="lead">Ce que l'agent fait tout seul, à heures fixes : dernière exécution, durée, résultat ou erreur. Après {{ 3 }} échecs de suite, la direction est alertée par mail et au Journal.</p>{% endblock %}
+{% block lead %}<p class="lead">Ce que l'agent fait tout seul, à heures fixes : dernière exécution, durée, résultat ou erreur. Après 3 échecs de suite (dès le premier pour les sauvegardes), la direction est alertée par mail et au Journal.</p>{% endblock %}
 {% block content %}
 {% set ns = namespace(ok=0, ko=0, never=0) %}
 {% for spec, st, nxt in jobs %}
@@ -19,6 +19,35 @@
   <div class="cal-stat s-blue"><b>{{ ns.never }}</b><span>pas encore exécutée{{ 's' if ns.never > 1 }}</span></div>
   <div class="cal-stat s-{{ 'green' if scheduler_on else 'amber' }}"><b>{{ jobs | length }}</b><span>tâches · planificateur {{ 'actif' if scheduler_on else 'arrêté' }}</span></div>
 </div>
+
+{% set b = backup %}
+<article class="card job backup j-{{ {'ok': 'ok', 'warn': 'warn', 'ko': 'ko'}[b.level] }}">
+  <div class="job-main">
+    <span class="job-dot">{{ icon('shield') }}</span>
+    <div class="job-name">
+      <b>Sauvegardes</b>
+      <small>chaque nuit à 2 h 15 · base, réglages et boîtes mail{% if b.found and b.file %} · {{ b.file }}{% endif %}</small>
+    </div>
+    <div class="job-facts">
+      {% if not b.found %}<span class="pill red dot">aucune enregistrée</span>
+      {% elif b.problems %}<span class="pill red dot">en échec</span>
+      {% elif b.advice %}<span class="pill amber dot">à compléter</span>
+      {% else %}<span class="pill green dot">OK</span>{% endif %}
+      {% if b.date %}<span class="muted small" title="{{ b.date | quand }}">{{ icon('clock') }} {{ b.date | depuis }}{% if b.size %} · {{ (b.size / 1048576) | round(1) }} Mo{% endif %}</span>{% endif %}
+      {% if b.found %}
+      <span class="pill {{ 'green' if b.encrypted else 'amber' }}">{{ icon('lock') }} {{ 'chiffrée' if b.encrypted else 'non chiffrée' }}</span>
+      <span class="pill {{ 'green' if b.offsite and b.offsite_ok else ('red' if b.offsite else 'amber') }}">{{ 'copie hors serveur' if b.offsite and b.offsite_ok else ('copie hors serveur en échec' if b.offsite else 'aucune copie hors serveur') }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% if b.problems or b.advice %}
+  <div class="job-detail">
+    {% for p in b.problems %}<div class="job-err">{{ icon('alert') }}<div><b>À corriger</b><code>{{ p }}</code></div></div>{% endfor %}
+    {% for a in b.advice %}<p class="muted small" style="margin:6px 0 0">{{ icon('alert') }} {{ a }}</p>{% endfor %}
+    <p class="muted small" style="margin:6px 0 0">Mode d'emploi : docs/mise-en-service.md, section 6 (sauvegardes et restauration).</p>
+  </div>
+  {% endif %}
+</article>
 
 <div class="filter-bar">
   <div class="chips">
@@ -70,7 +99,7 @@
     b.addEventListener('click', function () {
       document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
       b.classList.add('on'); var s = b.dataset.s, n = 0;
-      document.querySelectorAll('.job').forEach(function (j) { j.hidden = s && j.dataset.s !== s; if (!j.hidden) n++; });
+      document.querySelectorAll('.job-list .job').forEach(function (j) { j.hidden = s && j.dataset.s !== s; if (!j.hidden) n++; });
       document.querySelector('.filter-empty').hidden = n > 0;
     });
   });

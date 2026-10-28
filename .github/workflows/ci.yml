@@ -27,7 +27,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e ".[dev,postgres]"
+      # Mêmes versions que l'image Docker (requirements.lock), outils de test en plus.
+      - run: pip install --require-hashes -r requirements.lock
+      - run: pip install --no-deps -e . && pip install pytest "ruff==0.16.9"
       - run: ruff check src tests
       # Le module PHP des sites est testé de bout en bout : PHP doit être présent.
       - run: php -l integrations/php/ibig-article-inbox.php

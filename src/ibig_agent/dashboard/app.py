@@ -6,6 +6,8 @@ Ils y donnent les objectifs, valident (niveau 2), traitent les dossiers réserv�
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import re
 import secrets
 import time
@@ -37,6 +39,7 @@ from ..auth import (
     read_action_token,
     read_session_full,
 )
+from ..backups import read_status as read_backup
 from ..channels.mail import MailMessage
 from ..channels.web import sanitize_html
 from ..config import Mailbox
@@ -242,7 +245,8 @@ SARA_RATE = (20, 600)          # 20 questions par 10 minutes et par conversation
 SARA_GLOBAL_RATE = (600, 600)  # plafond global (protège aussi le budget IA)
 SARA_TRANSFER = ("Je transmets votre question à un conseiller, qui vous répondra dans les "
                  "meilleurs délais.")
-MAX_FAILED_LOGINS = 5
+MAX_FAILED_LOGINS = 5           # par compte
+MAX_FAILED_PER_IP = 20          # par adresse IP, tous comptes confondus
 LOCKOUT_SECONDS = 15 * 60
 
 
@@ -258,7 +262,7 @@ def create_app(rt: Runtime) -> FastAPI:
     install_filters(ZoneInfo(rt.settings.timezone))
     users = UserStore(rt.sessions, rt.org)
     secret = rt.settings.secret_key
-    failed_logins: dict[str, deque[float]] = defaultdict(deque)
+    failed_logins: dict[str, deque[float]] = defaultdict(deque)   # clé : compte ou « ip:… »
     sara_calls: dict[str, deque[float]] = defaultdict(deque)
 
     https = rt.settings.dashboard_url.startswith("https")
@@ -308,10 +312,21 @@ def create_app(rt: Runtime) -> FastAPI:
                 badges["demarrage"] = total - done
         return TEMPLATES.TemplateResponse(request, name, {
             "user": who, "badges": badges, "path": request.url.path,
-            "msg": request.query_params.get("msg", ""), **ctx})
+            "msg": flash(request), **ctx})
+
+    # Messages de confirmation signés : un lien piégé ne peut pas faire afficher un faux
+    # message dans le tableau de bord.
+    def flash_sig(msg: str) -> str:
+        return hmac.new(secret.encode(), b"flash:" + msg.encode(), hashlib.sha256).hexdigest()[:24]
+
+    def flash(request: Request) -> str:
+        msg = request.query_params.get("msg", "")
+        ok = msg and hmac.compare_digest(request.query_params.get("s", ""), flash_sig(msg))
+        return msg if ok else ""
 
     def back(url: str, msg: str) -> RedirectResponse:
-        return RedirectResponse(f"{url}?msg={quote(msg)}", status_code=303)
+        sep = "&" if "?" in url else "?"
+        return RedirectResponse(f"{url}{sep}msg={quote(msg)}&s={flash_sig(msg)}", status_code=303)
 
     def load(pid: int) -> PendingAction:
         with rt.sessions() as s:
@@ -329,19 +344,28 @@ def create_app(rt: Runtime) -> FastAPI:
     def login_form(request: Request):
         return page(request, "login.html")
 
-    @app.post("/login")
-    def login(email: str = Form(...), password: str = Form(...)):
-        key, now = email.strip().lower(), time.monotonic()
+    def recent(key: str, now: float) -> deque[float]:
         attempts = failed_logins[key]
         while attempts and now - attempts[0] > LOCKOUT_SECONDS:
             attempts.popleft()
-        if len(attempts) >= MAX_FAILED_LOGINS:
+        return attempts
+
+    @app.post("/login")
+    def login(request: Request, email: str = Form(...), password: str = Form(...)):
+        # Deux limites : par compte (deviner un mot de passe) et par adresse IP (essayer
+        # beaucoup de comptes depuis une même machine).
+        key, now = email.strip().lower(), time.monotonic()
+        ip_key = f"ip:{request.client.host if request.client else '?'}"
+        attempts, ip_attempts = recent(key, now), recent(ip_key, now)
+        if len(attempts) >= MAX_FAILED_LOGINS or len(ip_attempts) >= MAX_FAILED_PER_IP:
             return back("/login", "Trop de tentatives : réessayez dans 15 minutes")
         principal = users.authenticate(email, password)
         if principal is None:
             attempts.append(now)
+            ip_attempts.append(now)
             if len(failed_logins) > 5000:  # adresses inventées en masse : mémoire bornée
-                for k in [k for k, v in failed_logins.items() if now - v[-1] > LOCKOUT_SECONDS]:
+                for k in [k for k, v in failed_logins.items()
+                          if not v or now - v[-1] > LOCKOUT_SECONDS]:
                     failed_logins.pop(k, None)
             return back("/login", "Identifiants invalides")
         failed_logins.pop(key, None)
@@ -954,7 +978,7 @@ def create_app(rt: Runtime) -> FastAPI:
         # En échec d'abord, l'ordre habituel ensuite
         jobs.sort(key=lambda j: not (j[1] and j[1].failures))
         return page(request, "sante.html", jobs=jobs, scheduler_on=sched is not None,
-                    running=set(running))
+                    running=set(running), backup=read_backup(rt.settings.state_dir))
 
     @app.post("/sante/{job_id}/lancer")
     def run_job(job_id: str, tasks: BackgroundTasks, who: Principal = Depends(user)):
@@ -971,7 +995,7 @@ def create_app(rt: Runtime) -> FastAPI:
         def job():
             running.add(f"job:{job_id}")
             try:
-                tracked(rt, spec.id, spec.name, spec.fn)()
+                tracked(rt, spec.id, spec.name, spec.fn, spec.alert_after)()
             finally:
                 running.discard(f"job:{job_id}")
 

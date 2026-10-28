@@ -118,6 +118,18 @@ docker compose up -d --build    # base, agent (migrations automatiques), HTTPS (
 docker compose exec agent ibig-agent diagnostic   # tout vérifier sans rien envoyer
 ```
 
+### Mettre à jour les dépendances
+
+Les versions installées dans l'image sont figées, avec leurs empreintes, dans
+`requirements.lock` : une reconstruction installe exactement ce qui a été testé. Pour
+passer aux versions récentes (une fois par trimestre, ou pour un correctif de sécurité) :
+
+```bash
+uv pip compile pyproject.toml --extra postgres --extra gmail --python-version 3.12 \
+  --python-platform x86_64-unknown-linux-gnu --generate-hashes --no-header -o requirements.lock
+pip install --require-hashes -r requirements.lock && pip install --no-deps -e . && pytest
+```
+
 ## Organisation du dépôt
 
 | Chemin | Contenu |

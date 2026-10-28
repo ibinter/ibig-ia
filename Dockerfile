@@ -7,10 +7,14 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+# Versions figées et vérifiées (empreintes) : une reconstruction installe exactement ce
+# qui a été testé. Mise à jour : voir « Mettre à jour les dépendances » dans le README.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+    && pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir --upgrade pip setuptools \
-    && pip install --no-cache-dir ".[postgres,gmail]"
+RUN pip install --no-cache-dir --no-deps .
 
 COPY config ./config
 COPY knowledge ./knowledge

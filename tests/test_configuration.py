@@ -46,6 +46,9 @@ def test_pole_sheet_completed_in_dashboard_unlocks_the_pole(rt, dg):
     r = dg.post("/connaissances/document", data={"chemin": path, "contenu": body, "valide": "1"},
                 follow_redirects=False)
     assert "document complet" in unquote(r.headers["location"])
+    # Le message s'affiche sur la page du document (l'adresse porte déjà « ?chemin= »)
+    assert "?chemin=" in r.headers["location"] and "&msg=" in r.headers["location"]
+    assert "document complet" in dg.get(r.headers["location"]).text
     assert rt.communication.pole_ready("SOFT")
     assert "IBIG School : sur devis" in rt.kb.context_for("SOFT")
     # Un « À COMPLÉTER » restant empêche la validation, même cochée

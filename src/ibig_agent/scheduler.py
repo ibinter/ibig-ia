@@ -31,6 +31,7 @@ class JobSpec:
     trigger: str
     options: dict = field(default_factory=dict)
     manual: bool = True        # « Lancer maintenant » proposé au tableau de bord
+    alert_after: int = ALERT_AFTER   # échecs de suite avant l'alerte à la direction
 
 
 def next_monday(today: date | None = None, tz: str = "Africa/Abidjan") -> date:
@@ -45,6 +46,7 @@ def this_monday(tz: str = "Africa/Abidjan") -> date:
 
 def job_specs(rt: Runtime) -> list[JobSpec]:
     """Toutes les tâches planifiées, dans l'ordre d'affichage."""
+    from .backups import check as check_backup
     from .privacy import purge
 
     s = rt.settings
@@ -98,6 +100,10 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
                 lambda: rt.contenus_web.run(), "cron", {"day": "1,15", "hour": 7, "minute": 30}),
         JobSpec("monthly_review", "Revue mensuelle", "le 1er du mois à 9 h",
                 lambda: rt.revue.run(), "cron", {"day": 1, "hour": 9, "minute": 0}),
+        # Sauvegarde de la nuit (deploy/sauvegarde.sh, 2 h 15) : alerte si elle manque
+        JobSpec("backup_check", "Contrôle des sauvegardes", "chaque jour à 9 h 40",
+                lambda: check_backup(s.state_dir, s.dashboard_url.startswith("https://")),
+                "cron", {"hour": 9, "minute": 40}, alert_after=1),
         # Conservation limitée des données (section 13)
         JobSpec("data_retention", "Purge des données anciennes", "le 1er du mois à 3 h",
                 lambda: purge(rt.sessions, s.retention_months), "cron",
@@ -127,7 +133,8 @@ def _summary(result: object) -> str:
     return text if len(text) <= 300 else text[:297] + "…"
 
 
-def tracked(rt: Runtime, spec_id: str, name: str, fn: Callable[[], object]):
+def tracked(rt: Runtime, spec_id: str, name: str, fn: Callable[[], object],
+            alert_after: int = ALERT_AFTER):
     """Exécute fn en enregistrant début, fin, durée, résultat ou erreur ; une tâche en
     échec ne doit jamais arrêter les autres, ni le suivi faire échouer la tâche."""
 
@@ -159,7 +166,7 @@ def tracked(rt: Runtime, spec_id: str, name: str, fn: Callable[[], object]):
                        runs=lambda r: (r.runs or 0) + 1,
                        failures=lambda r: (r.failures or 0) + 1,
                        total_failures=lambda r: (r.total_failures or 0) + 1)
-            if row is not None and row.failures >= ALERT_AFTER and not row.alerted:
+            if row is not None and row.failures >= alert_after and not row.alerted:
                 _alert(rt, spec_id, name, row.failures, err)
                 save(alerted=True)
             return None
@@ -190,7 +197,8 @@ def _alert(rt: Runtime, spec_id: str, name: str, failures: int, err: str) -> Non
 def build_scheduler(rt: Runtime) -> BackgroundScheduler:
     sched = BackgroundScheduler(timezone=rt.settings.timezone)
     for spec in job_specs(rt):
-        sched.add_job(tracked(rt, spec.id, spec.name, spec.fn), spec.trigger, id=spec.id,
+        sched.add_job(tracked(rt, spec.id, spec.name, spec.fn, spec.alert_after),
+                      spec.trigger, id=spec.id,
                       **spec.options)
     rt.scheduler = sched
     return sched

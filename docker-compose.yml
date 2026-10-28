@@ -26,6 +26,8 @@ services:
       - ./knowledge:/app/knowledge:ro
       # Articles livrés en HTML pour les sites sans back-office
       - ./exports:/app/exports
+      # État de la dernière sauvegarde (écrit par deploy/sauvegarde.sh, lu par Santé des tâches)
+      - ./state:/app/state:ro
     # Publié sur 127.0.0.1 seulement (injoignable depuis Internet) : utilisé quand un
     # nginx déjà présent sur le serveur sert le HTTPS à la place de Caddy.
     expose: ["8000"]

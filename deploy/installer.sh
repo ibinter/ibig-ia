@@ -209,6 +209,11 @@ if ! crontab -l 2>/dev/null | grep -q 'deploy/sauvegarde.sh'; then
 else
   ok "Sauvegarde quotidienne déjà programmée"
 fi
+# Phrase de chiffrement des sauvegardes (affichée une seule fois : à recopier hors du serveur)
+if [ ! -s /root/.ibig-sauvegarde.key ]; then
+  ./deploy/sauvegarde.sh --init
+  question "Phrase recopiée hors du serveur ? (Entrée pour continuer)" > /dev/null
+fi
 
 cat <<FIN
 
@@ -219,7 +224,7 @@ $(printf '\033[1;32m')Installation terminée.$(printf '\033[0m')
 
 Les « ÉCHEC » et « ATTENTION » du diagnostic ci-dessus sont normaux à ce stade : boîtes
 mail, valideurs et fiches pôles restent à configurer (docs/mise-en-service.md, section 3).
-Sauvegardes : quotidiennes sur ce serveur ; copiez-les aussi ailleurs (docs/mise-en-service.md, section 6).
+Sauvegardes : quotidiennes et chiffrées ; activez la copie hors serveur (docs/mise-en-service.md, section 6).
 FIN
 exit 0
 }

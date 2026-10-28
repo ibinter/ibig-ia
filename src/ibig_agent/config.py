@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # Clé de signature des sessions du tableau de bord (longue et aléatoire).
     secret_key: str = ""
     dashboard_url: str = "http://localhost:8000"
+    # Relais (nginx, Caddy) dont l'en-tête X-Forwarded-For est cru pour connaître l'adresse
+    # IP réelle du visiteur. Le port de l'agent n'est publié que sur 127.0.0.1 : seuls la
+    # machine et les réseaux Docker peuvent l'atteindre.
+    trusted_proxies: str = "127.0.0.1,::1,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
     # Boîte (déclarée dans mailboxes.yaml) qui envoie les notifications aux valideurs.
     notification_mailbox: str = ""
     # Valideur des pôles qui n'en ont pas dans poles.yaml (ex. la direction au démarrage).
@@ -31,6 +35,8 @@ class Settings(BaseSettings):
     timezone: str = "Africa/Abidjan"
     config_dir: Path = Path("./config")
     knowledge_dir: Path = Path("./knowledge")
+    # État de la dernière sauvegarde (deploy/sauvegarde.sh écrit state/sauvegarde.json)
+    state_dir: Path = Path("./state")
     mail_poll_minutes: int = 5
     daily_report_hour: int = 8
     approval_timeout_hours: int = 24

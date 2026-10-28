@@ -1322,6 +1322,8 @@ details.past summary { cursor: pointer; color: var(--muted); font-weight: 600; f
 .job-list { display: grid; gap: 10px; }
 .job { padding: 14px 18px; border-left: 3px solid var(--line-2); }
 .job.j-ok { border-left-color: var(--ok); } .job.j-ko { border-left-color: var(--bad); }
+.job.j-warn { border-left-color: var(--warn); } .j-warn .job-dot { background: var(--warn-soft); color: var(--warn); }
+.job.backup { margin-bottom: 14px; }
 .job-main { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .job-dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none;
   background: var(--bg-soft); color: var(--muted); }
