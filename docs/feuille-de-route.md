@@ -43,7 +43,10 @@ Actions de la section 19, qui débloquent la phase 1 :
 ## Phase 2 — Communication et contenus web (mois 2)
 
 - [x] Calendrier éditorial hebdomadaire (génération + validation)
-- [ ] Raccordement de l'outil multi-comptes (Metricool, Buffer…) pour programmer les posts validés
+- [x] Raccordement de l'outil multi-comptes (Metricool ou Buffer, au choix par compte, menu
+      Réseaux sociaux : champs « Relais ») pour publier les posts validés. Testé avec des API
+      simulées ; **à essayer sur un vrai compte** (bouton « Tester »), les formats d'API
+      Metricool et Buffer n'ayant pas été vérifiés en réel.
 - [ ] Briefs visuels vers Canva (modèles aux couleurs IBIG)
 - [x] Agent Contenus web : WordPress (API REST, compte « Auteur »), module d'entrée
       sécurisé réutilisable pour les sites PHP maison, export HTML pour les sites sans back-office

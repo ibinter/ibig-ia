@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import secrets
 import time
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 import httpx
@@ -196,12 +197,103 @@ class XAccount:
 PUBLISHERS = {"facebook_page": FacebookPage, "instagram": Instagram, "threads": Threads,
               "linkedin": LinkedInPage, "x": XAccount}
 
+# ------------------------------------------------------------------ outils multi-comptes
+# Un compte peut passer par un relais (Metricool, Buffer) au lieu des API de chaque réseau :
+# un seul accès pour plusieurs comptes. La gouvernance reste identique : le relais ne
+# reçoit que le texte déjà validé, publié à l'échéance par « social.schedule_approved ».
+RELAY_FIELDS: list[tuple[str, str]] = [
+    ("relais", "Relais : metricool ou buffer (vide = connexion directe au réseau)"),
+    ("relais_jeton", "Relais : jeton d'accès (Metricool X-Mc-Auth, ou Buffer access token)"),
+    ("relais_profil", "Relais : Metricool « blogId:userId » · Buffer identifiant du profil"),
+]
+METRICOOL_NETWORK = {"facebook_page": "facebook", "instagram": "instagram",
+                     "threads": "threads", "linkedin": "linkedin", "x": "twitter"}
+METRICOOL = "https://app.metricool.com/api"
+BUFFER = "https://api.bufferapp.com/1"
+
+
+def all_fields(reseau: str) -> list[tuple[str, str]]:
+    """Champs saisissables d'un compte : accès directs, puis relais."""
+    return (FIELDS.get(reseau, []) + RELAY_FIELDS) if reseau in PUBLISHERS else []
+
+
+def relay_complete(creds: dict) -> bool:
+    return creds.get("relais") in RELAYS and all(creds.get(k) for k in
+                                                 ("relais_jeton", "relais_profil"))
+
+
+def direct_complete(reseau: str, creds: dict) -> bool:
+    return reseau in PUBLISHERS and all(creds.get(k) for k, _ in FIELDS[reseau])
+
+
+class MetricoolRelay:
+    def __init__(self, reseau: str, creds: dict, version: str, client: httpx.Client) -> None:
+        self.reseau, self.creds, self.client = reseau, creds, client
+        try:
+            self.blog, self.user = creds["relais_profil"].split(":", 1)
+        except ValueError as exc:
+            raise SocialError("Metricool : profil attendu sous la forme blogId:userId") from exc
+
+    def _headers(self) -> dict:
+        return {"X-Mc-Auth": self.creds["relais_jeton"]}
+
+    def publish(self, text: str, image_url: str = "") -> dict:
+        # Metricool refuse une date passée : on programme dans la minute qui suit
+        at = (datetime.now(UTC) + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        body = {"text": text, "autoPublish": True,
+                "providers": [{"network": METRICOOL_NETWORK[self.reseau]}],
+                "publicationDate": {"dateTime": at, "timezone": "UTC"},
+                "media": [image_url] if image_url else []}
+        data = _check(self.client.post(f"{METRICOOL}/v2/scheduler/posts", json=body,
+                                       params={"blogId": self.blog, "userId": self.user},
+                                       headers=self._headers()), "Metricool")
+        return {"id": str((data.get("data") or data).get("id", "")), "relais": "metricool"}
+
+    def check(self) -> str:
+        data = _check(self.client.get(f"{METRICOOL}/admin/simpleProfiles",
+                                      params={"userId": self.user},
+                                      headers=self._headers()), "Metricool")
+        brands = data if isinstance(data, list) else data.get("data", [])
+        if not any(str(b.get("id")) == self.blog for b in brands):
+            raise SocialError(f"Metricool : marque {self.blog} introuvable pour ce jeton")
+        return "Marque Metricool accessible"
+
+
+class BufferRelay:
+    def __init__(self, reseau: str, creds: dict, version: str, client: httpx.Client) -> None:
+        self.reseau, self.creds, self.client = reseau, creds, client
+
+    def publish(self, text: str, image_url: str = "") -> dict:
+        form = {"access_token": self.creds["relais_jeton"], "text": text, "now": "true",
+                "profile_ids[]": self.creds["relais_profil"]}
+        if image_url:
+            form["media[photo]"] = image_url
+        data = _check(self.client.post(f"{BUFFER}/updates/create.json", data=form), "Buffer")
+        if data.get("success") is False:
+            raise SocialError(f"Buffer : {data.get('message', 'refusé')}")
+        updates = data.get("updates") or [{}]
+        return {"id": str(updates[0].get("id", "")), "relais": "buffer"}
+
+    def check(self) -> str:
+        data = _check(self.client.get(
+            f"{BUFFER}/profiles/{self.creds['relais_profil']}.json",
+            params={"access_token": self.creds["relais_jeton"]}), "Buffer")
+        return f"Profil Buffer « {data.get('formatted_username', '?')} » accessible"
+
+
+RELAYS = {"metricool": MetricoolRelay, "buffer": BufferRelay}
+
 
 def publisher_for(reseau: str, creds: dict, version: str = "v21.0",
                   client: httpx.Client | None = None):
     cls = PUBLISHERS.get(reseau)
     if cls is None:
         raise SocialError(f"Pas de publication automatique pour {reseau}")
+    if creds.get("relais"):
+        if not relay_complete(creds):
+            raise SocialError("Relais incomplet : choisissez metricool ou buffer, avec "
+                              "jeton et profil")
+        return RELAYS[creds["relais"]](reseau, creds, version, client or httpx.Client(timeout=30))
     missing = [k for k, _ in FIELDS[reseau] if not creds.get(k)]
     if missing:
         raise SocialError(f"Accès incomplets pour {reseau} : {', '.join(missing)}")

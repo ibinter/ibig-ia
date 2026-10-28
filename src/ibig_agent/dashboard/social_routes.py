@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import desc, select
 
 from ..auth import Principal, normalize_phone
-from ..channels.social import FIELDS, PUBLISHERS, publisher_for
+from ..channels.social import PUBLISHERS, all_fields, publisher_for
 from ..configstore import sync_social_accounts, sync_whatsapp
 from ..db import ScheduledPost, SocialAccountRow, SocialComment, WhatsAppAccount, utcnow
 from ..publishing import (
@@ -62,7 +62,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                          "connected": auto and is_connected(rt.sessions, rt.settings, a.reseau,
                                                             a.compte),
                          "fields": [(k, lab, bool(creds.get(k)))
-                                    for k, lab in FIELDS.get(a.reseau, [])] if auto else [],
+                                    for k, lab in all_fields(a.reseau)] if auto else [],
                          "howto": HOWTO.get(a.reseau, "")})
         with rt.sessions() as s:
             posts = s.scalars(select(ScheduledPost).order_by(desc(ScheduledPost.publish_at))
@@ -88,7 +88,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             raise HTTPException(400)
         form = await request.form()
         save_credentials(rt.sessions, rt.settings, a.reseau, a.compte,
-                         {k: str(form.get(k, ""))[:2000] for k, _ in FIELDS[a.reseau]},
+                         {k: str(form.get(k, ""))[:2000] for k, _ in all_fields(a.reseau)},
                          who.label)
         return back("/reseaux", f"Accès enregistrés pour {a.compte} : testez la connexion")
 

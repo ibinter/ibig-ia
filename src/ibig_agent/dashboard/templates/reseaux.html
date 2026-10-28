@@ -47,7 +47,7 @@
         <form method="post" action="/reseaux/{{ r.i }}/acces" autocomplete="off">
           {% for k, lab, has in r.fields %}
             <label class="field"><span>{{ lab }}{% if has %} <span class="pill green">enregistré</span>{% endif %}</span>
-              <input type="{{ 'text' if k.endswith('_id') else 'password' }}" name="{{ k }}" autocomplete="new-password" placeholder="{{ 'laisser vide pour garder' if has else '' }}"></label>
+              <input type="{{ 'text' if k.endswith('_id') or k in ('relais', 'relais_profil') else 'password' }}" name="{{ k }}" autocomplete="new-password" placeholder="{{ 'laisser vide pour garder' if has else '' }}"></label>
           {% endfor %}
           <button class="btn sm primary">{{ icon('check') }} Enregistrer</button>
         </form>

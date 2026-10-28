@@ -20,7 +20,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .agents.communication import NETWORK_CHANNEL
 from .auth import _sign
-from .channels.social import FIELDS, PUBLISHERS, SocialError, publisher_for
+from .channels.social import (
+    PUBLISHERS,
+    RELAYS,
+    SocialError,
+    all_fields,
+    direct_complete,
+    publisher_for,
+    relay_complete,
+)
 from .config import Settings
 from .configstore import service_value, set_service_value
 from .db import PendingAction, ScheduledPost, ServiceSetting, utcnow
@@ -49,7 +57,10 @@ def save_credentials(sessions: sessionmaker[Session], settings: Settings, reseau
                      compte: str, values: dict, by: str) -> None:
     """Enregistre les accès (chiffrés) ; un champ laissé vide garde l'ancienne valeur."""
     current = load_credentials(sessions, settings, reseau, compte)
-    merged = {k: (values.get(k) or "").strip() or current.get(k, "") for k, _ in FIELDS[reseau]}
+    merged = {k: (values.get(k) or "").strip() or current.get(k, "")
+              for k, _ in all_fields(reseau)}
+    if merged.get("relais") not in RELAYS:
+        merged["relais"] = ""
     set_service_value(sessions, settings, cred_name(reseau, compte), json.dumps(merged), by,
                       secret=True)
 
@@ -65,7 +76,9 @@ def forget_credentials(sessions: sessionmaker[Session], reseau: str, compte: str
 def is_connected(sessions: sessionmaker[Session], settings: Settings, reseau: str,
                  compte: str) -> bool:
     creds = load_credentials(sessions, settings, reseau, compte)
-    return reseau in PUBLISHERS and all(creds.get(k) for k, _ in FIELDS[reseau])
+    if creds.get("relais"):  # le relais choisi remplace la connexion directe
+        return reseau in PUBLISHERS and relay_complete(creds)
+    return direct_complete(reseau, creds)
 
 
 # ------------------------------------------------------------------ image publique signée
