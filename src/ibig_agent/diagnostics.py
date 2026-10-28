@@ -54,7 +54,26 @@ class Diagnostic:
             self.mailboxes()
             self.sites()
             self.whatsapp()
+            self.emailing()
         return self.checks
+
+    def emailing(self) -> None:
+        from .configstore import service_value
+        from .dnsauth import check_domain
+
+        sender = service_value(self.rt.sessions, self.rt.settings, "brevo_sender_email")
+        if not sender or "@" not in sender:
+            self.add("Emailing", "domaine d'envoi", OK, "pas d'expéditeur Brevo réglé (Services)")
+            return
+        domain = sender.rsplit("@", 1)[1].strip().lower()
+        try:
+            results = check_domain(domain, getattr(self.rt, "dns_client", None))
+        except Exception as exc:  # noqa: BLE001 — le DNS injoignable n'est pas bloquant
+            self.add("Emailing", f"authentification de {domain}", WARN,
+                     f"vérification impossible : {type(exc).__name__}")
+            return
+        for name, status, detail in results:
+            self.add("Emailing", f"{name} de {domain}", OK if status == "OK" else WARN, detail)
 
     @property
     def failed(self) -> bool:
