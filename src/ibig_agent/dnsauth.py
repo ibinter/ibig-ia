@@ -50,8 +50,8 @@ def check_domain(domain: str, client: httpx.Client | None = None) -> list[tuple[
     dmarc = [t for t in lookup(f"_dmarc.{domain}", "TXT", client)
              if t.lower().startswith("v=dmarc1")]
     if not dmarc:
-        out.append(("DMARC", "ATTENTION", f"aucun enregistrement _dmarc.{domain} "
-                    "(commencer par « v=DMARC1; p=none; rua=mailto:… »)"))
+        out.append(("DMARC", "ATTENTION", (f"aucun enregistrement _dmarc.{domain} "
+                    "(commencer par « v=DMARC1; p=none; rua=mailto:… »)")))
     else:
         policy = next((p.split("=", 1)[1].strip() for p in dmarc[0].replace(" ", "").split(";")
                        if p.lower().startswith("p=")), "?")
