@@ -15,6 +15,7 @@ declare(strict_types=1);
  * GET  ?action=ping       → {"ok":true}
  * GET  ?action=tags       → étiquettes et contacts actifs (id, name, n) + total actif
  * GET  ?action=accounts   → comptes d'envoi (id, label, from_name, from_email)
+ * GET  ?action=stats      → envois, ouvertures, clics, rejets par campagne récente (days=30)
  * POST ?action=campaign   → JSON {name, subject, html, from_email|account_id, tag_ids[],
  *                           mode: any|every, preheader, from_name, send_at, launch}
  */
@@ -65,6 +66,29 @@ if ($action === 'tags' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($action === 'accounts' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $rows = $pdo->query('SELECT id, label, from_name, from_email FROM mailaby_accounts ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     agent_out(200, ['accounts' => $rows]);
+}
+
+if ($action === 'stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $days  = max(1, min(365, (int)($_GET['days'] ?? 30)));
+    $since = date('Y-m-d H:i:s', time() - $days * 86400);
+    $st = $pdo->prepare(
+        "SELECT c.id, c.name, c.status, c.created_at,
+                SUM(r.status = 'sent') AS sent,
+                SUM(r.opened_at IS NOT NULL) AS opened,
+                SUM(r.clicked_at IS NOT NULL) AS clicked,
+                SUM(r.bounced_at IS NOT NULL) AS bounced
+         FROM mailaby_campaigns c JOIN mailaby_recipients r ON r.campaign_id = c.id
+         WHERE c.created_at >= ? GROUP BY c.id ORDER BY c.id DESC LIMIT 50"
+    );
+    $st->execute([$since]);
+    $camps = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
+        $camps[] = ['id' => (int)$c['id'], 'name' => (string)$c['name'], 'status' => (string)$c['status'],
+                    'created_at' => (string)$c['created_at'], 'sent' => (int)$c['sent'],
+                    'opened' => (int)$c['opened'], 'clicked' => (int)$c['clicked'], 'bounced' => (int)$c['bounced']];
+    }
+    $unsub = (int)$pdo->query('SELECT COUNT(*) FROM mailaby_contacts WHERE unsubscribed = 1')->fetchColumn();
+    agent_out(200, ['days' => $days, 'campagnes' => $camps, 'desinscrits' => $unsub]);
 }
 
 if ($action === 'campaign' && $_SERVER['REQUEST_METHOD'] === 'POST') {

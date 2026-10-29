@@ -48,6 +48,12 @@ class FakeMailaby:
         if action == "tags":
             return httpx.Response(200, json={"total_actifs": 900, "tags": [
                 {"id": 5, "name": "Clients SOFT", "n": 420}]})
+        if action == "stats":
+            return httpx.Response(200, json={"days": 7, "desinscrits": 12, "campagnes": [
+                {"id": 31, "name": "Formations", "status": "sent", "sent": 200,
+                 "opened": 80, "clicked": 10, "bounced": 20},
+                {"id": 32, "name": "Petite", "status": "sent", "sent": 10,
+                 "opened": 5, "clicked": 1, "bounced": 5}]})
         if action == "campaign":
             return httpx.Response(201, json={"id": 31, "status": "sending", "recipients": 420})
         return httpx.Response(404, json={"error": "Action inconnue"})
@@ -157,3 +163,19 @@ def test_campaign_uses_the_account_of_the_pole_or_the_one_chosen(rt, dg, mailaby
     assert [r.payload["expediteur_mail"] for r in rows] == [
         "contact@ibigsoft.com", "formation@ibig-eduform.com"]
     assert rows[0].payload["expediteur"] == "IBIG Soft"
+
+
+def test_mailaby_stats_feed_indicators_and_bounce_alert(rt, dg, mailaby):
+    from ibig_agent.db import JournalEntry
+
+    assert not [i for i in rt.veille.indicators(7).items if "Campagnes mail" in i.nom]
+    dg.post("/services/mailaby", data={"adresse": URL, "jeton": "jeton-agent"})
+    items = {i.nom: i for i in rt.veille.indicators(7).items if "Campagnes mail" in i.nom}
+    assert items["Campagnes mail : taux d'ouverture"].valeur == "40 %"   # 85 / 210
+    rejet = items["Campagnes mail : taux de rejet"]
+    assert rejet.valeur == "11.9 %" and rejet.etat == "alerte"   # 25 rejets / 210 envois
+    assert rt.veille.check_alerts().rejets == 1   # « Petite » (10 envois) est ignorée
+    assert rt.veille.check_alerts().rejets == 0   # une alerte par campagne
+    with rt.sessions() as s:
+        alert = s.query(JournalEntry).filter_by(action_type="veille.alert").one()
+    assert alert.details["kind"] == "rejets" and alert.details["refs"] == ["31"]

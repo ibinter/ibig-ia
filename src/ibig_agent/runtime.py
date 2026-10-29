@@ -265,10 +265,16 @@ class Runtime:
                                notification_mailbox=mailbox if mailbox in self.connectors else "",
                                month_spend=getattr(self.llm, "month_spend", None))
 
+    def mailaby_stats(self, days: int) -> dict | None:
+        """Statistiques des campagnes si Mailaby est raccordé, sinon None."""
+        client, is_mailaby = emailing_client(self.sessions, self.settings,
+                                             self.brevo_factory, self.mailaby_factory)
+        return client.stats(days) if is_mailaby else None
+
     @property
     def veille(self) -> VeilleAgent:
         return VeilleAgent(self.settings, self.org, self.governor, self.sessions,
-                           set(self.connectors))
+                           set(self.connectors), mailaby_stats=self.mailaby_stats)
 
     @property
     def chef(self) -> ChefAgent:

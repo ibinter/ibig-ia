@@ -43,6 +43,8 @@ TIME_SAVED_MINUTES = {
 }
 REVIEW_MINUTES = 1.5  # temps humain de relecture d'un élément validé
 BASELINE_SETTING = "heures_manuelles_semaine"
+BOUNCE_ALERT_PCT = 5.0   # taux de rejet d'une campagne au-delà duquel la direction est alertée
+BOUNCE_MIN_SENT = 50     # sous ce nombre d'envois, le taux n'est pas significatif
 
 
 # ------------------------------------------------------------------ heures ouvrées
@@ -97,12 +99,16 @@ class AlertResult:
     pic: bool = False
     negatifs: int = 0
     sans_reponse: int = 0
+    rejets: int = 0
     envoyees: int = 0
 
 
 class VeilleAgent:
     def __init__(self, settings: Settings, org: OrgConfig, governor: Governor,
-                 session_factory: sessionmaker[Session], connected_mailboxes: set[str]) -> None:
+                 session_factory: sessionmaker[Session], connected_mailboxes: set[str],
+                 mailaby_stats=None) -> None:
+        # mailaby_stats(jours) -> dict | None : statistiques des campagnes (Mailaby raccordé)
+        self.mailaby_stats = mailaby_stats
         self.settings = settings
         self.org = org
         self.gov = governor
@@ -221,8 +227,39 @@ class VeilleAgent:
         else:
             out.items.append(Indicator("Brouillons de réponse validés sans modification", "—",
                                        "80 %", "a_mesurer"))
+        out.items.extend(self._campaign_indicators(days))
         out.items.insert(0, self._time_saved(journal, executed, weeks))
         return out
+
+    # -------------------------------------------------------------- campagnes (Mailaby)
+    def _campaign_stats(self, days: int) -> list[dict]:
+        if not self.mailaby_stats:
+            return []
+        try:
+            data = self.mailaby_stats(days) or {}
+        except Exception:  # noqa: BLE001 — Mailaby injoignable : pas d'indicateur, pas d'erreur
+            return []
+        return [c for c in data.get("campagnes", []) if int(c.get("sent") or 0) > 0]
+
+    def _campaign_indicators(self, days: int) -> list[Indicator]:
+        camps = self._campaign_stats(days)
+        if not camps:
+            return []
+        sent = sum(int(c["sent"]) for c in camps)
+        rate = lambda key: 100 * sum(int(c.get(key) or 0) for c in camps) / sent  # noqa: E731
+        opened, clicked, bounced = rate("opened"), rate("clicked"), rate("bounced")
+        detail = f"{len(camps)} campagne(s), {sent} mail(s) envoyé(s) par Mailaby"
+        return [
+            Indicator("Campagnes mail : taux d'ouverture", f"{opened:.0f} %", "à fixer",
+                      "a_mesurer", detail),
+            Indicator("Campagnes mail : taux de clic", f"{clicked:.1f} %", "à fixer",
+                      "a_mesurer"),
+            Indicator("Campagnes mail : taux de rejet", f"{bounced:.1f} %",
+                      f"moins de {BOUNCE_ALERT_PCT:g} %",
+                      "ok" if bounced < BOUNCE_ALERT_PCT else "alerte",
+                      "adresses invalides à nettoyer dans Mailaby" if bounced >= BOUNCE_ALERT_PCT
+                      else ""),
+        ]
 
     def _time_saved(self, journal: list[JournalEntry], executed: list[PendingAction],
                     weeks: float) -> Indicator:
@@ -320,6 +357,19 @@ class VeilleAgent:
                                 "[IBIG] {n} mail(s) sans réponse depuis plus de "
                                 f"{target:g} h ouvrées",
                                 "Ces mails attendent une réponse :")
+        # Campagnes mail : trop de rejets nuit à la réputation du domaine d'envoi
+        risky = [c for c in self._campaign_stats(7)
+                 if int(c["sent"]) >= BOUNCE_MIN_SENT
+                 and 100 * int(c.get("bounced") or 0) / int(c["sent"]) >= BOUNCE_ALERT_PCT
+                 and f"rejets:{c['id']}" not in done]
+        for c in risky:
+            result.rejets += 1
+            pct = 100 * int(c["bounced"]) / int(c["sent"])
+            self._alert("rejets", [str(c["id"])], self._direction(),
+                        f"[IBIG] Campagne « {str(c.get('name', ''))[:60]} » : {pct:.1f} % de rejets",
+                        f"{c['bounced']} rejet(s) sur {c['sent']} envoi(s). Un taux au-dessus de "
+                        f"{BOUNCE_ALERT_PCT:g} % abîme la réputation du domaine : nettoyez la "
+                        "liste (menu Contacts de Mailaby) avant la prochaine campagne.")
         result.envoyees = self._sent
         return result
 

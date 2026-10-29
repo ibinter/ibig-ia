@@ -50,7 +50,8 @@ class MailabyClient:
         self.headers = {"X-Agent-Token": token, "accept": "application/json"}
 
     def _call(self, method: str, action: str, **kwargs) -> dict:
-        resp = self.client.request(method, self.url, params={"action": action},
+        params = {"action": action, **kwargs.pop("params", {})}
+        resp = self.client.request(method, self.url, params=params,
                                    headers=self.headers, **kwargs)
         try:
             data = resp.json()
@@ -71,6 +72,10 @@ class MailabyClient:
         """Tous les comptes d'envoi de Mailaby (id, label, from_name, from_email) : un seul
         raccordement donne accès aux 16, sans les saisir un par un."""
         return list(self._call("GET", "accounts").get("accounts", []))
+
+    def stats(self, days: int = 30) -> dict:
+        """Envois, ouvertures, clics et rejets des campagnes récentes (par campagne)."""
+        return self._call("GET", "stats", params={"days": days})
 
     def lists(self) -> list[ContactList]:
         data = self._call("GET", "tags")
