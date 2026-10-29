@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # premier de canaux.yaml) et modèle Meta à un paramètre pour écrire hors fenêtre de 24 h.
     whatsapp_validation_number: str = ""
     whatsapp_validation_template: str = ""
+    # Modèle Meta à un paramètre ({{1}} = le texte validé) pour répondre à un client APRÈS la
+    # fenêtre de 24 h ; vide = ces réponses sont refusées (comportement d'origine).
+    whatsapp_reply_template: str = ""
     # Heure (fuseau IBIG) de publication automatique des posts validés, le jour prévu
     social_publish_hour: int = 10
     # Conservation des données personnelles (section 13)

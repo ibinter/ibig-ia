@@ -196,6 +196,13 @@ validées restent remises à l'équipe (publication manuelle).
    « Agent IA IBIG — à valider : {{1}}. Répondez OK suivi du numéro pour valider. », puis
    indiquer son nom dans `IBIG_WHATSAPP_VALIDATION_TEMPLATE`.
 
+   **Répondre à un client plus de 24 h après son message** : créer de même un modèle
+   « Utilitaire » à un paramètre, par exemple « Bonjour, un conseiller IBIG vous répond :
+   {{1}} », puis indiquer son nom dans `IBIG_WHATSAPP_REPLY_TEMPLATE`. Le texte validé par
+   l'humain y est inséré tel quel (sans retour à la ligne : Meta les refuse dans un modèle),
+   et seulement pour un contact qui a écrit au numéro et n'a pas dit STOP. Tant que le
+   réglage est vide, une réponse validée trop tard est refusée. Le diagnostic le signale.
+
 ### Recherche par le sens et photos par IA (section 14)
 
 Menu **Services** :

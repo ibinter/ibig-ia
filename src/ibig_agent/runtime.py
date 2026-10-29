@@ -90,8 +90,15 @@ def web_executors(connectors: dict[str, WebConnector]) -> dict[str, Executor]:
     return {"web.article_draft": draft}
 
 
+def template_param(text: str) -> str:
+    """Texte rendu acceptable par Meta pour un paramètre de modèle : ni retour à la ligne,
+    ni tabulation, ni plus de trois espaces de suite, 1000 caractères au plus."""
+    return " ".join(str(text).split())[:1000]
+
+
 def whatsapp_executors(clients: dict[str, WhatsAppClient],
-                       sessions: sessionmaker[Session]) -> dict[str, Executor]:
+                       sessions: sessionmaker[Session],
+                       settings: Settings | None = None) -> dict[str, Executor]:
     def send(payload: dict) -> dict:
         client = clients.get(payload["phone_number_id"])
         if client is None:
@@ -101,10 +108,18 @@ def whatsapp_executors(clients: dict[str, WhatsAppClient],
         if contact is not None and contact.opted_out:
             raise RuntimeError("contact désinscrit (STOP) : aucun envoi")
         # Règle de Meta, vérifiée au moment de l'envoi : la validation a pu prendre du temps.
-        if (contact is None or contact.last_inbound_at is None or utcnow()
-                - as_utc(contact.last_inbound_at) > timedelta(hours=WINDOW_HOURS)):
-            raise RuntimeError("fenêtre de 24 h dépassée : répondre avec un modèle validé "
-                               "par Meta ou par téléphone")
+        if contact is None or contact.last_inbound_at is None:
+            raise RuntimeError("contact inconnu : aucun message reçu de lui, aucun envoi")
+        if utcnow() - as_utc(contact.last_inbound_at) > timedelta(hours=WINDOW_HOURS):
+            template = settings.whatsapp_reply_template if settings else ""
+            if not template:
+                raise RuntimeError("fenêtre de 24 h dépassée : répondre avec un modèle validé "
+                                   "par Meta ou par téléphone")
+            # Hors fenêtre, seul un modèle approuvé par Meta est permis : le texte validé par
+            # l'humain y est inséré tel quel (au contact qui nous a écrit, jamais à un autre)
+            result = client.send_template(payload["to"], template,
+                                          [template_param(payload["texte"])])
+            return {**result, "modele": template}
         return client.send_text(payload["to"], payload["texte"])
 
     return {"whatsapp.reply": send, "whatsapp.ack": send, "whatsapp.faq_reply": send,
@@ -345,7 +360,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
         whatsapp_clients = {n.phone_number_id: WhatsAppClient(n, settings.whatsapp_api_version)
                             for n in org.whatsapp}
     executors = {**mail_executors(connectors), **web_executors(web_connectors),
-                 **whatsapp_executors(whatsapp_clients, sessions), **manual_social_executors(),
+                 **whatsapp_executors(whatsapp_clients, sessions, settings),
+                 **manual_social_executors(),
                  **social_executors(sessions, settings),
                  **validation_executors(whatsapp_clients, settings),
                  **emailing_executors(sessions, settings)}

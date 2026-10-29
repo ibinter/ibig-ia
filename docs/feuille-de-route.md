@@ -60,8 +60,11 @@ Actions de la section 19, qui débloquent la phase 1 :
 - [x] Intégration WhatsApp Business (API Cloud Meta) : webhook signé, tri, réponses
       automatiques documentées, brouillons à valider, fenêtre de 24 h, désinscription
 - [ ] Migrer 1 ou 2 numéros vers la plateforme officielle et déclarer le webhook chez Meta
-- [ ] Modèles de messages validés par Meta (relances hors fenêtre de 24 h, campagnes
-      avec consentement) et validation des brouillons depuis WhatsApp
+- [x] Réponses validées hors fenêtre de 24 h envoyées par un modèle Meta
+      (`IBIG_WHATSAPP_REPLY_TEMPLATE`, à créer et faire approuver chez Meta) ; validation des
+      brouillons depuis WhatsApp déjà en place
+- [ ] Relances commerciales WhatsApp et campagnes avec consentement : modèles Meta dédiés,
+      à définir avec les pôles
 - [x] Agent Commercial : qualification, séquences de relance, suivi des démos et essais,
       désinscription
 - [ ] Raccorder le moteur de licences IBIG SOFT (dates d'essai automatiques, au lieu de l'import CSV)

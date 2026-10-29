@@ -203,6 +203,10 @@ class Diagnostic:
                      "" if len(value) >= 16 else "IBIG_WHATSAPP_… manquant : webhook refusé")
         self.add("WhatsApp", "adresse du webhook", OK,
                  f"{s.dashboard_url.rstrip('/')}/webhooks/whatsapp (à déclarer chez Meta)")
+        self.add("WhatsApp", "modèle de réponse après 24 h",
+                 OK if s.whatsapp_reply_template else WARN,
+                 s.whatsapp_reply_template or "IBIG_WHATSAPP_REPLY_TEMPLATE vide : une réponse "
+                 "validée plus de 24 h après le message du client est refusée")
         for client in self.rt.whatsapp_clients.values():
             self.probe("WhatsApp", client.number.nom, client.check)
 

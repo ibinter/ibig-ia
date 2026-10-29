@@ -26,6 +26,10 @@ class FakeWhatsApp:
         self.sent.append({"to": to, "texte": body})
         return {"whatsapp_id": f"wamid.out{len(self.sent)}"}
 
+    def send_template(self, to, name, params, lang="fr"):
+        self.sent.append({"to": to, "modele": name, "params": params})
+        return {"whatsapp_id": f"wamid.tpl{len(self.sent)}"}
+
     def check(self):
         return "IBIG SOFT (+225), qualité GREEN"
 
@@ -221,3 +225,47 @@ def test_erase_whatsapp_contact_by_phone(rt, wa, llm):
     assert export_contact(rt.sessions, CLIENT).empty
     (draft,) = pending(rt, "whatsapp.reply")
     assert draft.status == "rejected"
+
+
+def test_reply_after_24h_goes_out_as_a_meta_template_when_configured(rt, wa, llm):
+    llm.triages["mon compte"] = {"categorie": "client"}
+    post(rt, payload("Problème avec mon compte"))
+    (draft,) = pending(rt, "whatsapp.reply")
+    with rt.sessions() as s:  # la validation arrive 25 h après le message du client
+        s.get(WhatsAppContact, CLIENT).last_inbound_at = utcnow() - timedelta(hours=25)
+        s.commit()
+    rt.settings.whatsapp_reply_template = "reponse_ibig"
+    out = rt.governor.approve(draft.id, by="Awa", payload_override={
+        "texte": "Bonjour,\n\nvotre   compte est rétabli.\tMerci."})
+    assert out.status == "executed" and out.result["modele"] == "reponse_ibig"
+    assert wa.sent[-1] == {"to": CLIENT, "modele": "reponse_ibig",
+                           "params": ["Bonjour, votre compte est rétabli. Merci."]}
+
+
+def test_template_reply_still_respects_stop_and_unknown_contacts(rt, wa, llm):
+    rt.settings.whatsapp_reply_template = "reponse_ibig"
+    llm.triages["mon compte"] = {"categorie": "client"}
+    post(rt, payload("Problème avec mon compte"))
+    (draft,) = pending(rt, "whatsapp.reply")
+    with rt.sessions() as s:
+        c = s.get(WhatsAppContact, CLIENT)
+        c.last_inbound_at = utcnow() - timedelta(hours=30)
+        c.opted_out = True
+        s.commit()
+    out = rt.governor.approve(draft.id, by="Awa")
+    assert out.status == "failed" and "STOP" in out.error
+    assert not any("modele" in m for m in wa.sent)
+
+
+def test_diagnostic_flags_missing_reply_template(rt, wa):
+    from ibig_agent.diagnostics import WARN, Diagnostic
+
+    rt.settings.whatsapp_app_secret = rt.settings.whatsapp_verify_token = "x" * 20
+    d = Diagnostic(rt, online=False)
+    d.whatsapp()
+    line = next(c for c in d.checks if c.name == "modèle de réponse après 24 h")
+    assert line.status == WARN
+    rt.settings.whatsapp_reply_template = "reponse_ibig"
+    d2 = Diagnostic(rt, online=False)
+    d2.whatsapp()
+    assert next(c for c in d2.checks if c.name == "modèle de réponse après 24 h").status == "OK"
