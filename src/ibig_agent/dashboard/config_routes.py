@@ -545,7 +545,8 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         if pid is None:
             return back("/campagnes", "Échec : campagne non créée")
         return back("/validations", "Campagne rédigée : relisez-la ci-dessous ; elle part "
-                                    "dans Brevo dès votre validation")
+                                    f"par {'Mailaby' if mailaby_on() else 'Brevo'} dès votre "
+                                    "validation")
 
     # ------------------------------------------------------------ boîtes mail
     @app.get("/boites", response_class=HTMLResponse)
