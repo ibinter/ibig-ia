@@ -69,7 +69,9 @@ Actions de la section 19, qui débloquent la phase 1 :
       vérifiées), tickets, API pour SARA
 - [ ] Rédiger les guides utilisateurs (`knowledge/guides/`) et valider ceux qui peuvent
       servir aux réponses automatiques (`reponses_auto: true`)
-- [ ] Brancher le widget SARA des solutions sur l'API (côté serveur)
+- [x] Widget SARA des solutions branché sur l'API, côté serveur : relais PHP + bulle de
+      discussion prêts à copier (`integrations/sara/`, guide `LISEZMOI.md`). **Reste à les
+      installer sur chaque site** et à définir `IBIG_SARA_API_KEY` sur le VPS.
 - [x] Agent Veille : indicateurs de la section 3, alertes (avis négatif, pic de messages,
       mails sans réponse), rapport hebdomadaire
 - [ ] Veille des réseaux sociaux et avis en ligne (après raccordement de l'outil multi-comptes)
