@@ -2,7 +2,7 @@
 par l'agent, validées par un humain — mais envoyées par le point d'entrée de Mailaby."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -82,7 +82,7 @@ def test_client_checks_token_and_lists_tags(mailaby):
 def test_send_campaign_targets_tags_and_schedule(mailaby):
     client = mailaby.client(URL, "jeton-agent")
     out = client.send_campaign("N1", "Objet", "<p>Bonjour</p>", "IBIG SARL", "n@ibig.test",
-                               [5], datetime(2026, 11, 2, 9, 30))
+                               [5], datetime(2026, 11, 2, 9, 30, tzinfo=UTC))
     _, _, body, _ = mailaby.calls[-1]
     assert body["tag_ids"] == [5] and body["send_at"] == "2026-11-02 09:30:00"
     assert body["launch"] is True and body["from_email"] == "n@ibig.test"
