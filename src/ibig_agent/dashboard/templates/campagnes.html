@@ -40,11 +40,22 @@
 
   {% if configured %}
   <form class="card" method="post" action="/campagnes" style="align-self:start">
-    <div class="card-head"><div><h2>{{ icon('sparkles') }} Nouvelle campagne</h2><div class="sub">Expéditeur : {{ sender_name or '—' }} &lt;{{ sender_email or 'à régler dans Services' }}&gt;</div></div></div>
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Nouvelle campagne</h2><div class="sub">{% if accounts %}{{ accounts | length }} comptes d'envoi Mailaby disponibles{% else %}Expéditeur : {{ sender_name or '—' }} &lt;{{ sender_email or 'à régler dans Services' }}&gt;{% endif %}</div></div></div>
     {% if error %}<div class="alert">{{ icon('alert') }}<span>{{ error }}</span></div>{% endif %}
     <label class="field"><span>Liste de contacts Brevo</span>
       <select name="liste" style="width:100%" required>{% for l in lists %}<option value="{{ l.id }}|{{ l.name }}">{{ l.name }} ({{ l.subscribers }} contacts)</option>{% endfor %}</select></label>
-    <label class="field"><span>Pôle</span><select name="pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Pôle</span><select name="pole" id="cp-pole" style="width:100%">{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+    {% if accounts %}
+    <label class="field"><span>Compte d'envoi <em class="muted">(choisi d'après le pôle, modifiable)</em></span>
+      <select name="compte" id="cp-compte" style="width:100%">{% for a in accounts %}<option value="{{ a.from_email }}">{{ a.from_name }} &lt;{{ a.from_email }}&gt;</option>{% endfor %}</select></label>
+    <script>
+      (function () {
+        var defaults = {{ defaults | tojson }}, pole = document.getElementById('cp-pole'), compte = document.getElementById('cp-compte');
+        function sync() { if (defaults[pole.value]) compte.value = defaults[pole.value]; }
+        pole.addEventListener('change', sync); sync();
+      })();
+    </script>
+    {% endif %}
     <label class="field"><span>Sujet</span><input type="text" name="sujet" required placeholder="Ex. : nos formations certifiantes d'octobre"></label>
     <button class="btn primary lg" style="width:100%;justify-content:center" {{ 'disabled' if not lists }} onclick="this.innerHTML='Rédaction en cours…'">{{ icon('sparkles') }} Rédiger la campagne</button>
     <p class="muted small" style="margin:10px 0 0">Rien ne part avant votre validation.</p>

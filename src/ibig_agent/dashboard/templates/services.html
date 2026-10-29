@@ -69,7 +69,7 @@
         <input type="password" name="jeton" autocomplete="new-password" placeholder="{{ '•••••••• enregistré' if mailaby_token else '' }}"></label>
       <div class="grid g-2" style="gap:12px">
         <label class="field"><span>Nom de l'expéditeur</span><input type="text" name="expediteur" value="{{ sender_name }}" placeholder="IBIG SARL"></label>
-        <label class="field"><span>Compte d'envoi (adresse dans Mailaby)</span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigroupsarl.com"></label>
+        <label class="field"><span>Compte d'envoi par défaut <em class="muted">(facultatif : l'agent choisit parmi tous les comptes de Mailaby)</em></span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigroupsarl.com"></label>
       </div>
       <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
     </form>

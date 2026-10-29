@@ -16,6 +16,7 @@ from sqlalchemy import desc, select
 
 from ..auth import Principal
 from ..channels.emailing import EmailingError
+from ..channels.mailaby import default_sender
 from ..config import Mailbox
 from ..configstore import (
     reload_knowledge,
@@ -450,11 +451,13 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         if jeton.strip():
             set_service_value(rt.sessions, rt.settings, "mailaby_token", jeton.strip(),
                               who.label, secret=True)
-        # L'expéditeur est commun aux deux services d'emailing
-        set_service_value(rt.sessions, rt.settings, "brevo_sender_name",
-                          expediteur.strip()[:100], who.label)
-        set_service_value(rt.sessions, rt.settings, "brevo_sender_email",
-                          expediteur_mail.strip().lower(), who.label)
+        # Expéditeur par défaut, commun aux deux services ; vide = on garde l'actuel (Brevo)
+        if expediteur.strip():
+            set_service_value(rt.sessions, rt.settings, "brevo_sender_name",
+                              expediteur.strip()[:100], who.label)
+        if expediteur_mail.strip():
+            set_service_value(rt.sessions, rt.settings, "brevo_sender_email",
+                              expediteur_mail.strip().lower(), who.label)
         return back("/services", "Réglages Mailaby enregistrés : testez la connexion")
 
     @app.post("/services/mailaby/retirer")
@@ -491,18 +494,22 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     @app.get("/campagnes", response_class=HTMLResponse)
     def campaigns(request: Request, who: Principal = Depends(user)):
         direction_only(who)
-        lists, error = [], ""
+        lists, accounts, error = [], [], ""
         if mailaby_on() or service_value(rt.sessions, rt.settings, "brevo_api_key"):
             try:
-                lists = brevo().lists()
+                client = brevo()
+                lists = client.lists()
+                if mailaby_on():  # un seul raccordement : tous les comptes d'envoi de Mailaby
+                    accounts = client.accounts()
             except Exception as exc:  # noqa: BLE001 — affiché
                 error = f"{'Mailaby' if mailaby_on() else 'Brevo'} injoignable : {exc}"[:300]
+        defaults = {p.code: default_sender(p.code, accounts) for p in rt.org.poles}
         with rt.sessions() as s:
             history = s.scalars(select(PendingAction).where(
                 PendingAction.action_type == "campaign.mail").order_by(
                 desc(PendingAction.id)).limit(30)).all()
         return page(request, "campagnes.html", lists=lists, error=error, history=history,
-                    poles=rt.org.poles,
+                    poles=rt.org.poles, accounts=accounts, defaults=defaults,
                     configured=mailaby_on() or bool(service_value(rt.sessions, rt.settings,
                                                                   "brevo_api_key")),
                     service="Mailaby" if mailaby_on() else "Brevo",
@@ -511,10 +518,22 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
 
     @app.post("/campagnes")
     def draft_campaign(pole: str = Form(...), sujet: str = Form(...), liste: str = Form(...),
-                       who: Principal = Depends(user)):
+                       compte: str = Form(""), who: Principal = Depends(user)):
         direction_only(who)
         sender = service_value(rt.sessions, rt.settings, "brevo_sender_name")
         sender_mail = service_value(rt.sessions, rt.settings, "brevo_sender_email")
+        if mailaby_on():
+            # Compte d'envoi choisi parmi ceux de Mailaby (sinon celui conseillé pour le pôle)
+            try:
+                accounts = brevo().accounts()
+            except Exception as exc:  # noqa: BLE001 — affiché
+                return back("/campagnes", f"Mailaby injoignable : {exc}"[:300])
+            wanted = (compte or default_sender(pole, accounts)).strip().lower()
+            chosen = next((a for a in accounts
+                           if str(a.get("from_email", "")).lower() == wanted), None)
+            if chosen is None:
+                return back("/campagnes", "Refusé : compte d'envoi inconnu dans Mailaby")
+            sender, sender_mail = chosen.get("from_name") or "IBIG SARL", chosen["from_email"]
         if pole not in rt.org.pole_codes or not sujet.strip() or not sender_mail:
             return back("/campagnes", "Refusé : pôle, sujet et expéditeur (menu Services) requis")
         try:

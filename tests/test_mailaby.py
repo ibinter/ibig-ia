@@ -18,6 +18,12 @@ from ibig_agent.runtime import emailing_executors
 
 PASSWORD = "mot-de-passe-solide"
 URL = "https://erp.ibig.test/admin/mailaby"
+ACCOUNTS = [
+    {"id": 4, "from_name": "IBIG SARL", "from_email": "contact@intermark-business.com"},
+    {"id": 2, "from_name": "IBIG Soft", "from_email": "contact@ibigsoft.com"},
+    {"id": 5, "from_name": "RECRUTEMENT IBIG EDUFORM", "from_email": "recrutement@ibig-eduform.com"},
+    {"id": 7, "from_name": "FORMATION IBIG EDUFORM", "from_email": "formation@ibig-eduform.com"},
+]
 
 
 class FakeMailaby:
@@ -38,7 +44,7 @@ class FakeMailaby:
         if action == "ping":
             return httpx.Response(200, json={"ok": True})
         if action == "accounts":
-            return httpx.Response(200, json={"accounts": [{"id": 1, "from_email": "n@ibig.test"}]})
+            return httpx.Response(200, json={"accounts": ACCOUNTS})
         if action == "tags":
             return httpx.Response(200, json={"total_actifs": 900, "tags": [
                 {"id": 5, "name": "Clients SOFT", "n": 420}]})
@@ -73,7 +79,7 @@ def test_client_checks_token_and_lists_tags(mailaby):
     with pytest.raises(EmailingError, match="requis"):
         MailabyClient("", "")
     ok = mailaby.client(URL, "jeton-agent")
-    assert "1 compte" in ok.check()
+    assert "4 compte" in ok.check()
     lists = ok.lists()
     assert (lists[0].id, lists[0].subscribers) == (0, 900)   # « tous les contacts actifs »
     assert (lists[1].id, lists[1].name, lists[1].subscribers) == (5, "Clients SOFT", 420)
@@ -120,3 +126,34 @@ def test_mailaby_settings_are_validated_and_removable(rt, dg, mailaby):
     assert "Mailaby+OK" in tested.headers["location"] or "Mailaby%20OK" in tested.headers["location"]
     dg.post("/services/mailaby/retirer")
     assert service_value(rt.sessions, rt.settings, "mailaby_token") == ""
+
+
+def test_one_connection_gives_all_accounts_and_picks_the_sender_by_pole(mailaby):
+    from ibig_agent.channels.mailaby import default_sender
+
+    accounts = mailaby.client(URL, "jeton-agent").accounts()
+    assert len(accounts) == 4
+    assert default_sender("SOFT", accounts) == "contact@ibigsoft.com"
+    # plusieurs comptes EDUFORM : jamais « recrutement » pour une newsletter
+    assert default_sender("EDUFORM", accounts) == "formation@ibig-eduform.com"
+    assert default_sender("MULTISERVICES", accounts) == "contact@intermark-business.com"
+    assert default_sender("SOFT", []) == ""
+
+
+def test_campaign_uses_the_account_of_the_pole_or_the_one_chosen(rt, dg, mailaby, connector):
+    dg.post("/services/mailaby", data={"adresse": URL, "jeton": "jeton-agent"})  # sans expéditeur
+    page = dg.get("/campagnes").text
+    assert "4 comptes d" in page and "contact@ibigsoft.com" in page
+    dg.post("/campagnes", data={"pole": "SOFT", "sujet": "Promo", "liste": "5|Clients SOFT"})
+    dg.post("/campagnes", data={"pole": "SOFT", "sujet": "Autre", "liste": "5|Clients SOFT",
+                                "compte": "formation@ibig-eduform.com"})
+    refused = dg.post("/campagnes", data={"pole": "SOFT", "sujet": "X", "liste": "5|C",
+                                          "compte": "inconnu@ailleurs.test"},
+                      follow_redirects=False)
+    assert "inconnu" in refused.headers["location"].lower() or "Refus" in refused.headers["location"]
+    with rt.sessions() as s:
+        rows = s.query(PendingAction).filter_by(action_type="campaign.mail").order_by(
+            PendingAction.id).all()
+    assert [r.payload["expediteur_mail"] for r in rows] == [
+        "contact@ibigsoft.com", "formation@ibig-eduform.com"]
+    assert rows[0].payload["expediteur"] == "IBIG Soft"

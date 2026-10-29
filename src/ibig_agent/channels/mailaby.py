@@ -17,6 +17,29 @@ from .emailing import ContactList, EmailingError
 
 ENDPOINT = "api_agent.php"
 
+# Quel compte d'envoi pour quel pôle : mot reconnu dans l'adresse. Modifiable par campagne.
+POLE_KEYWORDS = {"SOFT": "ibigsoft", "EDUFORM": "eduform", "IMMOTRUST": "immotrust",
+                 "MARKET": "ibig-market", "DIGITAL": "ibig-digital", "PARTNERS": "ibigpartners"}
+PREFERRED_LOCAL = ("contact", "info", "formation")   # boîtes d'accueil
+AVOIDED_LOCAL = ("recrutement", "support")            # pas pour des newsletters
+PRINCIPAL = "contact@intermark-business.com"
+
+
+def default_sender(pole_code: str, accounts: list[dict]) -> str:
+    """Adresse d'envoi conseillée pour un pôle ; sans correspondance, le compte principal
+    du groupe, sinon le premier compte. Chaîne vide s'il n'y a aucun compte."""
+    emails = [str(a.get("from_email", "")).lower() for a in accounts if a.get("from_email")]
+    keyword = POLE_KEYWORDS.get(pole_code, "")
+    matches = [e for e in emails if keyword and keyword in e]
+
+    def rank(email: str) -> tuple[int, int]:
+        local = email.split("@", 1)[0]
+        return (local in AVOIDED_LOCAL, local not in PREFERRED_LOCAL)
+
+    if matches:
+        return sorted(matches, key=rank)[0]
+    return PRINCIPAL if PRINCIPAL in emails else (emails[0] if emails else "")
+
 
 class MailabyClient:
     def __init__(self, base_url: str, token: str, client: httpx.Client | None = None) -> None:
@@ -43,6 +66,11 @@ class MailabyClient:
         self._call("GET", "ping")
         accounts = self._call("GET", "accounts").get("accounts", [])
         return f"Mailaby OK ({len(accounts)} compte(s) d'envoi)"
+
+    def accounts(self) -> list[dict]:
+        """Tous les comptes d'envoi de Mailaby (id, label, from_name, from_email) : un seul
+        raccordement donne accès aux 16, sans les saisir un par un."""
+        return list(self._call("GET", "accounts").get("accounts", []))
 
     def lists(self) -> list[ContactList]:
         data = self._call("GET", "tags")
