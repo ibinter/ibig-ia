@@ -353,8 +353,8 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                         approval_timeout=timedelta(hours=settings.approval_timeout_hours))
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
-    from .channels.emailing import BrevoClient
     from .channels import mailaby as mailaby_channel
+    from .channels.emailing import BrevoClient
     from .channels.mailaby import MailabyClient
 
     rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,

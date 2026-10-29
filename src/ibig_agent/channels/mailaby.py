@@ -115,7 +115,7 @@ class MailabyClient:
 # ---------------------------------------------------------------- boîtes « mailaby »
 # Fournisseur du client Mailaby, posé par build_runtime : une boîte « mailaby » n'a ni mot
 # de passe ni serveur à elle, elle lit et répond par le raccordement réglé dans Services.
-client_provider = lambda: None  # noqa: E731
+client_provider = lambda: None
 
 
 def pole_for_address(address: str) -> str:
