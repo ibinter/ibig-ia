@@ -39,7 +39,7 @@
         <div class="box" data-pole="{{ m.pole }}">
           <span class="acc-ico" style="background:{{ '#ea4335' if m.hebergeur == 'gmail' else 'var(--brand)' }}">{{ icon('mail') }}</span>
           <div class="acc-name"><b>{{ m.adresse }}</b>
-            <small>{{ 'LWS' if m.hebergeur == 'lws' else 'Gmail' }}{% if m.responsable %} · transferts → {{ m.responsable }}{% endif %}{% if not mine %} · réglée sur le serveur{% endif %}</small></div>
+            <small>{{ {'lws': 'LWS', 'mailaby': 'Mailaby · réponses aux campagnes'}.get(m.hebergeur, 'Gmail') }}{% if m.responsable %} · transferts → {{ m.responsable }}{% endif %}{% if not mine %} · réglée sur le serveur{% endif %}</small></div>
           <div class="box-actions">
             <form method="post" action="/boites/tester"><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="btn sm" onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester</button></form>
             {% if mine %}<form method="post" action="/boites/retirer" data-confirm="Retirer {{ m.adresse }} ? L'agent ne la lira plus."><input type="hidden" name="adresse" value="{{ m.adresse }}"><button class="icon-btn" title="Retirer" aria-label="Retirer {{ m.adresse }}">{{ icon('x') }}</button></form>{% endif %}
@@ -53,6 +53,12 @@
   </div>
 
   <div class="card" style="align-self:start">
+    {% if mailaby_on %}
+    <form method="post" action="/boites/mailaby" style="margin-bottom:14px">
+      <p class="muted small" style="margin-top:0">Mailaby est raccordé : ajoutez d'un clic tous ses comptes d'envoi. L'agent y trie les réponses aux campagnes ; aucun mot de passe à saisir.</p>
+      <button class="btn primary" style="width:100%;justify-content:center">{{ icon('inbox') }} Importer les comptes de Mailaby</button>
+    </form>
+    {% endif %}
     <div class="tabs" role="tablist" data-remember="boites">
       <button type="button" class="tab on" data-tab="b-one">{{ icon('mail') }} Une boîte</button>
       <button type="button" class="tab" data-tab="b-many">{{ icon('inbox') }} Plusieurs</button>

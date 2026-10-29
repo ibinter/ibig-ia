@@ -48,6 +48,18 @@ class FakeMailaby:
         if action == "tags":
             return httpx.Response(200, json={"total_actifs": 900, "tags": [
                 {"id": 5, "name": "Clients SOFT", "n": 420}]})
+        if action == "inbox":
+            return httpx.Response(200, json={"messages": [
+                {"id": 7, "account": "contact@ibigsoft.com", "from_email": "client@exemple.ci",
+                 "subject": "Re: Formations", "snippet": "Quel est le prix ?",
+                 "campaign_id": 31, "received_at": "2026-10-29 09:15:00"},
+                {"id": 8, "account": "contact@intermark-business.com",
+                 "from_email": "autre@exemple.ci", "subject": "Re: N1", "snippet": "Merci",
+                 "campaign_id": 32, "received_at": "2026-10-29 10:00:00"}]})
+        if action == "send":
+            if body["to"] != "client@exemple.ci":
+                return httpx.Response(403, json={"error": "Refusé : pas de réponse reçue"})
+            return httpx.Response(200, json={"ok": True, "message_id": "<abc@ibigsoft.com>"})
         if action == "stats":
             return httpx.Response(200, json={"days": 7, "desinscrits": 12, "campagnes": [
                 {"id": 31, "name": "Formations", "status": "sent", "sent": 200,
@@ -179,3 +191,34 @@ def test_mailaby_stats_feed_indicators_and_bounce_alert(rt, dg, mailaby):
     with rt.sessions() as s:
         alert = s.query(JournalEntry).filter_by(action_type="veille.alert").one()
     assert alert.details["kind"] == "rejets" and alert.details["refs"] == ["31"]
+
+
+def test_mailaby_accounts_become_mailboxes_for_campaign_replies(rt, dg, mailaby):
+    from ibig_agent.channels import mailaby as channel
+    from ibig_agent.channels.mailaby import MailabyConnector, pole_for_address
+
+    assert pole_for_address("formation@ibig-eduform.com") == "EDUFORM"
+    assert pole_for_address("contact@intermark-business.com") == "GROUPE"
+    dg.post("/services/mailaby", data={"adresse": URL, "jeton": "jeton-agent"})
+    channel.client_provider = lambda: mailaby.client(URL, "jeton-agent")
+    try:
+        dg.post("/boites/mailaby")
+        by_addr = {m.adresse: m for m in rt.org.mailboxes}
+        soft = by_addr["contact@ibigsoft.com"]
+        assert soft.hebergeur == "mailaby" and soft.pole == "SOFT" and soft.secret_value == ""
+        assert isinstance(rt.connectors["contact@ibigsoft.com"], MailabyConnector)
+        assert len([a for a in by_addr if by_addr[a].hebergeur == "mailaby"]) == 4
+        dg.post("/boites/mailaby")   # rejouable : aucun doublon
+        assert len([m for m in rt.org.mailboxes if m.hebergeur == "mailaby"]) == 4
+
+        conn = rt.connectors["contact@ibigsoft.com"]
+        msgs = conn.fetch_recent(3)
+        assert [(m.message_id, m.sender, m.body) for m in msgs] == [
+            ("mailaby-7", "client@exemple.ci", "Quel est le prix ?")]   # seulement ce compte
+        assert msgs[0].received_at.year == 2026
+        assert conn.send("client@exemple.ci", "Re: Formations", "Bonjour")["message_id"]
+        with pytest.raises(EmailingError, match="403"):
+            conn.send("inconnu@exemple.ci", "Re", "x")
+        assert "1 réponse" in conn.check()
+    finally:
+        channel.client_provider = lambda: None

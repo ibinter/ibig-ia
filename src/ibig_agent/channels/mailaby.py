@@ -73,6 +73,18 @@ class MailabyClient:
         raccordement donne accès aux 16, sans les saisir un par un."""
         return list(self._call("GET", "accounts").get("accounts", []))
 
+    def inbox(self, days: int = 3, account: str = "") -> list[dict]:
+        """Réponses reçues aux campagnes (extrait de 600 caractères), d'un compte ou de tous."""
+        rows = self._call("GET", "inbox", params={"days": days}).get("messages", [])
+        return [r for r in rows
+                if not account or str(r.get("account", "")).lower() == account.lower()]
+
+    def send_reply(self, from_email: str, to: str, subject: str, body: str) -> dict:
+        """Réponse validée, envoyée par le SMTP du compte (le mot de passe reste dans
+        Mailaby) ; Mailaby refuse tout destinataire qui n'a pas répondu à une campagne."""
+        return self._call("POST", "send", json={"from_email": from_email, "to": to,
+                                                "subject": subject, "body": body})
+
     def stats(self, days: int = 30) -> dict:
         """Envois, ouvertures, clics et rejets des campagnes récentes (par campagne)."""
         return self._call("GET", "stats", params={"days": days})
@@ -98,3 +110,58 @@ class MailabyClient:
         return {"campaign_id": created["id"], "statut": created.get("status"),
                 "destinataires": created.get("recipients"),
                 "programmee": scheduled_at.isoformat() if scheduled_at else "envoi immédiat"}
+
+
+# ---------------------------------------------------------------- boîtes « mailaby »
+# Fournisseur du client Mailaby, posé par build_runtime : une boîte « mailaby » n'a ni mot
+# de passe ni serveur à elle, elle lit et répond par le raccordement réglé dans Services.
+client_provider = lambda: None  # noqa: E731
+
+
+def pole_for_address(address: str) -> str:
+    """Pôle probable d'un compte d'envoi, d'après son adresse (GROUPE par défaut)."""
+    address = address.lower()
+    return next((pole for pole, key in POLE_KEYWORDS.items() if key in address), "GROUPE")
+
+
+class MailabyConnector:
+    """Réponses aux campagnes reçues sur un compte d'envoi de Mailaby, triées par l'agent
+    comme celles d'une boîte LWS ou Gmail ; les réponses validées repartent par Mailaby."""
+
+    def __init__(self, mailbox) -> None:
+        self.mailbox = mailbox
+
+    def _client(self) -> MailabyClient:
+        client = client_provider()
+        if client is None:
+            raise EmailingError("Mailaby n'est pas raccordé (menu « Services »)")
+        return client
+
+    def check(self) -> str:
+        found = self._client().inbox(3, self.mailbox.adresse)
+        return f"Mailaby OK ({len(found)} réponse(s) aux campagnes sur 3 jours)"
+
+    def fetch_recent(self, days: int = 3):
+        from datetime import UTC
+
+        from .mail import MailMessage
+
+        out = []
+        for r in self._client().inbox(days, self.mailbox.adresse):
+            try:
+                at = datetime.fromisoformat(str(r.get("received_at"))).replace(tzinfo=UTC)
+            except ValueError:
+                at = None
+            out.append(MailMessage(
+                mailbox=self.mailbox.adresse, message_id=f"mailaby-{r['id']}",
+                ref=str(r["id"]), sender=str(r.get("from_email", "")), sender_name="",
+                subject=str(r.get("subject") or "(sans objet)"), body=str(r.get("snippet") or ""),
+                received_at=at))
+        return out
+
+    def send(self, to: str, subject: str, body: str, in_reply_to: str = "",
+             references: str = "", thread_id: str = "") -> dict:
+        return self._client().send_reply(self.mailbox.adresse, to, subject, body)
+
+    def label(self, ref: str, labels: list[str]) -> None:
+        return None  # Mailaby garde son propre état de lecture

@@ -271,4 +271,8 @@ def connector_for(mailbox: Mailbox) -> MailConnector:
         return GmailConnector(mailbox)
     if mailbox.hebergeur == "lws":
         return ImapSmtpConnector(mailbox)
+    if mailbox.hebergeur == "mailaby":
+        from .mailaby import MailabyConnector
+
+        return MailabyConnector(mailbox)
     raise ValueError(f"Hébergeur inconnu pour {mailbox.adresse} : {mailbox.hebergeur}")

@@ -354,6 +354,7 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
     from .channels.emailing import BrevoClient
+    from .channels import mailaby as mailaby_channel
     from .channels.mailaby import MailabyClient
 
     rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
@@ -361,6 +362,13 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
                  mailaby_factory=MailabyClient)
     rt.semantic = SemanticIndex(sessions, settings)
     kb.semantic = rt.semantic.scores
+
+    def _mailaby_client():
+        client, is_mailaby = emailing_client(sessions, settings, rt.brevo_factory,
+                                             rt.mailaby_factory)
+        return client if is_mailaby else None
+
+    mailaby_channel.client_provider = _mailaby_client
     if from_config:
         sync_mailboxes(rt)
     sync_social_accounts(rt)

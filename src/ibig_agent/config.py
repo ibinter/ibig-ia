@@ -84,7 +84,7 @@ class Pole:
 @dataclass(frozen=True)
 class Mailbox:
     adresse: str
-    hebergeur: str  # "lws" ou "gmail"
+    hebergeur: str  # "lws", "gmail" ou "mailaby" (réponses aux campagnes d'un compte Mailaby)
     pole: str
     responsable: str = ""
     signature: str = ""

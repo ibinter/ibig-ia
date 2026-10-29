@@ -16,6 +16,9 @@ declare(strict_types=1);
  * GET  ?action=tags       → étiquettes et contacts actifs (id, name, n) + total actif
  * GET  ?action=accounts   → comptes d'envoi (id, label, from_name, from_email)
  * GET  ?action=stats      → envois, ouvertures, clics, rejets par campagne récente (days=30)
+ * GET  ?action=inbox      → réponses reçues aux campagnes (days=3), extrait de 600 caractères
+ * POST ?action=send       → JSON {from_email, to, subject, body} : réponse à quelqu'un qui a
+ *                           répondu à une campagne de ce compte (jamais à une autre adresse)
  * POST ?action=campaign   → JSON {name, subject, html, from_email|account_id, tag_ids[],
  *                           mode: any|every, preheader, from_name, send_at, launch}
  */
@@ -89,6 +92,57 @@ if ($action === 'stats' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     $unsub = (int)$pdo->query('SELECT COUNT(*) FROM mailaby_contacts WHERE unsubscribed = 1')->fetchColumn();
     agent_out(200, ['days' => $days, 'campagnes' => $camps, 'desinscrits' => $unsub]);
+}
+
+/* Réponses reçues aux campagnes (extrait de 600 caractères au plus), pour le tri par l'agent */
+if ($action === 'inbox' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $days  = max(1, min(30, (int)($_GET['days'] ?? 3)));
+    $since = date('Y-m-d H:i:s', time() - $days * 86400);
+    $st = $pdo->prepare(
+        "SELECT i.id, a.from_email AS account, i.from_email, i.subject, i.snippet, i.campaign_id,
+                COALESCE(i.received_at, i.created_at) AS received_at
+         FROM mailaby_inbox i JOIN mailaby_accounts a ON a.id = i.account_id
+         WHERE i.type = 'reply' AND COALESCE(i.received_at, i.created_at) >= ?
+         ORDER BY i.id DESC LIMIT 200"
+    );
+    $st->execute([$since]);
+    agent_out(200, ['messages' => $st->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
+/* Réponse validée par un humain : envoyée par le SMTP du compte (mot de passe resté dans
+   Mailaby), et seulement à une personne qui a répondu à une campagne de ce compte. */
+if ($action === 'send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $in = json_decode((string)file_get_contents('php://input'), true);
+    if (!is_array($in)) agent_out(400, ['error' => 'Corps JSON attendu']);
+    $to      = strtolower(trim((string)($in['to'] ?? '')));
+    $subject = mb_substr(trim((string)($in['subject'] ?? '')), 0, 400);
+    $body    = (string)($in['body'] ?? '');
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL) || $subject === '' || trim($body) === '' || strlen($body) > 100000) {
+        agent_out(422, ['error' => 'Destinataire, objet ou message invalide']);
+    }
+    $st = $pdo->prepare('SELECT * FROM mailaby_accounts WHERE from_email = ? ORDER BY id LIMIT 1');
+    $st->execute([strtolower(trim((string)($in['from_email'] ?? '')))]);
+    $acc = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$acc) agent_out(422, ['error' => "Compte d'envoi introuvable"]);
+    $st = $pdo->prepare("SELECT COUNT(*) FROM mailaby_inbox WHERE account_id = ? AND type = 'reply' AND LOWER(from_email) = ?");
+    $st->execute([(int)$acc['id'], $to]);
+    if ((int)$st->fetchColumn() === 0) {
+        agent_out(403, ['error' => "Refusé : ce destinataire n'a pas répondu à une campagne de ce compte"]);
+    }
+    try {
+        $mid = '<' . bin2hex(random_bytes(12)) . '@' . substr(strrchr($acc['from_email'], '@'), 1) . '>';
+        $raw = mailaby_build_message((string)$acc['from_name'], (string)$acc['from_email'], $to, $subject,
+                                     mailaby_ensure_html(nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8'))),
+                                     [], null, null, $mid, null, '', '');
+        $smtp = new Mailaby_SMTP((string)$acc['smtp_host'], (int)$acc['smtp_port'], (string)$acc['security'],
+                                 (string)$acc['username'], mailaby_decrypt((string)$acc['password_enc']));
+        $smtp->connect();
+        $smtp->send_message((string)$acc['from_email'], $to, $raw);
+        $smtp->close();
+    } catch (Throwable $e) {
+        agent_out(502, ['error' => 'Envoi impossible : ' . mb_substr($e->getMessage(), 0, 200)]);
+    }
+    agent_out(200, ['ok' => true, 'message_id' => $mid]);
 }
 
 if ($action === 'campaign' && $_SERVER['REQUEST_METHOD'] === 'POST') {

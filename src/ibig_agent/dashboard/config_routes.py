@@ -16,7 +16,7 @@ from sqlalchemy import desc, select
 
 from ..auth import Principal
 from ..channels.emailing import EmailingError
-from ..channels.mailaby import default_sender
+from ..channels.mailaby import default_sender, pole_for_address
 from ..config import Mailbox
 from ..configstore import (
     reload_knowledge,
@@ -557,7 +557,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         boxes = [(m, m.adresse in rt.dashboard_boxes, stored.get(m.adresse))
                  for m in rt.org.mailboxes]
         return page(request, "boites.html", boxes=boxes, poles=rt.org.poles,
-                    check=request.query_params.get("test", ""))
+                    mailaby_on=mailaby_on(), check=request.query_params.get("test", ""))
 
     @app.post("/boites")
     def add_mailbox(adresse: str = Form(...), hebergeur: str = Form("lws"),
@@ -585,6 +585,33 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             s.commit()
         sync_mailboxes(rt)
         return back("/boites", f"{adresse} raccordée : testez la connexion ci-dessous")
+
+    @app.post("/boites/mailaby")
+    def import_mailaby_boxes(who: Principal = Depends(user)):
+        """Un clic : chaque compte d'envoi de Mailaby devient une boîte de l'agent pour ses
+        réponses aux campagnes (sans mot de passe : tout passe par le raccordement Mailaby)."""
+        direction_only(who)
+        if not mailaby_on():
+            return back("/boites", "Raccordez d'abord Mailaby (menu Services)")
+        try:
+            accounts = brevo().accounts()
+        except Exception as exc:  # noqa: BLE001 — affiché
+            return back("/boites", f"Mailaby injoignable : {exc}"[:300])
+        server = {m.adresse for m in rt.org.mailboxes} - rt.dashboard_boxes
+        added = 0
+        with rt.sessions() as s:
+            for a in accounts:
+                adresse = str(a.get("from_email", "")).strip().lower()
+                if not EMAIL.match(adresse) or adresse in server or s.get(MailboxAccount, adresse):
+                    continue
+                s.add(MailboxAccount(adresse=adresse, hebergeur="mailaby",
+                                     pole=pole_for_address(adresse), active=True,
+                                     updated_by=who.label, updated_at=utcnow()))
+                added += 1
+            s.commit()
+        sync_mailboxes(rt)
+        return back("/boites", f"{added} compte(s) Mailaby ajouté(s) : le pôle est deviné "
+                               "d'après l'adresse, à corriger au besoin")
 
     @app.post("/boites/lot")
     def add_mailboxes(lignes: str = Form(...), pole: str = Form(...),
