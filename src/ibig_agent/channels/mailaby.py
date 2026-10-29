@@ -37,7 +37,7 @@ def default_sender(pole_code: str, accounts: list[dict]) -> str:
         return (local in AVOIDED_LOCAL, local not in PREFERRED_LOCAL)
 
     if matches:
-        return sorted(matches, key=rank)[0]
+        return min(matches, key=rank)
     return PRINCIPAL if PRINCIPAL in emails else (emails[0] if emails else "")
 
 
