@@ -6,6 +6,7 @@
 {% block content %}
 {% set SERVICES = [
   ('brevo', 'Brevo', 'mail', has_key, 'Campagnes mail', 'Newsletters et annonces aux contacts qui l\'ont accepté.'),
+  ('mailaby', 'Mailaby', 'mail', mailaby_on, 'Campagnes par l\'ERP', 'Les campagnes partent par Mailaby (module de l\'ERP) au lieu de Brevo.'),
   ('voyage', 'Voyage AI', 'book', voyage_key, 'Recherche par le sens', 'Retrouver la bonne réponse même avec d\'autres mots.'),
   ('photos', 'OpenAI Images', 'sparkles', openai_key, 'Photos par IA', 'Une photo réaliste pour chaque publication à valider.')] %}
 {% set on = SERVICES | selectattr('3') | list | length %}
@@ -19,7 +20,7 @@
   </a>
   {% endfor %}
 </div>
-<p class="muted small" style="margin:-4px 0 16px">{{ on }} service{{ 's' if on > 1 }} sur 3 raccordé{{ 's' if on > 1 }}. Aucun n'est obligatoire : sans eux, l'agent fonctionne, avec moins de possibilités.</p>
+<p class="muted small" style="margin:-4px 0 16px">{{ on }} service{{ 's' if on > 1 }} sur {{ SERVICES | length }} raccordé{{ 's' if on > 1 }}. Aucun n'est obligatoire : sans eux, l'agent fonctionne, avec moins de possibilités.</p>
 
 <section class="card svc" id="svc-brevo">
   <div class="svc-side">
@@ -47,6 +48,36 @@
       <span class="muted small">Vérifie la clé et compte les listes, sans rien envoyer.</span>
     </form>
     {% if has_key %}<a class="btn sm" href="/campagnes" style="margin-top:8px">{{ icon('arrow-right') }} Rédiger une campagne</a>{% endif %}
+  </div>
+</section>
+
+<section class="card svc" id="svc-mailaby">
+  <div class="svc-side">
+    <div class="card-head"><div><h2>{{ icon('mail') }} Mailaby — campagnes par l'ERP</h2><div class="sub">Module d'emailing de l'ERP IBIG (ibigroupsarl.com/admin/mailaby). Raccordé, il remplace Brevo pour les campagnes.</div></div>
+      {% if mailaby_on %}<span class="pill green dot">raccordé</span>{% else %}<span class="pill amber dot">non configuré</span>{% endif %}</div>
+    <ol class="how-list">
+      <li><b>Copier</b> <code>api_agent.php</code> dans <code>admin/mailaby/</code> et activer le jeton (guide <code>integrations/mailaby/LISEZMOI.md</code>).</li>
+      <li><b>Coller</b> l'adresse du dossier Mailaby et le jeton ici, puis tester.</li>
+      <li>Les étiquettes de contacts de Mailaby servent de listes ; le lien de désinscription et le suivi restent ceux de Mailaby.</li>
+    </ol>
+  </div>
+  <div class="svc-form">
+    <form method="post" action="/services/mailaby" autocomplete="off">
+      <label class="field"><span>Adresse du module</span>
+        <input type="url" name="adresse" value="{{ mailaby_url }}" placeholder="https://ibigroupsarl.com/admin/mailaby"></label>
+      <label class="field"><span>Jeton de l'agent {% if mailaby_token %}<em class="muted">(vide = garder le jeton actuel)</em>{% endif %}</span>
+        <input type="password" name="jeton" autocomplete="new-password" placeholder="{{ '•••••••• enregistré' if mailaby_token else '' }}"></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Nom de l'expéditeur</span><input type="text" name="expediteur" value="{{ sender_name }}" placeholder="IBIG SARL"></label>
+        <label class="field"><span>Compte d'envoi (adresse dans Mailaby)</span><input type="email" name="expediteur_mail" value="{{ sender_email }}" placeholder="newsletter@ibigroupsarl.com"></label>
+      </div>
+      <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
+    </form>
+    <form method="post" action="/services/mailaby/tester" class="svc-test">
+      <button class="btn sm" {{ 'disabled' if not mailaby_on }} onclick="this.innerHTML='Test…'">{{ icon('shield-check') }} Tester la connexion Mailaby</button>
+      <span class="muted small">Vérifie le jeton et compte les étiquettes, sans rien envoyer.</span>
+    </form>
+    {% if mailaby_on %}<form method="post" action="/services/mailaby/retirer" onsubmit="return confirm('Débrancher Mailaby ? Les campagnes repartiront par Brevo.')" style="margin-top:8px"><button class="btn sm ghost-bad">{{ icon('x') }} Débrancher Mailaby</button></form>{% endif %}
   </div>
 </section>
 

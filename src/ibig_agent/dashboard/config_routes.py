@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import desc, select
 
 from ..auth import Principal
-from ..channels.emailing import BrevoClient, EmailingError
+from ..channels.emailing import EmailingError
 from ..config import Mailbox
 from ..configstore import (
     reload_knowledge,
@@ -35,7 +35,7 @@ from ..db import (
 )
 from ..governance import as_utc
 from ..knowledge import IMPORT_MARK, PLACEHOLDER, split_front_matter
-from ..runtime import Runtime
+from ..runtime import Runtime, emailing_client
 from ..vault import encrypt
 
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -346,8 +346,14 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         return back("/publications", "Publication retirée de la bibliothèque")
 
     # ------------------------------------------------------------ services extérieurs
-    def brevo() -> BrevoClient:
-        return rt.brevo_factory(service_value(rt.sessions, rt.settings, "brevo_api_key"))
+    def brevo():
+        """Client d'emailing réglé : Mailaby s'il est raccordé, sinon Brevo."""
+        return emailing_client(rt.sessions, rt.settings, rt.brevo_factory,
+                               rt.mailaby_factory)[0]
+
+    def mailaby_on() -> bool:
+        return bool(service_value(rt.sessions, rt.settings, "mailaby_url")
+                    and service_value(rt.sessions, rt.settings, "mailaby_token"))
 
     @app.get("/services", response_class=HTMLResponse)
     def services(request: Request, who: Principal = Depends(user)):
@@ -355,6 +361,8 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         get = lambda name: service_value(rt.sessions, rt.settings, name)
         sem = rt.semantic
         return page(request, "services.html", has_key=bool(get("brevo_api_key")),
+                    mailaby_url=get("mailaby_url"), mailaby_token=bool(get("mailaby_token")),
+                    mailaby_on=mailaby_on(),
                     sender_name=get("brevo_sender_name"),
                     sender_email=get("brevo_sender_email"),
                     voyage_key=bool(get("voyage_api_key")),
@@ -428,6 +436,46 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                           expediteur_mail.strip().lower(), who.label)
         return back("/services", "Réglages Brevo enregistrés : testez la connexion")
 
+    @app.post("/services/mailaby")
+    def save_mailaby(adresse: str = Form(""), jeton: str = Form(""),
+                     expediteur: str = Form(""), expediteur_mail: str = Form(""),
+                     who: Principal = Depends(user)):
+        direction_only(who)
+        adresse = adresse.strip()
+        if adresse and not adresse.startswith("https://"):
+            return back("/services", "Refusé : l'adresse de Mailaby doit commencer par https://")
+        if expediteur_mail and not EMAIL.match(expediteur_mail.strip()):
+            return back("/services", "Refusé : adresse d'expédition invalide")
+        set_service_value(rt.sessions, rt.settings, "mailaby_url", adresse.rstrip("/"), who.label)
+        if jeton.strip():
+            set_service_value(rt.sessions, rt.settings, "mailaby_token", jeton.strip(),
+                              who.label, secret=True)
+        # L'expéditeur est commun aux deux services d'emailing
+        set_service_value(rt.sessions, rt.settings, "brevo_sender_name",
+                          expediteur.strip()[:100], who.label)
+        set_service_value(rt.sessions, rt.settings, "brevo_sender_email",
+                          expediteur_mail.strip().lower(), who.label)
+        return back("/services", "Réglages Mailaby enregistrés : testez la connexion")
+
+    @app.post("/services/mailaby/retirer")
+    def remove_mailaby(who: Principal = Depends(user)):
+        direction_only(who)
+        set_service_value(rt.sessions, rt.settings, "mailaby_token", "", who.label, secret=True)
+        return back("/services", "Mailaby débranché : les campagnes repartent par Brevo")
+
+    @app.post("/services/mailaby/tester")
+    def test_mailaby(who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            client = brevo()
+            if not mailaby_on():
+                raise EmailingError("adresse et jeton Mailaby requis")
+            lists = client.lists()
+            msg = f"{client.check()} · {len(lists) - 1} étiquette(s)"
+        except (EmailingError, Exception) as exc:  # noqa: BLE001 — affiché
+            msg = f"Échec Mailaby : {exc}"[:300]
+        return back("/services", msg)
+
     @app.post("/services/brevo/tester")
     def test_brevo(who: Principal = Depends(user)):
         direction_only(who)
@@ -444,18 +492,20 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     def campaigns(request: Request, who: Principal = Depends(user)):
         direction_only(who)
         lists, error = [], ""
-        if service_value(rt.sessions, rt.settings, "brevo_api_key"):
+        if mailaby_on() or service_value(rt.sessions, rt.settings, "brevo_api_key"):
             try:
                 lists = brevo().lists()
             except Exception as exc:  # noqa: BLE001 — affiché
-                error = f"Brevo injoignable : {exc}"[:300]
+                error = f"{'Mailaby' if mailaby_on() else 'Brevo'} injoignable : {exc}"[:300]
         with rt.sessions() as s:
             history = s.scalars(select(PendingAction).where(
                 PendingAction.action_type == "campaign.mail").order_by(
                 desc(PendingAction.id)).limit(30)).all()
         return page(request, "campagnes.html", lists=lists, error=error, history=history,
                     poles=rt.org.poles,
-                    configured=bool(service_value(rt.sessions, rt.settings, "brevo_api_key")),
+                    configured=mailaby_on() or bool(service_value(rt.sessions, rt.settings,
+                                                                  "brevo_api_key")),
+                    service="Mailaby" if mailaby_on() else "Brevo",
                     sender_name=service_value(rt.sessions, rt.settings, "brevo_sender_name"),
                     sender_email=service_value(rt.sessions, rt.settings, "brevo_sender_email"))
 

@@ -147,6 +147,7 @@ class Runtime:
     dashboard_accounts: set[tuple[str, str]] = field(default_factory=set)
     connector_factory: Callable = field(default=None)
     brevo_factory: Callable = field(default=None)
+    mailaby_factory: Callable = field(default=None)
     # Fabrique du client HTTP des réseaux sociaux (remplacée dans les tests)
     social_client_factory: Callable = field(default=None)
     semantic: SemanticIndex = field(default=None)
@@ -278,25 +279,42 @@ class Runtime:
                          dashboard_url=self.settings.dashboard_url)
 
 
-def emailing_executors(sessions, settings: Settings,
-                       client_factory: Callable | None = None) -> dict[str, Executor]:
-    # client_factory : fabrique du client (remplacée par un faux client dans les tests)
-    """Envoi d'une campagne validée par Brevo ; la clé est relue à chaque envoi (coffre)."""
-    from .agents.campagnes import UNSUBSCRIBE_FOOTER
+def emailing_client(sessions, settings: Settings, brevo_factory: Callable | None = None,
+                    mailaby_factory: Callable | None = None) -> tuple[object, bool]:
+    """Service d'emailing réglé au tableau de bord : Mailaby s'il est raccordé (adresse et
+    jeton), sinon Brevo. Renvoie (client, est_mailaby) ; les accès sont relus à chaque appel."""
     from .channels.emailing import BrevoClient
+    from .channels.mailaby import MailabyClient
     from .configstore import service_value
 
+    url = service_value(sessions, settings, "mailaby_url")
+    token = service_value(sessions, settings, "mailaby_token")
+    if url and token:
+        return (mailaby_factory or MailabyClient)(url, token), True
+    return (brevo_factory or BrevoClient)(service_value(sessions, settings,
+                                                        "brevo_api_key")), False
+
+
+def emailing_executors(sessions, settings: Settings,
+                       client_factory: Callable | None = None,
+                       mailaby_factory: Callable | None = None) -> dict[str, Executor]:
+    # client_factory : fabrique du client (remplacée par un faux client dans les tests)
+    """Envoi d'une campagne validée par Mailaby ou Brevo ; accès relus à chaque envoi."""
+    from .agents.campagnes import UNSUBSCRIBE_FOOTER
+
     def send(payload: dict) -> dict:
-        key = service_value(sessions, settings, "brevo_api_key")
-        client = (client_factory or BrevoClient)(key)
+        client, is_mailaby = emailing_client(sessions, settings, client_factory,
+                                             mailaby_factory)
         html = sanitize_html(payload["contenu_html"])
         preheader = payload.get("pre_entete", "")
         if preheader:
             html = (f'<div style="display:none;max-height:0;overflow:hidden">{preheader}</div>'
                     + html)
+        # Mailaby ajoute lui-même son lien de désinscription et le suivi
         return client.send_campaign(
             name=payload["subject"], subject=payload["subject"],
-            html=html + UNSUBSCRIBE_FOOTER, sender_name=payload["expediteur"],
+            html=html if is_mailaby else html + UNSUBSCRIBE_FOOTER,
+            sender_name=payload["expediteur"],
             sender_email=payload["expediteur_mail"], list_ids=[int(payload["liste_id"])])
 
     return {"campaign.mail": send}
@@ -330,9 +348,11 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     if llm is None and with_llm:
         llm = ClaudeClient(settings, sessions)
     from .channels.emailing import BrevoClient
+    from .channels.mailaby import MailabyClient
 
     rt = Runtime(settings, org, sessions, kb, governor, llm, connectors, web_connectors,
-                 whatsapp_clients, connector_factory=connector_for, brevo_factory=BrevoClient)
+                 whatsapp_clients, connector_factory=connector_for, brevo_factory=BrevoClient,
+                 mailaby_factory=MailabyClient)
     rt.semantic = SemanticIndex(sessions, settings)
     kb.semantic = rt.semantic.scores
     if from_config:
