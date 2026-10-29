@@ -22,7 +22,8 @@ def test_php_files_have_no_syntax_error(name):
 def test_relay_refuses_to_run_without_a_configured_key():
     # Sans sara-config.php (jamais versionné) : 503 clair, aucun appel à l'agent
     assert not (SARA / "sara-config.php").exists()
-    out = subprocess.run(["php", str(SARA / "sara-relay.php")], capture_output=True, text=True, check=False)
+    out = subprocess.run(["php", str(SARA / "sara-relay.php")], capture_output=True,
+                         text=True, encoding="utf-8", check=False)
     assert "non configurée" in json.loads(out.stdout)["erreur"]
 
 
