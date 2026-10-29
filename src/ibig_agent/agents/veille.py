@@ -246,7 +246,7 @@ class VeilleAgent:
         if not camps:
             return []
         sent = sum(int(c["sent"]) for c in camps)
-        rate = lambda key: 100 * sum(int(c.get(key) or 0) for c in camps) / sent  # noqa: E731
+        rate = lambda key: 100 * sum(int(c.get(key) or 0) for c in camps) / sent
         opened, clicked, bounced = rate("opened"), rate("clicked"), rate("bounced")
         detail = f"{len(camps)} campagne(s), {sent} mail(s) envoyé(s) par Mailaby"
         return [
