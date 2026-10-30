@@ -183,7 +183,7 @@ def web(rt, tmp_path):
     from ibig_agent.auth import UserStore
     from ibig_agent.dashboard.app import create_app
 
-    rt.settings.knowledge_dir = tmp_path
+    rt.settings.catalog_dir = tmp_path
     users = UserStore(rt.sessions, rt.org)
     users.create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
     users.create("val@ibig.test", "Valideur", "valideur", "mot-de-passe-solide")
@@ -241,3 +241,21 @@ def test_files_are_rebuilt_from_the_register_when_the_agent_starts(rt, tmp_path)
     stats = regenerate(tmp_path, rt.sessions)
     assert stats["ecrits"] >= 1
     assert "Scolaby Pro" not in text(tmp_path) and "AGRIFRIK — Basique" in text(tmp_path)
+
+
+def test_knowledge_reads_the_main_and_the_generated_folder(tmp_path):
+    from ibig_agent.knowledge import KnowledgeBase
+
+    main, generated = tmp_path / "knowledge", tmp_path / "catalogue"
+    (main / "produits").mkdir(parents=True)
+    (generated / "produits").mkdir(parents=True)
+    (main / "charte.md").write_text("---\ntitre: Charte\npole: GROUPE\ntype: charte\n---\nTon.\n",
+                                    encoding="utf-8")
+    doc = "---\ntitre: Catalogue\npole: SOFT\ntype: produits\n---\n### {nom}\n- Prix : 5 000 FCFA\n"
+    (main / "produits" / "x.md").write_text(doc.format(nom="Ancien"), encoding="utf-8")
+    (generated / "produits" / "x.md").write_text(doc.format(nom="Nouveau"), encoding="utf-8")
+    kb = KnowledgeBase(main, extra_roots=[generated])
+    assert {d.path.replace("\\", "/") for d in kb.documents} == {"charte.md", "produits/x.md"}
+    assert "Nouveau" in kb.products("SOFT", tout=True)           # le dossier généré l'emporte
+    assert "Ancien" not in kb.products("SOFT", tout=True)
+    assert KnowledgeBase(main).products("SOFT", tout=True) == ["Ancien"]   # sans : inchangé

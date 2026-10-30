@@ -154,8 +154,12 @@ class FactIssue:
 
 
 class KnowledgeBase:
-    def __init__(self, root: Path, overrides: dict[str, str] | None = None) -> None:
+    def __init__(self, root: Path, overrides: dict[str, str] | None = None,
+                 extra_roots: tuple[Path, ...] | list[Path] = ()) -> None:
         self.root = Path(root)
+        # Dossiers supplémentaires (catalogue généré, inscriptible) lus avec la même
+        # arborescence ; à chemin égal, ils l'emportent sur le dossier principal.
+        self.extra_roots = [Path(p) for p in extra_roots]
         # Documents modifiés ou créés depuis le tableau de bord (chemin relatif -> texte)
         self.overrides = dict(overrides or {})
         self.documents: list[Document] = []
@@ -179,11 +183,13 @@ class KnowledgeBase:
         return self.overrides.get(rel_path) or self.file_text(rel_path)
 
     def reload(self) -> None:
-        texts = {
-            str(p.relative_to(self.root)): p.read_text(encoding="utf-8")
-            for p in sorted(self.root.rglob("*.md"))
-            if p.name != "README.md" and not p.name.startswith("_")
-        }
+        texts: dict[str, str] = {}
+        for base in (self.root, *self.extra_roots):
+            texts.update({
+                str(p.relative_to(base)): p.read_text(encoding="utf-8")
+                for p in sorted(base.rglob("*.md"))
+                if p.name != "README.md" and not p.name.startswith("_")
+            })
         texts.update(self.overrides)
         self.documents = [parse_text(path, raw) for path, raw in sorted(texts.items())]
         self._tok_cache = {}

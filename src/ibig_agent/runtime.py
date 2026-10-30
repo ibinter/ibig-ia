@@ -235,7 +235,7 @@ class Runtime:
         from .catalog_import import import_catalog
         from .configstore import reload_knowledge
 
-        result, stats = import_catalog(self.settings.knowledge_dir, sessions=self.sessions)
+        result, stats = import_catalog(self.settings.catalog_dir, sessions=self.sessions)
         if stats.get("ecrits") or stats.get("retires"):
             reload_knowledge(self)
         return f"{result.total} produits ({stats}) · registre {result.register}"
@@ -363,10 +363,11 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     try:  # le registre du catalogue fait foi : statuts et validations survivent aux redéploiements
         from .catalog_import import regenerate
 
-        regenerate(settings.knowledge_dir, sessions)
+        regenerate(settings.catalog_dir, sessions)
     except Exception as exc:  # noqa: BLE001 — l'agent démarre avec les fichiers existants
         log.warning("Catalogue : régénération au démarrage impossible : %s", exc)
-    kb = KnowledgeBase(settings.knowledge_dir, knowledge_overrides(sessions))
+    kb = KnowledgeBase(settings.knowledge_dir, knowledge_overrides(sessions),
+                       extra_roots=[settings.catalog_dir])
     from_config = connectors is None
     if connectors is None:
         connectors = {m.adresse: connector_for(m) for m in org.mailboxes}

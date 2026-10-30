@@ -23,7 +23,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
 
     def apply(message: str) -> str:
         """Après une décision : fichiers de l'agent régénérés, base de connaissances rechargée."""
-        stats = regenerate(rt.settings.knowledge_dir, rt.sessions)
+        stats = regenerate(rt.settings.catalog_dir, rt.sessions)
         if stats.get("ecrits") or stats.get("retires"):
             reload_knowledge(rt)
         return message

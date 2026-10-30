@@ -37,7 +37,8 @@ def knowledge_overrides(sessions: sessionmaker[Session]) -> dict[str, str]:
 
 
 def reload_knowledge(rt) -> None:
-    rt.kb = KnowledgeBase(rt.settings.knowledge_dir, knowledge_overrides(rt.sessions))
+    rt.kb = KnowledgeBase(rt.settings.knowledge_dir, knowledge_overrides(rt.sessions),
+                          extra_roots=[rt.settings.catalog_dir])
     semantic = getattr(rt, "semantic", None)
     if semantic is not None:
         rt.kb.semantic = semantic.scores

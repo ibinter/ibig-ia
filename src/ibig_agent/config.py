@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     timezone: str = "Africa/Abidjan"
     config_dir: Path = Path("./config")
     knowledge_dir: Path = Path("./knowledge")
+    # Catalogue complet des produits, généré depuis le registre : dossier inscriptible
+    # (knowledge/ est monté en lecture seule dans le conteneur)
+    catalog_dir: Path = Path("./exports/catalogue")
     # État de la dernière sauvegarde (deploy/sauvegarde.sh écrit state/sauvegarde.json)
     state_dir: Path = Path("./state")
     mail_poll_minutes: int = 5

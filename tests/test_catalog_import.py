@@ -224,7 +224,7 @@ def test_weekly_refresh_reloads_the_knowledge_base_only_when_something_changed(
     real = module.import_catalog
     monkeypatch.setattr(module, "import_catalog",
                         lambda root, **kw: real(root, fake_api(), today="2026-10-30", delay=0))
-    rt.settings.knowledge_dir = tmp_path
+    rt.settings.catalog_dir = tmp_path
     assert "catalog_refresh" in {j.id for j in job_specs(rt)}
     job = next(j for j in job_specs(rt) if j.id == "catalog_refresh")
     assert job.trigger == "cron" and job.options["day_of_week"] == "sun"

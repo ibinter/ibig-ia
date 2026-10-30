@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "importer-catalogue":
         from .catalog_import import import_catalog
 
-        result, stats = import_catalog(rt.settings.knowledge_dir, dry_run=args.essai,
+        result, stats = import_catalog(rt.settings.catalog_dir, dry_run=args.essai,
                                        sessions=rt.sessions)
         if result.register:
             print(f"Registre : {result.register}")
