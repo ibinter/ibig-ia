@@ -42,6 +42,7 @@ def test_accounts_fix_governance(rt):
 
 
 def test_online_checks(rt, connector):
+    rt.settings.writing_model = "claude-opus-5-5"   # le défaut est le modèle de tri (le moins cher)
     rt.llm.client = SimpleNamespace(models=FakeModels({rt.settings.triage_model}))
     connector.fail_fetch = False
     diag = Diagnostic(rt)
