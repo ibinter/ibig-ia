@@ -167,3 +167,17 @@ def nav_counts(s: Session, who: Principal) -> dict[str, int]:
         failing = s.scalar(select(func.count()).select_from(JobStatus)
                            .where(JobStatus.failures > 0)) or 0
     return {"validations": pending + prepared, "tickets": tickets, "sante": failing}
+
+
+def sales_summary(rt) -> dict[str, int]:
+    """Ce qui attend la direction côté ventes : missions, devis et paiements (page d'accueil)."""
+    missions: dict[str, int] = {}
+    for m in rt.missions.all_missions():
+        missions[m.status] = missions.get(m.status, 0) + 1
+    pipe = rt.quotes.pipeline()
+    fin = rt.finance.summary()
+    return {"missions_running": missions.get("en_cours", 0),
+            "missions_paused": missions.get("en_pause", 0),
+            "quotes_waiting": pipe.get("envoye", {}).get("n", 0),
+            "quotes_draft": pipe.get("brouillon", {}).get("n", 0),
+            "payments_to_confirm": fin["to_confirm"], "outstanding": fin["outstanding"]}

@@ -59,7 +59,7 @@ from . import (
 )
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
-from .stats import home_stats, nav_counts
+from .stats import home_stats, nav_counts, sales_summary
 from .visuals import first_sentence, render_png, render_svg
 
 # Libellés et icônes des actions de l'agent, pour les listes lisibles par tous
@@ -400,7 +400,9 @@ def create_app(rt: Runtime) -> FastAPI:
         # La synthèse couvre tous les pôles (expéditeurs compris) : réservée à la direction.
         report = None if scoped else rt.chef.build_daily_report().as_text()
         steps = [] if scoped else setup_steps(rt)
-        return page(request, "index.html", stats=stats, states=rt.governor.channel_states(),
+        sales = None if scoped else sales_summary(rt)
+        return page(request, "index.html", stats=stats, sales=sales,
+                    states=rt.governor.channel_states(),
                     channels=CHANNELS, report=report, steps=steps,
                     setup=progress(steps) if steps else (0, 0))
 

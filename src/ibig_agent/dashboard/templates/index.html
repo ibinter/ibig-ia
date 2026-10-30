@@ -16,6 +16,15 @@
   <a class="btn sm ghost-bad" href="/arret" style="margin-left:auto">Gérer</a></div>
 {% endif %}
 
+{% if sales %}
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
+  <a class="cal-stat s-blue" href="/missions"><b>{{ sales.missions_running }}</b><span>mission{{ 's' if sales.missions_running > 1 }} en cours{% if sales.missions_paused %} · {{ sales.missions_paused }} en pause{% endif %}</span></a>
+  <a class="cal-stat s-amber" href="/devis?statut=envoye"><b>{{ sales.quotes_waiting }}</b><span>devis en attente du client</span></a>
+  <a class="cal-stat s-red" href="/finance"><b>{{ sales.payments_to_confirm }}</b><span>paiement{{ 's' if sales.payments_to_confirm > 1 }} à confirmer</span></a>
+  <a class="cal-stat s-green" href="/finance"><b>{{ '{:,}'.format(sales.outstanding).replace(',', ' ') }}</b><span>FCFA restant à encaisser</span></a>
+</div>
+{% endif %}
+
 {% if steps and setup[0] < setup[1] %}
 {% set nxt = (steps | rejectattr('done') | rejectattr('optional') | first) %}
 <a class="setup-strip fade-in" href="/demarrage">

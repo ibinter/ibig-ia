@@ -150,3 +150,14 @@ def test_pages_and_unified_inbox(rt, web, data):
     assert "Demande de devis ERP" not in dg.get("/boite", params={"boite": "autre"}).text
     val = web("val@ibig.test")
     assert val.get("/devis").status_code == 403 and val.get("/boite").status_code == 403
+
+
+def test_home_shows_the_sales_summary_to_direction_only(rt, web, data):
+    qs = rt.quotes
+    qid = qs.create(data, "Awa")
+    qs.add_line(qid, "Awa", offer_code="soft-erp")
+    qs.validate(qid, "Awa")
+    qs.mark_sent(qid, "Awa")
+    home = web("dg@ibig.test").get("/").text
+    assert "devis en attente du client" in home and "restant à encaisser" in home
+    assert "devis en attente du client" not in web("val@ibig.test").get("/").text

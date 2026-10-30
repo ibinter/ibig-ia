@@ -172,3 +172,17 @@ partenaire), à désigner avant d'être ajoutés ; le tableau de bord actuel ne 
 administrateur, direction et valideur.
 
 **Tests.** 342 réussis ; mêmes 16 échecs préexistants (support, PHP local, `bash`).
+
+## 9. Avancement des Lots 3 à 5 — 30/10/2026
+
+| Lot | Livré | Migration |
+|---|---|---|
+| 3 | Agent Prospecteur : lecture de fichiers CSV déposés sur la mission (exports de réseaux sociaux, Google, annuaires) et de pages publiques si `robots.txt` l'autorise ; déduplication (lot et CRM) ; score sur 100 expliqué ligne par ligne ; aucune prise de contact | aucune |
+| 4 | Devis numérotés (brouillon → validé → envoyé → accepté / refusé / expiré / annulé), prix du catalogue ou saisis (signalés), version imprimable ; conversion de la fiche prospect ; boîte unifiée (messages de toutes les boîtes) | 0014 |
+| 5 | Paiements saisis avec référence et preuve, confirmés par une autre personne ; étape « payé / livré » ; page Finance ; commissions par pôle **inactives** (aucun taux fixé, décision de la direction) | 0015 |
+
+Accueil : bloc « ventes » (missions en cours, devis en attente, paiements à confirmer, reste à encaisser), réservé à la direction.
+
+**Décisions de la direction** : sources de prospection = Google, réseaux sociaux, annuaires, fichiers, base IBIG, LinkedIn par API officielle (collecte automatique non raccordée : fichiers déposés) ; paiements en saisie manuelle avec preuve ; commissions non utilisées (outil interne).
+
+**Reste** : widget SARA et modèles WhatsApp (accès à fournir), 50 offres au tarif ambigu, deuxième compte de direction, rôles et responsables de validation, copie externe des sauvegardes (`docs/sauvegarde-externe.md`, à relier à Google Drive), facturation Voyage AI.
