@@ -144,3 +144,31 @@ import : la source et le tarif retenu sont maintenant mémorisés séparément.
 
 **Reste pour clore le Lot 1** : décisions de la Direction sur les 50 offres au tarif ambigu
 (page Catalogue), désignation des responsables de validation, copie de sauvegarde hors serveur.
+
+## 8. Avancement du Lot 2 (missions, quotas, supervision) — 30/10/2026
+
+Autorisation de démarrer donnée par la Direction le 30/10/2026 (« Lot 2 »). Même méthode :
+sauvegarde, migration additive et réversible, tests, déploiement, contrôle en production.
+
+**Migration 0013** (additive, aller-retour testé) : tables `agent_controls`, `missions`,
+`mission_events`. Aucune table ni colonne existante modifiée.
+
+| Fonction (§) | Classe avant | Livré |
+|---|---|---|
+| Missions : formulaire, brouillon → simulation → approbation → lancement, pause, arrêt (§5, §6) | C | Service et pages `/missions` ; chaque changement d'état est daté, attribué et journalisé ; pas de saut d'étape ; une modification renvoie en brouillon |
+| Simulation sans contact externe (§4) | B | Vérifie l'agent, l'arrêt d'urgence, les plafonds ; ne communique avec personne |
+| Suspension d'un agent (§4, §14) | B | Page `/supervision` ; appliquée au point de passage unique `Governor.submit`, donc à toutes les actions ; une validation ne contourne pas la suspension |
+| Quotas par agent et budget par mission (§15) | B | Plafonds d'actions et de coût d'IA par jour et par agent ; budget, volume total et volume par jour par mission ; alerte à 80 %, pause à 100 % |
+| Pause automatique après échecs (§15) | C | Seuil d'échecs de suite par mission ; un succès remet le compte à zéro |
+| Supervision (§4) | B | État, consommation du jour, quota restant, dernière action de chaque agent |
+
+**Limite assumée.** Les missions de prospection ne cherchent encore personne : l'agent
+Prospecteur arrive au Lot 3 et se branche dans `missions.RUNNERS`. Une mission lancée reste « en
+cours, en attente d'un agent » (dit une seule fois au journal, et affiché sur les pages). Ce lot
+livre le cadre : cycle de vie, limites, pauses, supervision.
+
+**Reste pour la Direction** : rôles supplémentaires (responsable de branche, commercial, analyste,
+partenaire), à désigner avant d'être ajoutés ; le tableau de bord actuel ne connaît que
+administrateur, direction et valideur.
+
+**Tests.** 342 réussis ; mêmes 16 échecs préexistants (support, PHP local, `bash`).

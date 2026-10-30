@@ -291,6 +291,12 @@ class Runtime:
                                notification_mailbox=mailbox if mailbox in self.connectors else "",
                                month_spend=getattr(self.llm, "month_spend", None))
 
+    @property
+    def missions(self):
+        from .missions import MissionService
+
+        return MissionService(self.sessions, self.governor, self.org.pole_codes)
+
     def mailaby_stats(self, days: int) -> dict | None:
         """Statistiques des campagnes si Mailaby est raccordé, sinon None."""
         client, is_mailaby = emailing_client(self.sessions, self.settings,

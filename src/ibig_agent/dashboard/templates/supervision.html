@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Supervision{% endblock %}
+{% block heading %}Supervision des agents{% endblock %}
+{% block lead %}<p class="lead">L'état de chaque agent, sa consommation du jour et ses limites. <b>Suspendre</b> un agent bloque ses nouvelles actions (et empêche de valider celles qu'il avait déjà préparées) ; un <b>quota</b> atteint le bloque jusqu'au lendemain. Tout est inscrit au Journal. Pour tout arrêter d'un coup, utilisez le bouton d'arrêt.</p>{% endblock %}
+{% block content %}
+<div class="grid g-2" style="gap:16px">
+  {% for r in rows %}
+  <section class="card">
+    <div class="card-head"><div><h2>{{ r.label }}</h2><div class="sub">{{ r.autonomy }}</div></div>
+      {% if r.suspended %}<span class="pill red dot">suspendu</span>{% elif r.blocked %}<span class="pill amber dot">bloqué</span>{% else %}<span class="pill green dot">actif</span>{% endif %}</div>
+    {% if r.suspended and r.reason %}<p class="muted">Motif : {{ r.reason }}</p>{% elif r.blocked %}<p class="muted">{{ r.blocked }}</p>{% endif %}
+    <dl class="kv">
+      <dt>Aujourd'hui</dt><dd>{{ r.runs }} action{{ 's' if r.runs > 1 }}{% if r.runs_cap %} sur {{ r.runs_cap }}{% endif %} · {{ '%.2f' | format(r.cost) }} USD{% if r.cost_cap %} sur {{ '%.2f' | format(r.cost_cap) }}{% endif %}</dd>
+      <dt>Dernière action</dt><dd>{% if r.last %}{{ r.last.created_at | quand }} · {{ r.last.summary[:90] }}{% else %}—{% endif %}</dd>
+      <dt>Depuis le début</dt><dd>{{ r.total }} entrée{{ 's' if r.total > 1 }} au Journal</dd>
+    </dl>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      {% if r.suspended %}
+      <form method="post" action="/supervision/{{ r.agent }}/reprendre"><button class="btn primary">{{ icon('check') }} Reprendre</button></form>
+      {% else %}
+      <form method="post" action="/supervision/{{ r.agent }}/suspendre" style="display:flex;gap:6px"><input type="text" name="motif" placeholder="Motif (facultatif)" maxlength="300"><button class="btn" style="color:var(--bad)">{{ icon('pause') }} Suspendre</button></form>
+      {% endif %}
+    </div>
+    <form method="post" action="/supervision/{{ r.agent }}/quotas" style="display:flex;gap:6px;margin-top:10px;align-items:end;flex-wrap:wrap">
+      <label class="field" style="margin:0"><span>Actions par jour</span><input type="number" min="1" name="actions" value="{{ r.runs_cap or '' }}" placeholder="sans limite" style="width:120px"></label>
+      <label class="field" style="margin:0"><span>Coût par jour (USD)</span><input type="number" min="0.01" step="0.01" name="cout" value="{{ r.cost_cap or '' }}" placeholder="sans limite" style="width:140px"></label>
+      <button class="btn sm">{{ icon('check') }} Enregistrer les quotas</button>
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

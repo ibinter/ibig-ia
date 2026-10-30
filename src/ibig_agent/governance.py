@@ -21,6 +21,7 @@ from enum import IntEnum
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from . import agent_control
 from .db import ChannelState, JournalEntry, PendingAction, utcnow
 from .knowledge import is_placeholder
 
@@ -226,6 +227,13 @@ class Governor:
             # Les actions internes (alertes à l'équipe) ne touchent aucun canal extérieur.
             level = Level.VALIDATION
 
+        # Suspension ou quota de l'agent (cahier des charges, sections 14 et 15) : refusé et
+        # inscrit au journal, y compris les actions qui n'attendent qu'une validation.
+        reason = agent_control.blocked_reason(self._sessions, req.agent)
+        if reason:
+            self._journal(req, level, "blocked", reason)
+            return Outcome("blocked", level, error=reason)
+
         if level == Level.AUTOMATIQUE:
             return self._run_automatic(req, level)
         if level == Level.VALIDATION:
@@ -278,6 +286,9 @@ class Governor:
                 raise GovernanceError(f"Action {pending_id} déjà traitée ({pa.status})")
             if self.is_stopped(pa.channel):
                 raise ChannelStopped(f"Canal {pa.channel} suspendu")
+            suspended = agent_control.is_suspended(self._sessions, pa.agent)
+            if suspended:   # reprendre l'agent d'abord : la validation ne contourne pas l'arrêt
+                raise GovernanceError(f"{suspended} : action non exécutée")
             payload = {**pa.payload, **(payload_override or {})}
             # Un texte qui contient encore « À COMPLÉTER » ne part jamais : le valideur
             # doit d'abord écrire l'information manquante.

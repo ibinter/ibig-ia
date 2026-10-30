@@ -50,7 +50,7 @@
         {{ nav('/reseaux', 'share', 'Réseaux sociaux') }}
         {% if user.role != 'valideur' %}{{ nav('/campagnes', 'mail', 'Campagnes mail') }}{% endif %}
         {{ nav('/prospects', 'target', 'Prospects') }}
-        {% if user.role != 'valideur' %}{{ nav('/catalogue', 'book', 'Catalogue') }}{% endif %}
+        {% if user.role != 'valideur' %}{{ nav('/catalogue', 'book', 'Catalogue') }}{{ nav('/missions', 'list', 'Missions') }}{{ nav('/supervision', 'shield-check', 'Supervision') }}{% endif %}
         {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
         {{ nav('/journal', 'list', 'Journal') }}
       {% endcall %}

@@ -76,6 +76,9 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
                 lambda: rt.index_knowledge(), "interval",
                 {"hours": 1, **every,
                  "next_run_time": datetime.now(ZoneInfo(tz)) + timedelta(seconds=30)}),
+        # Missions en cours : limites, pauses automatiques, suspension d'un agent, exécution
+        JobSpec("missions_tick", "Surveillance des missions", "toutes les 5 min",
+                lambda: rt.missions.tick(), "interval", {"minutes": 5, **every}),
         # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin
         JobSpec("catalog_refresh", "Catalogue des produits", "le dimanche à 3 h 30",
                 lambda: rt.refresh_catalog(), "cron",

@@ -459,6 +459,74 @@ class JobStatus(Base):
     alerted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class AgentControl(Base):
+    """Contrôle d'un agent (cahier des charges, sections 4, 14 et 15) : suspension et quotas
+    quotidiens. Une ligne n'existe que si l'agent a été suspendu ou limité un jour."""
+
+    __tablename__ = "agent_controls"
+
+    agent: Mapped[str] = mapped_column(String(60), primary_key=True)
+    suspended: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str] = mapped_column(String(300), default="")
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    runs_cap_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cost_cap_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class Mission(Base):
+    """Mission confiée à un agent (cahier des charges, section 5) : objectif, cible, limites,
+    et cycle brouillon → simulation → approbation → lancement."""
+
+    __tablename__ = "missions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(30), default="prospection")
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    product: Mapped[str] = mapped_column(String(200), default="")
+    zone: Mapped[str] = mapped_column(String(200), default="")
+    target: Mapped[str] = mapped_column(String(300), default="")
+    objective: Mapped[str] = mapped_column(Text, default="")
+    criteria: Mapped[str] = mapped_column(Text, default="")
+    agent: Mapped[str] = mapped_column(String(60), default="prospecteur")
+    channel: Mapped[str] = mapped_column(String(60), default="")
+    autonomy: Mapped[str] = mapped_column(String(30), default="validation")
+    # brouillon | simule | approuve | en_cours | en_pause | termine | arrete
+    status: Mapped[str] = mapped_column(String(20), default="brouillon", index=True)
+    budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_per_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    max_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_threshold: Mapped[int] = mapped_column(Integer, default=3)
+    spent_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    runs: Mapped[int] = mapped_column(Integer, default=0)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    last_result: Mapped[str] = mapped_column(String(500), default="")
+    pause_reason: Mapped[str] = mapped_column(String(300), default="")
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    simulated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_by: Mapped[str] = mapped_column(String(300), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    launched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MissionEvent(Base):
+    """Journal d'une mission : chaque changement d'état, alerte et résultat, daté et attribué."""
+
+    __tablename__ = "mission_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mission_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="etat")  # etat|alerte|resultat|simulation
+    summary: Mapped[str] = mapped_column(String(500), default="")
+    by: Mapped[str] = mapped_column(String(300), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None
