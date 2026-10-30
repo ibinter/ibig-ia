@@ -1362,3 +1362,53 @@ details.past summary { cursor: pointer; color: var(--muted); font-weight: 600; f
 .user-reset summary::-webkit-details-marker { display: none; }
 .user-reset summary svg { width: 14px; height: 14px; }
 .user-reset form { display: grid; gap: 8px; margin-top: 10px; }
+
+/* ---------------------------------------------------------------- v23 : allègement et mouvement */
+/* Navigation entre pages en fondu (navigateurs compatibles) */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .18s; }
+
+/* Textes d'explication : repliés, à la demande */
+details.help { margin: 6px 0 2px; max-width: 760px; }
+details.help > summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; list-style: none;
+  font-size: 13px; color: var(--muted, #64748b); padding: 3px 10px 3px 6px; border-radius: 999px;
+  transition: background .15s, color .15s; }
+details.help > summary::-webkit-details-marker { display: none; }
+details.help > summary:hover { background: var(--line, #e5e9f0); color: inherit; }
+details.help > summary .i { width: 15px; height: 15px; }
+details.help[open] > summary { background: var(--line, #e5e9f0); }
+details.help > .lead { margin-top: 8px; font-size: 14px; line-height: 1.55; }
+
+/* Bloc repliable de l'accueil */
+details.more > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none;
+  padding: 12px 16px; border: 1px dashed var(--line, #d7dde8); border-radius: 12px; font-weight: 600;
+  color: var(--muted, #64748b); transition: background .15s, border-color .15s, color .15s; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary:hover { background: var(--card, #fff); border-color: var(--brand, #1257c4); color: inherit; }
+details.more > summary .chev { transition: transform .2s; }
+details.more[open] > summary .chev { transform: rotate(180deg); }
+details.more[open] { animation: fade .3s ease both; }
+
+/* Cartes vivantes */
+.card, .cal-stat, .kpi { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+a.card:hover, a.cal-stat:hover, a.kpi:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(15, 35, 80, .35); }
+.cal-stats a.cal-stat { text-decoration: none; color: inherit; }
+.btn { transition: transform .12s ease, box-shadow .15s ease, background .15s ease; }
+.btn:active { transform: scale(.97); }
+
+/* Messages de retour : bulles qui disparaissent seules */
+.flash.toast { position: fixed; top: 16px; right: 16px; z-index: 60; max-width: min(440px, calc(100vw - 32px));
+  box-shadow: 0 12px 32px -10px rgba(15, 35, 80, .45); animation: toast-in .3s ease both; }
+.flash.toast.leaving { animation: toast-out .3s ease both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-8px); } }
+
+/* Tableaux plus aérés et lisibles */
+.tbl tbody tr { transition: background .12s; }
+.tbl tbody tr:hover { background: color-mix(in srgb, var(--brand, #1257c4) 5%, transparent); }
+
+/* Menu : sections plus claires */
+.nav-title { letter-spacing: .06em; }
+@media (prefers-reduced-motion: reduce) {
+  a.card:hover, a.cal-stat:hover, a.kpi:hover { transform: none; }
+}

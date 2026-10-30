@@ -3,7 +3,7 @@
 {% block title %}Accueil{% endblock %}
 {% block heading %}Bonjour, {{ user.name.split(' ')[0] if user.role == 'valideur' else user.name }}{% endblock %}
 {% block lead %}
-<p class="lead">{% if stats.pending %}<b>{{ stats.pending }}</b> proposition{{ 's' if stats.pending > 1 }} attend{{ 'ent' if stats.pending > 1 }} votre validation.
+<p class="lead keep">{% if stats.pending %}<b>{{ stats.pending }}</b> proposition{{ 's' if stats.pending > 1 }} attend{{ 'ent' if stats.pending > 1 }} votre validation.
   {% else %}Tout est à jour : aucune proposition n'attend votre validation.{% endif %}
   {% if user.role == 'valideur' %}Vos pôles : {{ user.poles | join(', ') or 'aucun pôle attribué' }}.{% endif %}</p>
 {% endblock %}
@@ -16,7 +16,7 @@
   <a class="btn sm ghost-bad" href="/arret" style="margin-left:auto">Gérer</a></div>
 {% endif %}
 
-{% if sales %}
+{% if sales and (sales.missions_running or sales.missions_paused or sales.quotes_waiting or sales.payments_to_confirm or sales.outstanding) %}
 <div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
   <a class="cal-stat s-blue" href="/missions"><b>{{ sales.missions_running }}</b><span>mission{{ 's' if sales.missions_running > 1 }} en cours{% if sales.missions_paused %} · {{ sales.missions_paused }} en pause{% endif %}</span></a>
   <a class="cal-stat s-amber" href="/devis?statut=envoye"><b>{{ sales.quotes_waiting }}</b><span>devis en attente du client</span></a>
@@ -128,6 +128,8 @@
   </div>
 </div>
 
+<details class="more" style="margin-top:20px">
+<summary>{{ icon('chevron-down', 'i chev') }} Activité, budget IA, journal et canaux</summary>
 {# ------------------------------------------------ activité + budget / pôles #}
 <div class="grid g-main" style="margin-top:16px">
   <div class="card">
@@ -205,4 +207,5 @@
   <a class="btn sm" href="/rapports" style="margin-top:12px">Tous les rapports {{ icon('arrow-right') }}</a>
 </details>
 {% endif %}
+</details>
 {% endblock %}

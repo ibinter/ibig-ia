@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=22">
+<link rel="stylesheet" href="/static/app.css?v=23">
 <script>try { if (localStorage.getItem('side-mini') === '1') document.documentElement.classList.add('side-mini'); } catch (e) {}</script>
 <script type="speculationrules">{"prefetch": [{"source": "document", "where": {"selector_matches": ".nav a, .side-foot a"}, "eagerness": "moderate"}]}</script>
 </head>
@@ -42,26 +42,33 @@
         {% if user.role != 'valideur' and badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Mise en route', badges.get('demarrage'), cls='setup') }}{% endif %}
         {{ nav('/', 'home', 'Accueil') }}
         {{ nav('/validations', 'check-circle', 'Validations', badges.get('validations', 0)) }}
-        {{ nav('/agents', 'bot', 'Agents IA') }}
-        {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
+        {{ nav('/boite', 'inbox', 'Messages') if user.role != 'valideur' }}
+        {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
       </div>
-      {% call group('activite', 'Activité') %}
-        {{ nav('/calendrier', 'calendar', 'Calendrier éditorial') }}
+      {% call group('ventes', 'Ventes') %}
+        {{ nav('/prospects', 'target', 'Prospects') }}
+        {% if user.role != 'valideur' %}{{ nav('/missions', 'list', 'Missions') }}{{ nav('/devis', 'file', 'Devis') }}{{ nav('/finance', 'chart', 'Finance') }}{% endif %}
+      {% endcall %}
+      {% call group('contenu', 'Contenu') %}
+        {{ nav('/calendrier', 'calendar', 'Calendrier') }}
         {{ nav('/reseaux', 'share', 'Réseaux sociaux') }}
         {% if user.role != 'valideur' %}{{ nav('/campagnes', 'mail', 'Campagnes mail') }}{% endif %}
-        {{ nav('/prospects', 'target', 'Prospects') }}
-        {% if user.role != 'valideur' %}{{ nav('/catalogue', 'book', 'Catalogue') }}{{ nav('/devis', 'book', 'Devis') }}{{ nav('/finance', 'shield-check', 'Finance') }}{{ nav('/boite', 'mail', 'Boîte unifiée') }}{{ nav('/missions', 'list', 'Missions') }}{{ nav('/supervision', 'shield-check', 'Supervision') }}{% endif %}
-        {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
+        {{ nav('/publications', 'sparkles', 'Publications réussies') }}
+      {% endcall %}
+      {% call group('agents', 'Agents IA') %}
+        {{ nav('/agents', 'bot', 'Agents') }}
+        {% if user.role != 'valideur' %}{{ nav('/supervision', 'shield-check', 'Supervision') }}{% endif %}
+        {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
         {{ nav('/journal', 'list', 'Journal') }}
       {% endcall %}
       {% call group('pilotage', 'Pilotage') %}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}
+        {{ nav('/objectifs', 'target', 'Objectifs') }}
         {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{{ nav('/sante', 'shield-check', 'Santé des tâches', badges.get('sante', 0)) }}{% endif %}
       {% endcall %}
-      {% call group('configuration', 'Configuration') %}
-        {{ nav('/objectifs', 'target', 'Objectifs') }}
+      {% call group('reglages', 'Réglages') %}
+        {% if user.role != 'valideur' %}{{ nav('/catalogue', 'book', 'Catalogue') }}{% endif %}
         {{ nav('/connaissances', 'book', 'Base de connaissances') }}
-        {{ nav('/publications', 'sparkles', 'Publications réussies') }}
         {% if user.role != 'valideur' %}{{ nav('/boites', 'inbox', 'Boîtes mail') }}{{ nav('/services', 'globe', 'Services') }}{% endif %}
         {% if user.role == 'admin' %}{{ nav('/utilisateurs', 'users', 'Comptes') }}{% endif %}
         {% if user.role == 'valideur' or not badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Guide') }}{% endif %}
@@ -83,8 +90,8 @@
     /* Avant l'affichage : sections repliées et position de défilement du menu restaurées
        (le menu ne remonte plus en haut à chaque clic). */
     (function () {
-      var nav = document.getElementById('nav'), folded = [];
-      try { folded = JSON.parse(localStorage.getItem('nav-folded') || '[]'); } catch (e) {}
+      var nav = document.getElementById('nav'), folded = ['pilotage', 'reglages'];
+      try { var saved = localStorage.getItem('nav-folded'); if (saved !== null) folded = JSON.parse(saved); } catch (e) {}
       nav.querySelectorAll('.nav-group[data-group]').forEach(function (g) {
         if (folded.indexOf(g.dataset.group) !== -1 && !g.querySelector('a.on')) {
           g.classList.add('folded'); g.querySelector('.nav-title').setAttribute('aria-expanded', 'false');
@@ -110,13 +117,14 @@
       <div>
         <div class="eyebrow">{% block eyebrow %}{{ aujourdhui() }}{% endblock %}</div>
         <h1>{% block heading %}{% endblock %}</h1>
-        {% block lead %}{% endblock %}
+        {% set _lead %}{% block lead %}{% endblock %}{% endset %}
+        {% if 'keep' in _lead %}{{ _lead }}{% elif _lead.strip() %}<details class="help"><summary>{{ icon('life') }} À quoi sert cette page ?</summary>{{ _lead }}</details>{% endif %}
       </div>
       <div class="inline">{% block tools %}{% endblock %}</div>
     </header>
     <main class="content">
       {% if msg %}{% set bad = msg.startswith('Refus') or msg.startswith('Échec') or msg.startswith('Trop') or msg.startswith('Identifiants') %}
-      <div class="flash {{ 'bad' if bad else 'ok' }}">{{ icon('alert' if bad else 'check-circle') }}<span>{{ msg }}</span></div>{% endif %}
+      <div class="flash toast {{ 'bad' if bad else 'ok' }}" role="status">{{ icon('alert' if bad else 'check-circle') }}<span>{{ msg }}</span></div>{% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>
@@ -246,5 +254,29 @@
 {% else %}
 {% block bare %}{% endblock %}
 {% endif %}
+<script>
+/* Bulles de retour : disparaissent seules (les erreurs restent plus longtemps) ; chiffres qui s'animent. */
+(function () {
+  var f = document.querySelector('.flash.toast');
+  if (f) {
+    var ms = f.classList.contains('bad') ? 9000 : 4500;
+    var close = function () { f.classList.add('leaving'); setTimeout(function () { f.remove(); }, 320); };
+    f.addEventListener('click', close);
+    setTimeout(close, ms);
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('.kpi b, .kpi .num, .cal-stat b').forEach(function (el) {
+    var raw = el.textContent.trim();
+    if (!/^\d+$/.test(raw)) return;
+    var end = parseInt(raw, 10), start = performance.now(), dur = 600;
+    if (end < 2) return;
+    (function tick(now) {
+      var k = Math.min((now - start) / dur, 1);
+      el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(tick);
+    })(start);
+  });
+})();
+</script>
 </body>
 </html>
