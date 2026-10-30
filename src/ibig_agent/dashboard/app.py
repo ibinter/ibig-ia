@@ -52,6 +52,7 @@ from . import (
     catalogue_routes,
     config_routes,
     crm_routes,
+    finance_routes,
     missions_routes,
     quotes_routes,
     social_routes,
@@ -522,6 +523,7 @@ def create_app(rt: Runtime) -> FastAPI:
     crm_routes.register(app, rt, user, page, back)
     missions_routes.register(app, rt, user, page, back)
     quotes_routes.register(app, rt, user, page, back)
+    finance_routes.register(app, rt, user, page, back)
 
     @app.get("/demarrage", response_class=HTMLResponse)
     def getting_started(request: Request, who: Principal = Depends(user)):

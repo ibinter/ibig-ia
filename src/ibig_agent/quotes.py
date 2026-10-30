@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from .db import CatalogOffer, JournalEntry, Prospect, Quote, QuoteLine, utcnow
 
 STATUS_LABELS = {"brouillon": "Brouillon", "valide": "Validé", "envoye": "Envoyé",
-                 "accepte": "Accepté", "refuse": "Refusé", "expire": "Expiré",
-                 "annule": "Annulé"}
+                 "accepte": "Accepté", "paye": "Payé", "refuse": "Refusé",
+                 "expire": "Expiré", "annule": "Annulé"}
 VALIDITY_DAYS = 30
 
 

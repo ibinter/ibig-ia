@@ -28,8 +28,18 @@
       <form method="post" action="/devis/{{ d.id }}/refuser" style="margin-bottom:8px"><button class="btn" style="width:100%;justify-content:center">Le client refuse</button></form>
       {% endif %}
       {% if d.status in ['brouillon', 'valide', 'envoye'] %}<form method="post" action="/devis/{{ d.id }}/annuler" onsubmit="return confirm('Annuler ce devis ?')"><button class="btn" style="width:100%;justify-content:center;color:var(--bad)">Annuler le devis</button></form>{% endif %}
-      {% if d.status in ['accepte', 'refuse', 'expire', 'annule'] %}<p class="muted">Devis clos.</p>{% endif %}
+      {% if d.status in ['refuse', 'expire', 'annule'] %}<p class="muted">Devis clos.</p>{% endif %}
     </div>
+    {% if d.status == 'accepte' %}
+    <form class="card" method="post" action="/finance/devis/{{ d.id }}/paiement" style="margin-top:16px;display:grid;gap:6px">
+      <div class="card-head"><div><h2>Enregistrer un paiement</h2><div class="sub">Une autre personne le confirmera dans Finance</div></div></div>
+      <input type="number" name="montant" min="1" placeholder="Montant ({{ d.currency }})" required>
+      <select name="mode"><option value="mobile_money">Mobile Money</option><option value="virement">Virement</option><option value="especes">Espèces</option><option value="cheque">Chèque</option><option value="autre">Autre</option></select>
+      <input type="text" name="reference" placeholder="Référence de la transaction" required maxlength="120">
+      <input type="text" name="preuve" placeholder="Preuve (n° de reçu, lien du justificatif…)" required maxlength="1000">
+      <button class="btn">{{ icon('check') }} Enregistrer</button>
+    </form>
+    {% elif d.status == 'paye' %}<p class="muted">Devis payé en totalité.</p>{% endif %}
     {% if d.status == 'brouillon' %}
     <div class="card" style="margin-top:16px">
       <div class="card-head"><div><h2>Ajouter une offre du catalogue</h2><div class="sub">Le prix vient du catalogue pour les offres actives à tarif unique</div></div></div>

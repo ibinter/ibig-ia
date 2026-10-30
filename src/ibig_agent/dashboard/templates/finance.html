@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Finance{% endblock %}
+{% block heading %}Finance{% endblock %}
+{% block lead %}<p class="lead">Seuls les paiements <b>confirmés</b> comptent. Un paiement est saisi avec sa référence et sa preuve, puis confirmé par une autre personne ; quand un devis est payé en totalité, le prospect passe à « payé / livré ». Chaque paiement confirmé fait naître une commission au taux du pôle, à valider puis à marquer comme versée.</p>{% endblock %}
+{% block content %}
+{% macro money(v) %}{{ '{:,}'.format(v).replace(',', ' ') }}{% endmacro %}
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-green"><b>{{ money(s.total) }}</b><span>FCFA encaissés (confirmés)</span></div>
+  <div class="cal-stat s-amber"><b>{{ money(s.outstanding) }}</b><span>FCFA restant à encaisser</span></div>
+  <div class="cal-stat s-blue"><b>{{ s.to_confirm }}</b><span>paiement{{ 's' if s.to_confirm > 1 }} à confirmer</span></div>
+  <div class="cal-stat s-red"><b>{{ money(s.commissions.get('a_valider', 0) + s.commissions.get('valide', 0)) }}</b><span>FCFA de commissions dues</span></div>
+</div>
+
+<div class="grid g-2" style="gap:16px;align-items:start;margin-top:16px">
+  <section class="card">
+    <div class="card-head"><div><h2>Paiements à confirmer</h2></div></div>
+    {% if pending %}
+    <table class="tbl"><thead><tr><th>Devis</th><th>Montant</th><th>Mode · référence</th><th>Saisi par</th><th></th></tr></thead><tbody>
+    {% for p in pending %}<tr><td><a href="/devis/{{ p.quote_id }}">n° {{ p.quote_id }}</a></td><td>{{ money(p.amount) }}</td><td>{{ methods.get(p.method, p.method) }} · {{ p.reference }}<br><small class="muted">{{ p.proof[:80] }}</small></td><td>{{ p.recorded_by }}</td>
+      <td><form method="post" action="/finance/paiement/{{ p.id }}/confirmer"><button class="btn sm primary">Confirmer</button></form>
+      <form method="post" action="/finance/paiement/{{ p.id }}/rejeter" style="display:flex;gap:4px;margin-top:4px"><input type="text" name="motif" placeholder="Motif" required style="width:110px"><button class="btn sm">Rejeter</button></form></td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted">Aucun paiement en attente. Saisissez un paiement depuis la page d'un devis accepté.</p>{% endif %}
+  </section>
+  <section class="card">
+    <div class="card-head"><div><h2>Chiffre d'affaires confirmé</h2></div></div>
+    {% if s.by_pole %}<ul class="todo">{% for pole, v in s.by_pole.items() %}<li><span class="todo-txt"><b>{{ pole }}</b> · {{ money(v) }} FCFA</span></li>{% endfor %}</ul>{% else %}<p class="muted">Aucun encaissement confirmé.</p>{% endif %}
+    {% if s.months %}<p class="muted">Par mois : {% for m, v in s.months.items() %}{{ m }} : {{ money(v) }} · {% endfor %}</p>{% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Commissions</h2><div class="sub">Le taux appliqué est figé au moment du paiement confirmé</div></div></div>
+  <form method="post" action="/finance/taux" style="display:flex;gap:6px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+    <label class="field" style="margin:0"><span>Pôle</span><select name="pole">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}{% if rates.get(p.code) is not none %} (actuel {{ rates[p.code] / 100 }} %){% endif %}</option>{% endfor %}</select></label>
+    <label class="field" style="margin:0"><span>Taux (%)</span><input type="number" name="taux" min="0" max="50" step="0.01" required style="width:100px"></label>
+    <button class="btn sm">{{ icon('check') }} Enregistrer le taux</button>
+  </form>
+  {% if commissions %}
+  <table class="tbl"><thead><tr><th>Pôle</th><th>Bénéficiaire</th><th>Base</th><th>Taux</th><th>Montant</th><th>Statut</th><th></th></tr></thead><tbody>
+  {% for c in commissions %}<tr><td>{{ c.pole or '—' }}</td><td>{{ c.beneficiary or 'à désigner' }}</td><td>{{ money(c.base) }}</td><td>{{ c.rate_bp / 100 }} %</td><td>{{ money(c.amount) }}</td><td>{{ com_labels.get(c.status, c.status) }}</td>
+    <td style="display:flex;gap:4px">{% if c.status == 'a_valider' %}<form method="post" action="/finance/commission/{{ c.id }}/valider"><button class="btn sm primary">Valider</button></form>{% endif %}{% if c.status == 'valide' %}<form method="post" action="/finance/commission/{{ c.id }}/verser"><button class="btn sm primary">Marquer versée</button></form>{% endif %}{% if c.status in ['a_valider', 'valide'] %}<form method="post" action="/finance/commission/{{ c.id }}/annuler" onsubmit="return confirm('Annuler cette commission ?')"><button class="btn sm">Annuler</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted">Aucune commission. Fixez d'abord un taux pour le pôle concerné.</p>{% endif %}
+</section>
+{% endblock %}

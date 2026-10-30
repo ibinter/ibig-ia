@@ -565,6 +565,62 @@ class QuoteLine(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class Payment(Base):
+    """Paiement reçu pour un devis accepté (Lot 5) : saisi par une personne, confirmé par une
+    autre, avec référence et preuve. Seuls les paiements confirmés comptent."""
+
+    __tablename__ = "payments"
+    __table_args__ = (UniqueConstraint("method", "reference"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    quote_id: Mapped[int] = mapped_column(Integer, index=True)
+    prospect_id: Mapped[int] = mapped_column(Integer, index=True)
+    pole: Mapped[str] = mapped_column(String(40), default="", index=True)
+    amount: Mapped[int] = mapped_column(Integer, default=0)
+    currency: Mapped[str] = mapped_column(String(8), default="FCFA")
+    method: Mapped[str] = mapped_column(String(20), default="")
+    reference: Mapped[str] = mapped_column(String(120), default="")
+    proof: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(20), default="a_confirmer", index=True)
+    recorded_by: Mapped[str] = mapped_column(String(300), default="")
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    confirmed_by: Mapped[str] = mapped_column(String(300), default="")
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reject_reason: Mapped[str] = mapped_column(String(300), default="")
+
+
+class CommissionRate(Base):
+    """Taux de commission par pôle, en points de base (250 = 2,5 %)."""
+
+    __tablename__ = "commission_rates"
+
+    pole: Mapped[str] = mapped_column(String(40), primary_key=True)
+    rate_bp: Mapped[int] = mapped_column(Integer, default=0)
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Commission(Base):
+    """Commission née d'un paiement confirmé : à valider par la direction, puis versée."""
+
+    __tablename__ = "commissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payment_id: Mapped[int] = mapped_column(Integer, unique=True, index=True)
+    quote_id: Mapped[int] = mapped_column(Integer, index=True)
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    beneficiary: Mapped[str] = mapped_column(String(300), default="")
+    base: Mapped[int] = mapped_column(Integer, default=0)
+    rate_bp: Mapped[int] = mapped_column(Integer, default=0)
+    amount: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default="a_valider", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    validated_by: Mapped[str] = mapped_column(String(300), default="")
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_by: Mapped[str] = mapped_column(String(300), default="")
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

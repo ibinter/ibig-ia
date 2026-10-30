@@ -292,6 +292,12 @@ class Runtime:
                                month_spend=getattr(self.llm, "month_spend", None))
 
     @property
+    def finance(self):
+        from .finance import FinanceService
+
+        return FinanceService(self.sessions, self.org.pole_codes, self.commercial.set_stage)
+
+    @property
     def quotes(self):
         from .quotes import QuoteService
 

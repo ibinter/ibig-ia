@@ -46,7 +46,7 @@ ACTIVE = ("nouveau", "qualifie", "en_discussion", "relance")
 HUMAN_STAGES = ("interesse", "demo", "devis", "negociation", "a_recontacter")
 # Issues : injoignable, adresse invalide, « ne plus contacter » (conservé : jamais purgé)
 ISSUES = ("injoignable", "invalide", "exclu")
-CLOSED = ("gagne", "perdu", "sans_suite", *ISSUES)
+CLOSED = ("gagne", "perdu", "sans_suite", "paye_livre", *ISSUES)
 STAGES = (*ACTIVE, *HUMAN_STAGES, "gagne", "perdu", "sans_suite", *ISSUES)
 # « Payé / livré » ne s'obtient que par une confirmation financière vérifiée (Lot 5)
 RESERVED_STAGES = ("paye_livre",)
@@ -54,7 +54,7 @@ STAGE_LABELS = {
     "nouveau": "Nouveau", "qualifie": "Qualifié", "en_discussion": "En discussion",
     "relance": "Relancé", "interesse": "Intéressé", "demo": "Démo / rendez-vous",
     "devis": "Devis envoyé", "negociation": "Négociation", "a_recontacter": "À recontacter",
-    "gagne": "Gagné", "perdu": "Perdu", "sans_suite": "Sans suite",
+    "gagne": "Gagné", "paye_livre": "Payé / livré", "perdu": "Perdu", "sans_suite": "Sans suite",
     "injoignable": "Injoignable", "invalide": "Adresse invalide", "exclu": "Ne plus contacter",
 }
 VERIFICATIONS = ("non_verifie", "verifie", "invalide")
@@ -426,13 +426,15 @@ class CommercialAgent:
             s.commit()
 
     # ------------------------------------------------------------------ fiche prospect (CRM)
-    def set_stage(self, prospect_id: int, stage: str, by: str, note: str = "") -> None:
+    def set_stage(self, prospect_id: int, stage: str, by: str, note: str = "",
+                  confirmed_payment: bool = False) -> None:
         """Change l'étape d'un prospect (pipeline du cahier des charges). Chaque changement est
-        daté, attribué, et inscrit au fil d'activités et au journal."""
-        if stage in RESERVED_STAGES:
+        daté, attribué, et inscrit au fil d'activités et au journal. Les étapes réservées ne
+        s'obtiennent que par une confirmation financière (`confirmed_payment`, Lot 5)."""
+        if stage in RESERVED_STAGES and not confirmed_payment:
             raise ValueError("« Payé / livré » vient d'une confirmation financière vérifiée, "
                              "pas d'un changement manuel")
-        if stage not in STAGES:
+        if stage not in STAGES and stage not in RESERVED_STAGES:
             raise ValueError(f"Étape inconnue : {stage}")
         with self._sessions() as s:
             p = s.get(Prospect, prospect_id)
