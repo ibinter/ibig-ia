@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./ibig_agent.db"
     triage_model: str = "claude-haiku-4-5"
-    writing_model: str = "claude-opus-5-5"
+    writing_model: str = "claude-haiku-4-5"
     writing_effort: str = "medium"  # low | medium | high | xhigh | max
     monthly_ai_budget_usd: float = 150.0
     budget_alert_ratio: float = 0.8
