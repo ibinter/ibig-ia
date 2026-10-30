@@ -161,3 +161,12 @@ def test_home_shows_the_sales_summary_to_direction_only(rt, web, data):
     home = web("dg@ibig.test").get("/").text
     assert "devis en attente du client" in home and "restant à encaisser" in home
     assert "devis en attente du client" not in web("val@ibig.test").get("/").text
+
+
+def test_menu_badges_endpoint_is_json_and_needs_a_login(rt, web):
+    dg = web("dg@ibig.test")
+    data = dg.get("/_pastilles").json()
+    assert {"validations", "tickets", "sante"} <= set(data)
+    anonymous = web("inconnu@ibig.test").get("/_pastilles", follow_redirects=False)
+    assert anonymous.status_code in (303, 401)
+

@@ -1412,3 +1412,27 @@ a.card:hover, a.cal-stat:hover, a.kpi:hover { transform: translateY(-2px); box-s
 @media (prefers-reduced-motion: reduce) {
   a.card:hover, a.cal-stat:hover, a.kpi:hover { transform: none; }
 }
+
+/* ---------------------------------------------------------------- v24 : moins de texte, plus d'action */
+/* Les sous-titres des cartes passent en infobulle (le texte reste accessible au survol) */
+.card-head .sub { display: none; }
+.card-head h2[title] { cursor: help; }
+/* Paragraphes d'explication longs : deux lignes, puis « Lire la suite » */
+.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.clamp-btn { background: none; border: 0; padding: 0; color: var(--brand, #1257c4); font-size: 13px; cursor: pointer; margin: -4px 0 8px; }
+/* Tableaux : filtre instantané et tri */
+.tbl-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.tbl-tools input { max-width: 260px; padding: 7px 12px; border-radius: 999px; font-size: 13px; }
+.tbl-tools small { color: var(--muted, #64748b); }
+.tbl th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.tbl th.sortable::after { content: " ↕"; opacity: .3; font-size: 11px; }
+.tbl th.sortable[data-dir="asc"]::after { content: " ↑"; opacity: .9; }
+.tbl th.sortable[data-dir="desc"]::after { content: " ↓"; opacity: .9; }
+.tbl tr.hide { display: none; }
+/* En-tête de page plus compact, collant sous la barre */
+.top { padding-bottom: 8px; }
+.top h1 { letter-spacing: -.02em; }
+.content > .card, .content > section.card { margin-bottom: 16px; }
+/* Pastille qui bouge quand un chiffre change */
+.count.pulse { animation: pulse .9s ease; }
+@keyframes pulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }

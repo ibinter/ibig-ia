@@ -391,6 +391,12 @@ def create_app(rt: Runtime) -> FastAPI:
         return resp
 
     # ---------------------------------------------------------------- pages
+    @app.get("/_pastilles", response_class=JSONResponse)
+    def badge_counts(who: Principal = Depends(user)):
+        """Chiffres des pastilles du menu, relus par la page toutes les 30 secondes."""
+        with rt.sessions() as s:
+            return nav_counts(s, who)
+
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request, who: Principal = Depends(user)):
         # Cloisonnement : un valideur ne voit que les chiffres de ses pôles.

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="/static/app.css?v=23">
+<link rel="stylesheet" href="/static/app.css?v=24">
 <script>try { if (localStorage.getItem('side-mini') === '1') document.documentElement.classList.add('side-mini'); } catch (e) {}</script>
 <script type="speculationrules">{"prefetch": [{"source": "document", "where": {"selector_matches": ".nav a, .side-foot a"}, "eagerness": "moderate"}]}</script>
 </head>
@@ -276,6 +276,69 @@
       if (k < 1) requestAnimationFrame(tick);
     })(start);
   });
+})();
+</script>
+<script>
+/* Allègement automatique de toutes les pages : sous-titres en infobulle, textes longs repliés,
+   tableaux filtrables et triables, pastilles du menu actualisées. */
+(function () {
+  document.querySelectorAll('.card-head').forEach(function (h) {
+    var sub = h.querySelector('.sub'), title = h.querySelector('h2, h3');
+    if (sub && title && !title.title) title.title = sub.textContent.trim();
+  });
+  document.querySelectorAll('.card > p.muted, .card > .lead').forEach(function (p) {
+    if (p.textContent.trim().length < 170) return;
+    p.classList.add('clamp');
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'clamp-btn'; b.textContent = 'Lire la suite';
+    b.addEventListener('click', function () { var on = p.classList.toggle('clamp'); b.textContent = on ? 'Lire la suite' : 'Réduire'; });
+    p.after(b);
+  });
+  document.querySelectorAll('table.tbl').forEach(function (t) {
+    var body = t.tBodies[0]; if (!body) return;
+    var rows = [].slice.call(body.rows);
+    t.querySelectorAll('thead th').forEach(function (th, i) {
+      if (!th.textContent.trim()) return;
+      th.classList.add('sortable');
+      th.addEventListener('click', function () {
+        var dir = th.dataset.dir === 'asc' ? 'desc' : 'asc';
+        t.querySelectorAll('th').forEach(function (x) { delete x.dataset.dir; });
+        th.dataset.dir = dir;
+        var num = function (s) { var n = parseFloat(s.replace(/\s/g, '').replace(',', '.')); return isNaN(n) ? null : n; };
+        rows.slice().sort(function (a, b) {
+          var x = a.cells[i] ? a.cells[i].textContent.trim() : '', y = b.cells[i] ? b.cells[i].textContent.trim() : '';
+          var nx = num(x), ny = num(y), c = (nx !== null && ny !== null) ? nx - ny : x.localeCompare(y, 'fr');
+          return dir === 'asc' ? c : -c;
+        }).forEach(function (r) { body.appendChild(r); });
+      });
+    });
+    if (rows.length < 8) return;
+    var tools = document.createElement('div'); tools.className = 'tbl-tools';
+    tools.innerHTML = '<input type="search" placeholder="Filtrer ce tableau…" aria-label="Filtrer ce tableau"><small></small>';
+    t.parentNode.insertBefore(tools, t);
+    var input = tools.firstChild, count = tools.lastChild;
+    var upd = function () {
+      var q = input.value.toLowerCase().trim(), n = 0;
+      rows.forEach(function (r) { var ok = !q || r.textContent.toLowerCase().indexOf(q) !== -1; r.classList.toggle('hide', !ok); if (ok) n++; });
+      count.textContent = q ? n + ' sur ' + rows.length : rows.length + ' lignes';
+    };
+    input.addEventListener('input', upd); upd();
+  });
+  var map = {validations: '/validations', tickets: '/tickets', sante: '/sante'};
+  function refresh() {
+    if (document.hidden) return;
+    fetch('/_pastilles', {credentials: 'same-origin', headers: {Accept: 'application/json'}}).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      Object.keys(map).forEach(function (k) {
+        var a = document.querySelector('#nav a[href="' + map[k] + '"]'); if (!a) return;
+        var c = a.querySelector('.count'), n = d[k] || 0;
+        if (!n) { if (c) c.remove(); return; }
+        if (!c) { c = document.createElement('span'); c.className = 'count'; a.appendChild(c); }
+        if (c.textContent !== String(n)) { c.textContent = n; c.classList.remove('pulse'); void c.offsetWidth; c.classList.add('pulse'); }
+      });
+    }).catch(function () {});
+  }
+  setInterval(refresh, 30000);
+  document.addEventListener('visibilitychange', refresh);
 })();
 </script>
 </body>
