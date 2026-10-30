@@ -186,7 +186,7 @@ class KnowledgeBase:
         texts: dict[str, str] = {}
         for base in (self.root, *self.extra_roots):
             texts.update({
-                str(p.relative_to(base)): p.read_text(encoding="utf-8")
+                p.relative_to(base).as_posix(): p.read_text(encoding="utf-8")
                 for p in sorted(base.rglob("*.md"))
                 if p.name != "README.md" and not p.name.startswith("_")
             })
