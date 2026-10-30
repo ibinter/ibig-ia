@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Boîte unifiée{% endblock %}
+{% block heading %}Boîte unifiée{% endblock %}
+{% block lead %}<p class="lead">Tous les messages reçus par les boîtes mail de l'entreprise, au même endroit, avec le tri fait par l'agent (pôle, catégorie, urgence, décision). Les réponses restent soumises aux règles de validation. {{ open_tickets }} ticket{{ 's' if open_tickets > 1 }} de support ouvert{{ 's' if open_tickets > 1 }}.</p>{% endblock %}
+{% block content %}
+<form class="filter-bar" method="get" action="/boite">
+  <input type="search" name="q" value="{{ q }}" placeholder="Objet ou expéditeur…" aria-label="Rechercher">
+  <select name="boite" aria-label="Boîte"><option value="">Toutes les boîtes</option>{% for b in boxes %}<option value="{{ b }}" {{ 'selected' if b == boite }}>{{ b }}</option>{% endfor %}</select>
+  <select name="pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in poles %}<option value="{{ p.code }}" {{ 'selected' if p.code == pole }}>{{ p.code }}</option>{% endfor %}</select>
+  <select name="decision" aria-label="Décision"><option value="">Toutes les décisions</option>{% for d in decisions %}<option value="{{ d }}" {{ 'selected' if d == decision }}>{{ d | statut }}</option>{% endfor %}</select>
+  <button class="btn sm">{{ icon('search') }} Filtrer</button>
+</form>
+<section class="card">
+  {% if rows %}
+  <table class="tbl"><thead><tr><th>Reçu</th><th>Boîte</th><th>De</th><th>Objet</th><th>Pôle</th><th>Catégorie</th><th>Décision</th></tr></thead><tbody>
+  {% for m in rows %}<tr><td>{{ (m.received_at or m.processed_at) | quand }}</td><td>{{ m.mailbox }}</td><td>{{ m.sender }}</td><td>{{ m.subject[:90] }}{% if m.suspicious %} <span class="pill red">suspect</span>{% endif %}</td><td>{{ m.pole or '—' }}</td><td>{{ m.category | statut }}</td><td>{{ m.decision | statut }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted">Aucun message ne correspond.</p>{% endif %}
+</section>
+{% endblock %}

@@ -48,7 +48,14 @@ from ..db import JobStatus, JournalEntry, MediaAsset, PendingAction, Prospect, T
 from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
-from . import catalogue_routes, config_routes, crm_routes, missions_routes, social_routes
+from . import (
+    catalogue_routes,
+    config_routes,
+    crm_routes,
+    missions_routes,
+    quotes_routes,
+    social_routes,
+)
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
 from .stats import home_stats, nav_counts
@@ -514,6 +521,7 @@ def create_app(rt: Runtime) -> FastAPI:
     catalogue_routes.register(app, rt, user, page, back)
     crm_routes.register(app, rt, user, page, back)
     missions_routes.register(app, rt, user, page, back)
+    quotes_routes.register(app, rt, user, page, back)
 
     @app.get("/demarrage", response_class=HTMLResponse)
     def getting_started(request: Request, who: Principal = Depends(user)):

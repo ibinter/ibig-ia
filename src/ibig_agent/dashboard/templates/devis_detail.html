@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ d.number }}{% endblock %}
+{% block heading %}Devis {{ d.number }}{% endblock %}
+{% block lead %}<p class="lead">Pour <a href="/prospects/{{ d.prospect_id }}">{{ prospect.name or prospect.email if prospect else '—' }}</a> · <span class="pill dot">{{ labels.get(d.status, d.status) }}</span>{% if d.valid_until %} · valable jusqu'au {{ d.valid_until | quand }}{% endif %}</p>{% endblock %}
+{% block content %}
+<div class="grid g-2" style="gap:16px;align-items:start">
+  <section class="card">
+    <div class="card-head"><div><h2>Lignes</h2><div class="sub">Total {{ '{:,}'.format(d.total).replace(',', ' ') }} {{ d.currency }}</div></div></div>
+    {% if lines %}
+    <table class="tbl"><thead><tr><th>Désignation</th><th>Qté</th><th>Prix unitaire</th><th>Total</th><th></th></tr></thead><tbody>
+    {% for l in lines %}<tr><td>{{ l.label }}{% if l.price_source == 'manuel' %} <span class="pill amber">prix saisi</span>{% endif %}</td><td>{{ l.qty }}</td><td>{{ '{:,}'.format(l.unit_price).replace(',', ' ') }}</td><td>{{ '{:,}'.format(l.total).replace(',', ' ') }}</td>
+      <td>{% if d.status == 'brouillon' %}<form method="post" action="/devis/{{ d.id }}/ligne/{{ l.id }}/retirer"><button class="btn sm">Retirer</button></form>{% endif %}</td></tr>{% endfor %}
+    </tbody></table>
+    {% else %}<p class="muted">Aucune ligne.</p>{% endif %}
+    {% if d.notes %}<p class="muted">Note : {{ d.notes }}</p>{% endif %}
+  </section>
+  <div>
+    <div class="card">
+      <div class="card-head"><div><h2>Actions</h2></div></div>
+      {% if d.status == 'brouillon' %}
+      <form method="post" action="/devis/{{ d.id }}/valider" style="display:flex;gap:6px;align-items:end;margin-bottom:8px"><label class="field" style="margin:0"><span>Validité (jours)</span><input type="number" name="jours" value="30" min="1" max="365" style="width:90px"></label><button class="btn primary">{{ icon('check') }} Valider</button></form>
+      {% endif %}
+      {% if d.status in ['valide', 'envoye', 'accepte', 'refuse', 'expire'] %}<p><a class="btn" href="/devis/{{ d.id }}/imprimer" target="_blank">Version à imprimer / PDF</a></p>{% endif %}
+      {% if d.status == 'valide' %}<form method="post" action="/devis/{{ d.id }}/envoyer" onsubmit="return confirm('Confirmer que le devis a été remis au client ?')" style="margin-bottom:8px"><button class="btn primary" style="width:100%;justify-content:center">Marquer comme envoyé</button></form>{% endif %}
+      {% if d.status == 'envoye' %}
+      <form method="post" action="/devis/{{ d.id }}/accepter" style="margin-bottom:8px"><button class="btn primary" style="width:100%;justify-content:center">Le client accepte</button></form>
+      <form method="post" action="/devis/{{ d.id }}/refuser" style="margin-bottom:8px"><button class="btn" style="width:100%;justify-content:center">Le client refuse</button></form>
+      {% endif %}
+      {% if d.status in ['brouillon', 'valide', 'envoye'] %}<form method="post" action="/devis/{{ d.id }}/annuler" onsubmit="return confirm('Annuler ce devis ?')"><button class="btn" style="width:100%;justify-content:center;color:var(--bad)">Annuler le devis</button></form>{% endif %}
+      {% if d.status in ['accepte', 'refuse', 'expire', 'annule'] %}<p class="muted">Devis clos.</p>{% endif %}
+    </div>
+    {% if d.status == 'brouillon' %}
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>Ajouter une offre du catalogue</h2><div class="sub">Le prix vient du catalogue pour les offres actives à tarif unique</div></div></div>
+      <form method="get" action="/devis/{{ d.id }}" style="display:flex;gap:6px;margin-bottom:8px"><input type="search" name="q" value="{{ q }}" placeholder="Nom de l'offre…" style="flex:1"><button class="btn sm">{{ icon('search') }}</button></form>
+      {% for o in offers %}
+      <form method="post" action="/devis/{{ d.id }}/ligne" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+        <input type="hidden" name="code" value="{{ o.code }}"><span style="flex:1;min-width:160px">{{ o.name }} <small class="muted">{{ o.pole }} · {{ o.price if o.price is not none else '—' }} · {{ o.status }}</small></span>
+        <input type="number" name="quantite" value="1" min="1" style="width:70px" aria-label="Quantité">
+        {% if o.status != 'actif' or o.price is none or (o.prices | length) > 1 %}<input type="number" name="prix" min="0" placeholder="prix à saisir" style="width:120px" required>{% endif %}
+        <button class="btn sm">Ajouter</button></form>
+      {% endfor %}
+      {% if q and not offers %}<p class="muted">Aucune offre trouvée.</p>{% endif %}
+      <details style="margin-top:10px"><summary>Ligne libre (hors catalogue)</summary>
+        <form method="post" action="/devis/{{ d.id }}/ligne" style="display:grid;gap:6px;margin-top:8px">
+          <input type="text" name="libelle" placeholder="Désignation" required maxlength="300">
+          <input type="number" name="prix" min="0" placeholder="Prix unitaire" required>
+          <input type="number" name="quantite" value="1" min="1">
+          <button class="btn sm">Ajouter la ligne</button></form></details>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

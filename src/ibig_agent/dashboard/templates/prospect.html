@@ -33,6 +33,10 @@
   </div>
 
   <div style="align-self:start">
+    {% if user.role != 'valideur' %}<form class="card" method="post" action="/prospects/{{ p.id }}/devis" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>Devis</h2><div class="sub">Prépare un brouillon avec les prix du catalogue</div></div></div>
+      <button class="btn">{{ icon('check') }} Créer un devis</button>
+    </form>{% endif %}
     <form class="card" method="post" action="/prospects/{{ p.id }}/etape">
       <div class="card-head"><div><h2>{{ icon('arrow-right') }} Changer d'étape</h2><div class="sub">« Payé / livré » vient d'une confirmation financière, jamais d'un changement manuel.</div></div></div>
       <label class="field"><span>Nouvelle étape</span><select name="etape" style="width:100%">{% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == p.status }}>{{ labels.get(s, s) }}</option>{% endfor %}</select></label>

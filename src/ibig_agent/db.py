@@ -527,6 +527,44 @@ class MissionEvent(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
+class Quote(Base):
+    """Devis (cahier des charges, Lot 4) : numéroté, lié à une fiche prospect, validé par un humain
+    avant tout envoi. Le prix d'une ligne vient du catalogue ou est saisi à la main (signalé)."""
+
+    __tablename__ = "quotes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    prospect_id: Mapped[int] = mapped_column(Integer, index=True)
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    # brouillon | valide | envoye | accepte | refuse | expire | annule
+    status: Mapped[str] = mapped_column(String(20), default="brouillon", index=True)
+    currency: Mapped[str] = mapped_column(String(8), default="FCFA")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    validated_by: Mapped[str] = mapped_column(String(300), default="")
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class QuoteLine(Base):
+    __tablename__ = "quote_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    quote_id: Mapped[int] = mapped_column(Integer, index=True)
+    offer_code: Mapped[str] = mapped_column(String(200), default="")
+    label: Mapped[str] = mapped_column(String(300), default="")
+    qty: Mapped[int] = mapped_column(Integer, default=1)
+    unit_price: Mapped[int] = mapped_column(Integer, default=0)
+    price_source: Mapped[str] = mapped_column(String(20), default="catalogue")  # catalogue|manuel
+    total: Mapped[int] = mapped_column(Integer, default=0)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

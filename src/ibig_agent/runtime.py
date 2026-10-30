@@ -292,6 +292,12 @@ class Runtime:
                                month_spend=getattr(self.llm, "month_spend", None))
 
     @property
+    def quotes(self):
+        from .quotes import QuoteService
+
+        return QuoteService(self.sessions, self.commercial.set_stage)
+
+    @property
     def missions(self):
         from .missions import RUNNERS, MissionService
         from .prospecteur import make_runner
