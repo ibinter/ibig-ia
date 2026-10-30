@@ -36,9 +36,9 @@ class FakeMessages:
         return _Stream()
 
 
-def make(tmp_path, resp, budget=10.0):
+def make(tmp_path, resp, budget=10.0, **extra):
     settings = Settings(database_url=f"sqlite:///{tmp_path / 'llm.db'}",
-                        monthly_ai_budget_usd=budget, _env_file=None)
+                        monthly_ai_budget_usd=budget, _env_file=None, **extra)
     sessions = init_db(make_engine(settings.database_url))
     fake = SimpleNamespace(messages=FakeMessages(resp),
                            beta=SimpleNamespace(messages=FakeMessages(resp)))
@@ -55,7 +55,8 @@ def test_triage_uses_light_model_and_records_cost(tmp_path):
 
 
 def test_writing_uses_advanced_model_with_fallback(tmp_path):
-    client, fake, _ = make(tmp_path, response("Bonjour", model="claude-opus-5-5"))
+    client, fake, _ = make(tmp_path, response("Bonjour", model="claude-opus-5-5"),
+                           writing_model="claude-opus-5-5")   # le défaut est le modèle le moins cher
     assert client.write("w", "sys", "user") == "Bonjour"
     kw = fake.beta.messages.kwargs
     assert kw["model"] == "claude-opus-5-5" and kw["fallbacks"] == "default"
