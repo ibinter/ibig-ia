@@ -18,7 +18,9 @@ Les fichiers sont régénérés à chaque import (ils ne se modifient pas à la 
 
 from __future__ import annotations
 
+import json
 import re
+import time
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -28,7 +30,9 @@ from pathlib import Path
 import httpx
 
 BASE_URL = "https://ibigpartners.com"
+SITE_EDUFORM = "https://ibig-eduform.com"
 SUBDIR = "produits"
+JSON_LD = re.compile(r'<script type="application/ld\+json">(.*?)</script>', re.DOTALL)
 # (identifiant de la marque chez PARTNERS, pôle de l'agent, nom affiché)
 BRANCHES = [
     ("ibig-soft", "SOFT", "IBIG SOFT"),
@@ -60,6 +64,7 @@ class Item:
     urls: list[str]
     description: str
     category: str = ""
+    origin: str = "partners"   # « site » : page de formation absente du catalogue PARTNERS
 
 
 @dataclass
@@ -69,6 +74,8 @@ class Result:
     raw_counts: dict[str, int] = field(default_factory=dict)  # marque -> produits reçus
     ambiguous: dict[str, int] = field(default_factory=dict)   # marque -> entrées « à confirmer »
     skipped: list[str] = field(default_factory=list)          # marques sans produit
+    site_added: int = 0    # formations lues sur le site EDUFORM, absentes de PARTNERS
+    site_failed: int = 0   # pages du site illisibles (ignorées)
 
     @property
     def total(self) -> int:
@@ -98,6 +105,54 @@ def fetch_branch(client: httpx.Client, slug: str) -> list[dict]:
         rows = _get(client, "/api/catalogue").get("formations") or []
         return [{**r, "pricingType": r.get("pricingType") or "COURSE"} for r in rows]
     return list(_get(client, f"/api/catalogue/{slug}").get("products") or [])
+
+
+def parse_course(page: str, url: str) -> dict | None:
+    """Données structurées (schema.org « Course ») d'une page de formation : nom, description,
+    prix, domaine du site. None si la page n'en contient pas."""
+    for block in JSON_LD.findall(page):
+        try:
+            data = json.loads(block)
+        except ValueError:
+            continue
+        if isinstance(data, dict) and data.get("@type") == "Course" and data.get("name"):
+            offer = data.get("offers") if isinstance(data.get("offers"), dict) else {}
+            try:
+                price = int(float(offer.get("price") or 0))
+            except (TypeError, ValueError):
+                price = 0
+            return {"name": data["name"], "description": data.get("description") or "",
+                    "price": price, "siteUrl": url, "category": data.get("teaches") or "",
+                    "pricingType": "COURSE", "_origin": "site"}
+    return None
+
+
+def fetch_site_extras(client: httpx.Client, known_rows: list[dict],
+                      delay: float = 0.1) -> tuple[list[dict], int]:
+    """Formations du site EDUFORM (plan du site) que le catalogue PARTNERS ne contient pas.
+    Une demande à la fois, avec un court délai ; une page illisible est ignorée."""
+    try:
+        resp = client.get(f"{SITE_EDUFORM}/sitemap.xml")
+        resp.raise_for_status()
+    except httpx.HTTPError:
+        return [], 0
+    urls = [u for u in re.findall(r"<loc>([^<]+)</loc>", resp.text) if "/formation/" in u]
+    have = {str(r.get("siteUrl", "")).rstrip("/") for r in known_rows}
+    rows, failed = [], 0
+    for url in dict.fromkeys(u.rstrip("/") for u in urls if u.rstrip("/") not in have):
+        try:
+            page = client.get(url)
+            page.raise_for_status()
+            row = parse_course(page.text, url)
+        except httpx.HTTPError:
+            row = None
+        if row is None:
+            failed += 1
+        else:
+            rows.append(row)
+        if delay:
+            time.sleep(delay)
+    return rows, failed
 
 
 # ------------------------------------------------------------------ mise en forme
@@ -130,8 +185,9 @@ def merge(raw: list[dict]) -> list[Item]:
         prices = sorted({int(p["price"]) for p in rows if p.get("price")})
         urls = list(dict.fromkeys(str(p["siteUrl"]) for p in rows if p.get("siteUrl")))[:3]
         desc = max((_clean(p.get("description")) for p in rows), key=len, default="")
+        origin = "site" if all(p.get("_origin") == "site" for p in rows) else "partners"
         items.append(Item(_clean(rows[0]["name"]), str(rows[0].get("pricingType") or ""),
-                          prices, urls, desc, _clean(rows[0].get("category"))))
+                          prices, urls, desc, _clean(rows[0].get("category")), origin))
     return sorted(items, key=lambda i: _key(i.name))
 
 
@@ -150,12 +206,17 @@ def render_item(item: Item, brand: str) -> tuple[str, bool]:
     price, doubtful = price_line(item)
     lines = [f"### {item.name}", f"- Marque : {brand}"]
     if item.category:
-        lines.append(f"- Domaine (classement automatique) : {item.category}")
+        label = "Domaine (indiqué par le site)" if item.origin == "site" \
+            else "Domaine (classement automatique)"
+        lines.append(f"- {label} : {item.category}")
     lines.append(f"- Type : {KIND.get(item.kind, 'offre')}")
     lines.append(f"- Prix : {price}")
     lines += [f"- Lien : {u}" for u in item.urls]
     if item.description:
         lines.append(f"- Description : {item.description}")
+    if item.origin == "site":
+        lines.append("- Source : page de la formation sur ibig-eduform.com "
+                     "(absente du catalogue IBIG PARTNERS)")
     return "\n".join(lines), doubtful
 
 
@@ -176,12 +237,18 @@ def render_file(title: str, pole: str, brand: str, source: str, items: list[Item
     return head + "\n\n".join(body) + "\n", doubtful
 
 
-def build(client: httpx.Client, today: str | None = None) -> Result:
+def build(client: httpx.Client, today: str | None = None, delay: float = 0.1,
+          with_site: bool = True) -> Result:
     today = today or datetime.now(UTC).date().isoformat()
     out = Result()
     for slug, pole, brand in BRANCHES:
         raw = fetch_branch(client, slug)
         out.raw_counts[brand] = len(raw)
+        if slug == "ibig-eduform" and with_site and raw:
+            # Le site présente des formations que le catalogue PARTNERS n'a pas (encore)
+            extra, out.site_failed = fetch_site_extras(client, raw, delay)
+            out.site_added = len(extra)
+            raw = raw + extra
         items = merge(raw)
         if not items:
             out.skipped.append(brand)
@@ -230,15 +297,24 @@ def write(result: Result, root: Path) -> dict[str, int]:
 
 
 def import_catalog(root: Path, client: httpx.Client | None = None,
-                   today: str | None = None, dry_run: bool = False) -> tuple[Result, dict]:
+                   today: str | None = None, dry_run: bool = False,
+                   delay: float = 0.1, with_site: bool = True,
+                   min_ratio: float = 0.7) -> tuple[Result, dict]:
     own = client is None
     client = client or httpx.Client(timeout=60, follow_redirects=True,
                                     headers={"User-Agent": "ibig-agent/catalogue"})
     try:
-        result = build(client, today)
+        result = build(client, today, delay, with_site)
     finally:
         if own:
             client.close()
     if not result.files:
         raise CatalogError("aucun produit reçu : rien n'a été écrit")
+    # Garde contre une API en panne partielle ou vidée : un catalogue très réduit n'écrase pas
+    # le précédent (l'agent garde ses données, l'anomalie est signalée)
+    before = sum(p.read_text(encoding="utf-8").count("\n### ")
+                 for p in (Path(root) / SUBDIR).glob("*.md")) if (Path(root) / SUBDIR).is_dir() else 0
+    if before and result.total < before * min_ratio:
+        raise CatalogError(f"catalogue reçu anormalement réduit ({result.total} produits contre "
+                           f"{before} déjà connus) : rien n'a été écrit")
     return result, ({} if dry_run else write(result, root))

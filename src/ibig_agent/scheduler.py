@@ -76,6 +76,10 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
                 lambda: rt.index_knowledge(), "interval",
                 {"hours": 1, **every,
                  "next_run_time": datetime.now(ZoneInfo(tz)) + timedelta(seconds=30)}),
+        # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin
+        JobSpec("catalog_refresh", "Catalogue des produits", "le dimanche à 3 h 30",
+                lambda: rt.refresh_catalog(), "cron",
+                {"day_of_week": "sun", "hour": 3, "minute": 30, **every}, alert_after=2),
         JobSpec("daily_report", "Rapport quotidien", f"chaque jour à {s.daily_report_hour} h",
                 lambda: rt.chef.run_daily(), "cron",
                 {"hour": s.daily_report_hour, "minute": 0}),

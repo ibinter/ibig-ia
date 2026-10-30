@@ -229,6 +229,17 @@ class Runtime:
             log.warning("Indexation de la base impossible : %s", exc)
             return {"erreur": str(exc)[:200]}
 
+    def refresh_catalog(self) -> str:
+        """Catalogue complet des produits : relu depuis IBIG PARTNERS et le site EDUFORM, puis
+        rechargé dans la base de connaissances s'il a changé (tâche du dimanche)."""
+        from .catalog_import import import_catalog
+        from .configstore import reload_knowledge
+
+        result, stats = import_catalog(self.settings.knowledge_dir)
+        if stats.get("ecrits") or stats.get("retires"):
+            reload_knowledge(self)
+        return f"{result.total} produits ({stats})"
+
     def import_sites(self, poles: list[str] | None = None) -> dict[str, str]:
         """Import de la base de connaissances depuis les sites publics des pôles."""
         import json

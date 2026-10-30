@@ -144,3 +144,91 @@ def test_shipped_catalogue_files_are_well_formed():
     assert all(d.pole and d.meta.get("source") for d in produits)
     assert all("rate:" not in d.body for d in produits)
     assert kb.faq == []                      # un import ne rend jamais une FAQ active
+
+
+# ------------------------------------------------------------------ formations du site
+COURSE_PAGE = ('<html><script type="application/ld+json">{"@context":"https://schema.org",'
+               '"@type":"BreadcrumbList"}</script><script type="application/ld+json">'
+               '{"@type":"Course","name":"Accélérer sa startup","description":"Formation certifiante",'
+               '"teaches":"Entrepreneuriat","offers":{"@type":"Offer","price":280000,'
+               '"priceCurrency":"XOF"}}</script></html>')
+
+
+def fake_api_with_site():
+    sitemap = ("<urlset>"
+               "<url><loc>https://ibig-eduform.com/formation/daf</loc></url>"          # déjà connue
+               "<url><loc>https://ibig-eduform.com/formation/accelerer-startup</loc></url>"
+               "<url><loc>https://ibig-eduform.com/formation/cassee</loc></url>"
+               "<url><loc>https://ibig-eduform.com/a-propos.php</loc></url></urlset>")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "ibig-eduform.com":
+            path = request.url.path
+            if path == "/sitemap.xml":
+                return httpx.Response(200, text=sitemap)
+            if path == "/formation/accelerer-startup":
+                return httpx.Response(200, text=COURSE_PAGE)
+            return httpx.Response(500, text="erreur")
+        path = request.url.path
+        if path == "/api/catalogue":
+            return httpx.Response(200, json={"ok": True, "formations": EDU})
+        if path == "/api/catalogue/ibig-soft":
+            return httpx.Response(200, json={"branch": "ibig-soft", "products": SOFT})
+        return httpx.Response(404, json={})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_site_formations_missing_from_partners_are_added(tmp_path):
+    result, _ = import_catalog(tmp_path, fake_api_with_site(), today="2026-10-30", delay=0)
+    assert (result.site_added, result.site_failed) == (1, 1)    # 1 lue, 1 page illisible
+    assert result.counts["IBIG EDUFORM"] == 4                   # 3 de PARTNERS + 1 du site
+    text = (tmp_path / "produits" / "eduform-entrepreneuriat.md").read_text(encoding="utf-8")
+    assert "### Accélérer sa startup" in text and "- Prix : 280 000 FCFA" in text
+    assert "Domaine (indiqué par le site) : Entrepreneuriat" in text
+    assert "absente du catalogue IBIG PARTNERS" in text
+    daf = (tmp_path / "produits" / "eduform-direction-administration.md").read_text(encoding="utf-8")
+    assert "page de la formation sur ibig-eduform.com" not in daf   # connue de PARTNERS : inchangée
+
+
+def test_site_outage_never_blocks_the_partners_import(tmp_path):
+    result, _ = import_catalog(tmp_path, fake_api(), today="2026-10-30", delay=0)  # site : 404
+    assert result.site_added == 0 and result.counts["IBIG EDUFORM"] == 3
+    off, _ = import_catalog(tmp_path / "x", fake_api_with_site(), delay=0, with_site=False)
+    assert off.site_added == 0
+
+
+# ------------------------------------------------------------------ mise à jour automatique
+def test_a_shrunken_catalogue_never_overwrites_the_previous_one(tmp_path):
+    import_catalog(tmp_path, fake_api(), today="2026-10-30")
+    before = {p.name: p.read_text(encoding="utf-8") for p in (tmp_path / "produits").glob("*.md")}
+    tiny = fake_api()
+
+    def handler(request: httpx.Request) -> httpx.Response:    # l'API ne renvoie plus qu'un produit
+        if request.url.path == "/api/catalogue/ibig-soft":
+            return httpx.Response(200, json={"products": SOFT[:1]})
+        return httpx.Response(404, json={})
+
+    tiny = httpx.Client(transport=httpx.MockTransport(handler))
+    with pytest.raises(CatalogError, match="anormalement réduit"):
+        import_catalog(tmp_path, tiny, today="2026-11-06", delay=0)
+    assert {p.name: p.read_text(encoding="utf-8")
+            for p in (tmp_path / "produits").glob("*.md")} == before
+
+
+def test_weekly_refresh_reloads_the_knowledge_base_only_when_something_changed(
+        rt, tmp_path, monkeypatch):
+    import ibig_agent.catalog_import as module
+    from ibig_agent.scheduler import job_specs
+
+    real = module.import_catalog
+    monkeypatch.setattr(module, "import_catalog",
+                        lambda root, **kw: real(root, fake_api(), today="2026-10-30", delay=0))
+    rt.settings.knowledge_dir = tmp_path
+    assert "catalog_refresh" in {j.id for j in job_specs(rt)}
+    job = next(j for j in job_specs(rt) if j.id == "catalog_refresh")
+    assert job.trigger == "cron" and job.options["day_of_week"] == "sun"
+    first = rt.refresh_catalog()
+    assert "5 produits" in first and "'ecrits'" in first
+    assert any(d.type == "produits" for d in rt.kb.documents)       # base rechargée
+    assert "'ecrits': 0" in rt.refresh_catalog()                    # rien de neuf : pas de réécriture

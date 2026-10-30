@@ -3191,8 +3191,9 @@ Catalogue IBIG EDUFORM : 740 entrée(s), importées le 2026-10-30 depuis le cata
 - Marque : IBIG EDUFORM
 - Domaine (classement automatique) : Autres
 - Type : formation
-- Prix : 395 000 FCFA
+- Prix : plusieurs tarifs au catalogue (250 000 FCFA ; 395 000 FCFA) : tarif à confirmer avec l'équipe
 - Lien : https://ibig-eduform.com/formation-detail.php?slug=eduform-gouvernance-d-entreprise-conseil-d-administration
+- Lien : https://ibig-eduform.com/formation/gouvernance-dentreprise-conseil-dadministration
 - Description : Maîtrisez la gouvernance des entreprises : rôle du CA, comités spécialisés, droits des actionnaires, contrôle interne, code OHADA des sociétés et pratiques best-in-class.
 
 ### Gouvernance d'entreprise et conseil d'administration

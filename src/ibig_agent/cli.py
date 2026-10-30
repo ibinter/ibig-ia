@@ -121,6 +121,9 @@ def main(argv: list[str] | None = None) -> None:
                   + (f", dont {doubt} au tarif à confirmer" if doubt else ""))
         for brand in result.skipped:
             print(f"{brand} : aucun produit reçu, fichiers laissés tels quels")
+        if result.site_added or result.site_failed:
+            print(f"Site EDUFORM : {result.site_added} formation(s) absente(s) de PARTNERS "
+                  f"ajoutée(s), {result.site_failed} page(s) illisible(s)")
         print(f"Total : {result.total} produit(s) · {stats or 'essai : rien écrit'}")
         return
     if args.cmd == "importer-sites":

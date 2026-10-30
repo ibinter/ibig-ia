@@ -21,6 +21,15 @@ Règle suivie : rien n'est inventé. Tout ce qui n'est pas écrit sur les sites 
 | Certification | « Attestation ou certificat selon le programme » ; non rattachée à une formation précise | Certification de chaque formation |
 | WhatsApp du groupe | Non précisé sur intermark-business.com | Numéro officiel du groupe |
 
+### Essais gratuits : ce que le code de PARTNERS laisse entrevoir (à confirmer)
+
+Le catalogue publié (API) ne mentionne **aucun** essai gratuit. Le code source d'IBIG PARTNERS
+(`sync-soft`) en cite pour 5 formules seulement sur 111, ce qui ne permet pas de remplir le
+catalogue des 12 solutions : CONSTRUIRO ERP « Solo » 14 jours ; SANTAREX ERP « Pharmacie
+autonome » 30 jours ; AGRIFRIK « Basique » 1 mois ; IBIG FactPro « Starter » 7 jours ; SECRETIS ERP
+« Découverte » 14 jours. Ce code peut différer de ce qui est en ligne : **à confirmer par IBIG**
+avant que l'agent n'en parle. Tant que ce n'est pas fait, il ne promet aucun essai.
+
 ## 2. Contacts officiels (pour `knowledge/contacts.md`)
 
 Source : intermark-business.com et ibig-eduform.com.
