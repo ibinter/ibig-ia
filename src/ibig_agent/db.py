@@ -141,6 +141,70 @@ class Prospect(Base):
     demo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     demo_reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
                                                               nullable=True)
+    # Origine de la fiche (cahier des charges, section 7) et affectation
+    source_url: Mapped[str] = mapped_column(Text, default="")
+    collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                          nullable=True)
+    verification: Mapped[str] = mapped_column(String(20), default="non_verifie")
+    assigned_agent: Mapped[str] = mapped_column(String(60), default="")
+    assigned_to: Mapped[str] = mapped_column(String(300), default="")
+
+
+class ProspectActivity(Base):
+    """Fil d'activités d'une fiche prospect : étapes, contacts, notes, événements système."""
+
+    __tablename__ = "prospect_activities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    prospect_id: Mapped[int] = mapped_column(Integer, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="note")  # etape|contact|note|systeme
+    summary: Mapped[str] = mapped_column(String(500), default="")
+    by: Mapped[str] = mapped_column(String(300), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class CatalogOffer(Base):
+    """Offre du catalogue commercial (cahier des charges, section 8) : identifiant stable,
+    version, statut, date de mise à jour et responsable de validation."""
+
+    __tablename__ = "catalog_offers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    brand: Mapped[str] = mapped_column(String(80), default="")
+    pole: Mapped[str] = mapped_column(String(40), default="", index=True)
+    name: Mapped[str] = mapped_column(String(300), default="")
+    kind: Mapped[str] = mapped_column(String(30), default="")
+    category: Mapped[str] = mapped_column(String(120), default="")
+    price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prices: Mapped[list] = mapped_column(JSON, default=list)   # tarif(s) retenus pour l'agent
+    source_prices: Mapped[list] = mapped_column(JSON, default=list)  # vus à la source, au dernier import
+    currency: Mapped[str] = mapped_column(String(8), default="FCFA")
+    url: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(200), default="")
+    # actif | a_confirmer | sur_devis | suspendu | indisponible | archive
+    status: Mapped[str] = mapped_column(String(20), default="actif", index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    validated_by: Mapped[str] = mapped_column(String(300), default="")
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                          nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CatalogPriceHistory(Base):
+    """Historique des tarifs d'une offre : une ligne à la création, une à chaque changement."""
+
+    __tablename__ = "catalog_price_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    offer_id: Mapped[int] = mapped_column(Integer, index=True)
+    price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    prices: Mapped[list] = mapped_column(JSON, default=list)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    changed_by: Mapped[str] = mapped_column(String(300), default="")
+    reason: Mapped[str] = mapped_column(String(200), default="")
 
 
 class Ticket(Base):

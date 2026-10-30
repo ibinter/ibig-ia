@@ -50,6 +50,8 @@ BRANCHES = [
 KIND = {"COURSE": "formation", "SERVICE": "service", "PRODUCT": "produit",
         "MONTHLY_SUB": "abonnement mensuel", "ANNUAL_SUB": "abonnement annuel"}
 UNIT = {"MONTHLY_SUB": "par mois", "ANNUAL_SUB": "par an"}
+# Statuts du registre : ces offres ne sont jamais proposées à l'agent
+HIDDEN = ("suspendu", "indisponible", "archive")
 
 
 class CatalogError(RuntimeError):
@@ -65,10 +67,25 @@ class Item:
     description: str
     category: str = ""
     origin: str = "partners"   # « site » : page de formation absente du catalogue PARTNERS
+    code: str = ""             # identifiant stable : « <marque>:<nom normalisé> »
+    status: str = "actif"      # statut du registre (voir catalog_store)
+
+
+@dataclass
+class Group:
+    """Offres d'une marque (identifiant PARTNERS, pôle, nom affiché)."""
+
+    slug: str
+    pole: str
+    brand: str
+    items: list[Item] = field(default_factory=list)
 
 
 @dataclass
 class Result:
+    groups: list[Group] = field(default_factory=list)
+    register: dict[str, int] = field(default_factory=dict)    # bilan du registre en base
+    today: str = ""
     files: dict[str, str] = field(default_factory=dict)       # chemin relatif -> texte
     counts: dict[str, int] = field(default_factory=dict)      # marque -> produits importés
     raw_counts: dict[str, int] = field(default_factory=dict)  # marque -> produits reçus
@@ -192,12 +209,17 @@ def merge(raw: list[dict]) -> list[Item]:
 
 
 def price_line(item: Item) -> tuple[str, bool]:
-    """Texte du prix, et vrai si le tarif est ambigu ou absent (à confirmer)."""
+    """Texte du prix, et vrai si le tarif est ambigu, absent ou à confirmer."""
     unit = UNIT.get(item.kind, "")
+    if item.status == "sur_devis":
+        return "sur devis : prix à demander à l'équipe", False
     if not item.prices:
         return "non renseigné au catalogue : à confirmer avec l'équipe", True
     if len(item.prices) == 1:
-        return f"{money(item.prices[0])} {unit}".strip(), False
+        text = f"{money(item.prices[0])} {unit}".strip()
+        if item.status == "a_confirmer":   # tarif modifié depuis sa dernière validation
+            return f"{text} (tarif à confirmer avec l'équipe)", True
+        return text, False
     tarifs = " ; ".join(f"{money(v)} {unit}".strip() for v in item.prices)
     return f"plusieurs tarifs au catalogue ({tarifs}) : tarif à confirmer avec l'équipe", True
 
@@ -237,10 +259,43 @@ def render_file(title: str, pole: str, brand: str, source: str, items: list[Item
     return head + "\n\n".join(body) + "\n", doubtful
 
 
+def source_for(slug: str) -> str:
+    return f"{BASE_URL}/api/catalogue" + ("" if slug == "ibig-eduform" else f"/{slug}")
+
+
+def render(groups: list[Group], today: str) -> tuple[dict[str, str], dict[str, int], dict[str, int]]:
+    """Fichiers Markdown (chemin -> texte), nombre d'offres par marque et nombre d'offres au
+    tarif à confirmer par marque. Les offres suspendues, indisponibles ou archivées n'y sont pas."""
+    files: dict[str, str] = {}
+    counts: dict[str, int] = {}
+    ambiguous: dict[str, int] = {}
+    for g in groups:
+        items = [i for i in g.items if i.status not in HIDDEN]
+        if not items:
+            continue
+        counts[g.brand] = len(items)
+        ambiguous[g.brand] = 0
+        source = source_for(g.slug)
+        if g.slug == "ibig-eduform":  # 25 fichiers par domaine : relecture et recherche plus simples
+            by_cat: dict[str, list[Item]] = defaultdict(list)
+            for it in items:
+                by_cat[it.category or "Autres"].append(it)
+            for cat, group in sorted(by_cat.items()):
+                text, doubt = render_file(f"Catalogue {g.brand} — {cat}", g.pole, g.brand, source,
+                                          group, today)
+                files[f"{SUBDIR}/eduform-{_slug(cat)}.md"] = text
+                ambiguous[g.brand] += doubt
+        else:
+            text, doubt = render_file(f"Catalogue {g.brand}", g.pole, g.brand, source, items, today)
+            files[f"{SUBDIR}/{g.slug}.md"] = text
+            ambiguous[g.brand] += doubt
+    return files, counts, ambiguous
+
+
 def build(client: httpx.Client, today: str | None = None, delay: float = 0.1,
           with_site: bool = True) -> Result:
     today = today or datetime.now(UTC).date().isoformat()
-    out = Result()
+    out = Result(today=today)
     for slug, pole, brand in BRANCHES:
         raw = fetch_branch(client, slug)
         out.raw_counts[brand] = len(raw)
@@ -253,22 +308,10 @@ def build(client: httpx.Client, today: str | None = None, delay: float = 0.1,
         if not items:
             out.skipped.append(brand)
             continue
-        out.counts[brand] = len(items)
-        out.ambiguous[brand] = 0
-        source = f"{BASE_URL}/api/catalogue" + ("" if slug == "ibig-eduform" else f"/{slug}")
-        if slug == "ibig-eduform":  # 25 fichiers par domaine : relecture et recherche plus simples
-            by_cat: dict[str, list[Item]] = defaultdict(list)
-            for it in items:
-                by_cat[it.category or "Autres"].append(it)
-            for cat, group in sorted(by_cat.items()):
-                text, doubt = render_file(f"Catalogue {brand} — {cat}", pole, brand, source,
-                                          group, today)
-                out.files[f"{SUBDIR}/eduform-{_slug(cat)}.md"] = text
-                out.ambiguous[brand] += doubt
-        else:
-            text, doubt = render_file(f"Catalogue {brand}", pole, brand, source, items, today)
-            out.files[f"{SUBDIR}/{slug}.md"] = text
-            out.ambiguous[brand] += doubt
+        for it in items:
+            it.code = f"{slug}:{_key(it.name)}"[:200]
+        out.groups.append(Group(slug, pole, brand, items))
+    out.files, out.counts, out.ambiguous = render(out.groups, today)
     return out
 
 
@@ -296,10 +339,23 @@ def write(result: Result, root: Path) -> dict[str, int]:
     return stats
 
 
+def regenerate(root: Path, sessions, today: str | None = None) -> dict[str, int]:
+    """Régénère les fichiers de l'agent depuis le registre, sans rien relire sur le réseau
+    (après une décision humaine : statut, tarif). Un registre vide ne touche à rien."""
+    from . import catalog_store
+
+    result = Result(today=today or datetime.now(UTC).date().isoformat())
+    result.files, result.counts, result.ambiguous = render(
+        catalog_store.groups_from_db(sessions), result.today)
+    return write(result, root) if result.files else {}
+
+
 def import_catalog(root: Path, client: httpx.Client | None = None,
                    today: str | None = None, dry_run: bool = False,
                    delay: float = 0.1, with_site: bool = True,
-                   min_ratio: float = 0.7) -> tuple[Result, dict]:
+                   min_ratio: float = 0.7, sessions=None) -> tuple[Result, dict]:
+    """`sessions` (fabrique de sessions SQLAlchemy) active le registre en base : versions,
+    historique des prix, statuts. Sans lui, les fichiers sont produits directement."""
     own = client is None
     client = client or httpx.Client(timeout=60, follow_redirects=True,
                                     headers={"User-Agent": "ibig-agent/catalogue"})
@@ -317,4 +373,15 @@ def import_catalog(root: Path, client: httpx.Client | None = None,
     if before and result.total < before * min_ratio:
         raise CatalogError(f"catalogue reçu anormalement réduit ({result.total} produits contre "
                            f"{before} déjà connus) : rien n'a été écrit")
+    if sessions is not None and not dry_run:
+        from . import catalog_store
+
+        # Un import partiel (panne d'une marque ou pages du site illisibles) n'archive rien
+        complete = {g.brand for g in result.groups}
+        if result.site_failed:
+            complete.discard("IBIG EDUFORM")
+        result.register = catalog_store.sync(sessions, result.groups, complete)
+        # Les fichiers lus par l'agent viennent du registre : statuts et validations appliqués
+        groups = catalog_store.groups_from_db(sessions)
+        result.files, result.counts, result.ambiguous = render(groups, result.today)
     return result, ({} if dry_run else write(result, root))
