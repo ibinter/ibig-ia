@@ -60,6 +60,11 @@ automatisé), **Gestion** (application ou logiciel métier, formation et support
 
 ## 4. Catalogue des formations (pour `knowledge/catalogue-formations.md`)
 
+**Correction (30/10/2026)** : le catalogue complet compte **2 295 formations en 25 domaines**
+(page `catalogue-formations.php` du site). Le tableau ci-dessous ne donne que les **10 sessions
+mises en avant** sur la page des sessions, pas le catalogue. La liste des 25 domaines et de leurs
+effectifs est dans `knowledge/catalogue-formations.md`.
+
 Source : ibig-eduform.com (page sessions, relevée le 30/10/2026). Prix en FCFA.
 
 | Formation | Durée | Modalité | Prochaine date | Prix |

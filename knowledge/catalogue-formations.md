@@ -10,6 +10,46 @@ type: catalogue
 30/10/2026. Les dates changent vite : elles ne sont pas recopiées ici, l'agent renvoie au
 calendrier du site. Certification : non rattachée à une formation précise sur le site. -->
 
+## Le catalogue complet
+
+IBIG EDUFORM propose **2 295 formations** réparties en **25 domaines** (chiffre affiché sur
+https://ibig-eduform.com/catalogue-formations.php le 30/10/2026), en présentiel, en ligne ou en
+hybride. Chaque formation a sa page de programme : https://ibig-eduform.com/formation/…
+
+| Domaine | Formations |
+|---|---|
+| Informatique & Tech | 242 |
+| IA & Digitalisation | 207 |
+| Comptabilité & Finance | 199 |
+| Gestion Commerciale & Marketing | 195 |
+| GRH | 137 |
+| Management & Leadership | 124 |
+| Droit & Juridique | 113 |
+| Entrepreneuriat | 112 |
+| QHSE | 89 |
+| Logistique & Supply Chain | 87 |
+| Communication Professionnelle | 85 |
+| Banque & Assurance | 74 |
+| Direction & Administration | 74 |
+| Agriculture | 72 |
+| BTP & Construction | 67 |
+| Développement Personnel | 67 |
+| Éducation & Formation | 61 |
+| Santé & Pharmacie | 53 |
+| Mines, Énergie & Pétrole | 51 |
+| Infographie & Design | 46 |
+| Tourisme & Hôtellerie | 42 |
+| Immobilier | 29 |
+| Autres | 29 |
+| Logiciels de Gestion | 22 |
+| Beauté & Bien-être | 18 |
+
+Pour le détail d'une formation (programme, durée, prix, dates), l'agent renvoie à la page du
+catalogue ou au calendrier : https://ibig-eduform.com/calendrier.php. Le catalogue complet n'est
+pas recopié ici : seules les formations listées plus bas ont un prix connu de l'agent.
+
+## Sessions mises en avant (prix relevés sur le site)
+
 | Formation | Certification | Durée | Modalité (présentiel / en ligne) | Prochaines sessions | Prix ou « sur devis » |
 |---|---|---|---|---|---|
 | Intelligence Artificielle pour Professionnels | À COMPLÉTER | 7 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | À COMPLÉTER |
