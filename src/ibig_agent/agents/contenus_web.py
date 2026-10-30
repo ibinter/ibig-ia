@@ -171,7 +171,7 @@ class ContenusWebAgent:
             f"{data['titre']}\n{data['meta_description']}\n{html_to_text(contenu)}")]
         if len(data["meta_description"]) > 160:
             alerts.append("meta description trop longue (> 160 caractères)")
-        if produit not in self.kb.products(site.pole):
+        if produit not in self.kb.products(site.pole, tout=True):
             alerts.append(f"« {produit} » ne figure pas dans le catalogue du pôle")
         out = self.gov.submit(ActionRequest(
             agent=AGENT, action_type="web.article_draft", channel="web", account=site.url,

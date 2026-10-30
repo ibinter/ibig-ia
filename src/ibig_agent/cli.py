@@ -39,6 +39,9 @@ def main(argv: list[str] | None = None) -> None:
     isite = sub.add_parser("importer-sites",
                            help="Remplir la base de connaissances depuis les sites des pôles")
     isite.add_argument("--pole", action="append", help="Code du pôle (répétable)")
+    icat = sub.add_parser("importer-catalogue",
+                          help="Importer tous les produits des marques IBIG (via IBIG PARTNERS)")
+    icat.add_argument("--essai", action="store_true", help="Compter sans rien écrire")
     rec = sub.add_parser("recette", help="Mesure du critère R-02 (classement des mails)")
     rec_sub = rec.add_subparsers(dest="rec_cmd", required=True)
     ech = rec_sub.add_parser("echantillon", help="Tirer un échantillon à vérifier (CSV)")
@@ -107,6 +110,18 @@ def main(argv: list[str] | None = None) -> None:
     rt = build_runtime()
     if args.cmd == "revue":
         print(rt.revue.run().as_text())
+        return
+    if args.cmd == "importer-catalogue":
+        from .catalog_import import import_catalog
+
+        result, stats = import_catalog(rt.settings.knowledge_dir, dry_run=args.essai)
+        for brand, n in result.counts.items():
+            doubt = result.ambiguous.get(brand, 0)
+            print(f"{brand} : {n} produit(s) ({result.raw_counts[brand]} reçus)"
+                  + (f", dont {doubt} au tarif à confirmer" if doubt else ""))
+        for brand in result.skipped:
+            print(f"{brand} : aucun produit reçu, fichiers laissés tels quels")
+        print(f"Total : {result.total} produit(s) · {stats or 'essai : rien écrit'}")
         return
     if args.cmd == "importer-sites":
         for code, resume in rt.import_sites(args.pole).items():

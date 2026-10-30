@@ -9,6 +9,7 @@ sémantique (pgvector) viendra se brancher derrière `search()` sans changer l'A
 
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -163,6 +164,7 @@ class KnowledgeBase:
         # Recherche par le sens (semantic.SemanticIndex.scores), branchée par le runtime :
         # question -> {id de passage: similarité}. Sans elle : mots-clés seuls.
         self.semantic = None
+        self._tok_cache: dict[str, tuple[frozenset[str], frozenset[str]]] = {}
         self.reload()
 
     def file_text(self, rel_path: str) -> str:
@@ -184,6 +186,7 @@ class KnowledgeBase:
         }
         texts.update(self.overrides)
         self.documents = [parse_text(path, raw) for path, raw in sorted(texts.items())]
+        self._tok_cache = {}
         self.faq, self.faq_pending = [], []
         for doc in self.documents:
             if doc.type == "faq":
@@ -194,11 +197,24 @@ class KnowledgeBase:
         self.passages = [p for d in self.documents for p in self._split(d)]
         # Les publications passées calent le style mais ne font pas foi : un prix ou un
         # contact d'une ancienne publication ne valide jamais un nouveau contenu.
-        corpus = "\n".join(d.body for d in self.documents if d.type != "publication")
+        # Un catalogue de milliers de produits rendrait presque tout prix, pourcentage, mail ou
+        # téléphone « connu » : il ne sert qu'au produit nommé (prix, voir _price_known) et à
+        # ses liens officiels ; les autres documents valent pour tout contenu.
+        corpus = "\n".join(d.body for d in self.documents
+                           if d.type not in ("publication", "produits"))
+        links = "\n".join(m.group(1) for d in self.documents if d.type == "produits"
+                          for m in re.finditer(r"^- Lien : (\S+)", d.body, flags=re.MULTILINE))
         self._emails = {e.lower() for e in _EMAIL.findall(corpus)}
-        self._urls = {_norm_url(u) for u in _URL.findall(corpus)}
+        self._urls = {_norm_url(u) for u in _URL.findall(corpus + "\n" + links)}
         self._phones = {_digits(p) for p in _PHONE.findall(corpus)}
         self._prices = {_digits(p) for p in _PRICE.findall(corpus)}
+        self._product_prices: list[tuple[str, set[str]]] = []
+        for p in self.passages:
+            if p.doc.type == "produits":
+                name = " ".join(_tokens(p.heading))
+                prices = {_digits(x) for x in _PRICE.findall(p.text)}
+                if len(name) >= 4 and prices:
+                    self._product_prices.append((f" {name} ", prices))
         self._percents = {_digits(p) for p in _PERCENT.findall(corpus)}
         self._forbidden = self._forbidden_phrases()
 
@@ -276,7 +292,9 @@ class KnowledgeBase:
 
     def search(self, query: str, pole: str | None = None, k: int = 4) -> list[Document]:
         q = set(_keywords(query))
-        docs = [d for d in self.documents if not pole or d.pole in (pole, "GROUPE")]
+        # Les catalogues de produits (milliers d'entrées) se consultent par passage, jamais en bloc
+        docs = [d for d in self.documents
+                if d.type != "produits" and (not pole or d.pole in (pole, "GROUPE"))]
         kw = {d.path: self._kw_score(q, d.titre + " " + d.body) for d in docs}
         sense: dict[str, float] = {}
         for pid, sc in self._sense(query).items():
@@ -286,18 +304,54 @@ class KnowledgeBase:
 
     def search_passages(self, query: str, pole: str, k: int = 6,
                         types: tuple[str, ...] = ("guide", "faq", "catalogue", "fiche_pole",
-                                                  "contacts")) -> list[Passage]:
+                                                  "contacts", "produits")) -> list[Passage]:
         q = set(_keywords(query))
         items = [p for p in self.passages
                  if p.doc.type in types and p.doc.pole in (pole, "GROUPE")
                  and not is_placeholder(p.text)]
-        kw = {p.id: self._kw_score(q, f"{p.doc.titre} {p.heading} {p.text}") for p in items}
-        return self._rank([(p.id, p) for p in items], kw, self._sense(query), k)
+        plain = [p for p in items if p.doc.type != "produits"]
+        prods = [p for p in items if p.doc.type == "produits"]
+        sense = self._sense(query)
+        kw = {p.id: self._kw_score(q, f"{p.doc.titre} {p.heading} {p.text}") for p in plain}
+        ranked = self._rank([(p.id, p) for p in plain], kw, sense, k)
+        if prods:  # guides et FAQ d'abord ; les produits comblent la place restante
+            ranked += self._rank([(p.id, p) for p in prods], self._product_scores(q, prods),
+                                 sense, k)
+        return ranked[:k]
 
-    def products(self, pole: str | None = None) -> list[str]:
+    def _tokset(self, p: Passage) -> tuple[frozenset[str], frozenset[str]]:
+        """Mots-clés du titre et du texte d'un passage, calculés une seule fois."""
+        cached = self._tok_cache.get(p.id)
+        if cached is None:
+            cached = (frozenset(_keywords(p.heading)), frozenset(_keywords(p.text)))
+            self._tok_cache[p.id] = cached
+        return cached
+
+    def _product_scores(self, q: set[str], items: list[Passage]) -> dict[str, float]:
+        """Classement d'un grand catalogue : un mot rare (« DAF ») pèse plus qu'un mot courant
+        (« formation »), et un mot du nom du produit pèse trois fois celui de sa description."""
+        toks = {p.id: self._tokset(p) for p in items}
+        n = len(items) or 1
+        idf = {w: math.log(1 + n / (1 + sum(1 for h, b in toks.values() if w in h or w in b)))
+               for w in q}
+        scores = {}
+        for p in items:
+            h, b = toks[p.id]
+            s = sum(idf[w] * (3 if w in h else 1) for w in q if w in h or w in b)
+            if s:
+                scores[p.id] = s
+        return scores
+
+    def products(self, pole: str | None = None, tout: bool = False) -> list[str]:
         """Solutions, formations et offres des catalogues (colonne « Solution »,
-        « Formation », « Produit » ou « Offre »), sans les lignes à compléter."""
+        « Formation », « Produit » ou « Offre »), sans les lignes à compléter. `tout` y
+        ajoute les produits importés du catalogue complet (documents de type « produits »)."""
         names: list[str] = []
+        if tout:
+            for d in self.documents:
+                if d.type == "produits" and (not pole or d.pole in (pole, "GROUPE")):
+                    names += [m.group(1).strip() for m in
+                              re.finditer(r"^###\s+(.+)$", d.body, flags=re.MULTILINE)]
         for d in self.documents:
             if d.type != "catalogue" or (pole and d.pole not in (pole, "GROUPE")):
                 continue
@@ -352,9 +406,24 @@ class KnowledgeBase:
                 break
             parts.append(chunk)
             size += len(chunk)
+        if query:
+            # Produits du catalogue complet les plus proches de la demande (jamais le catalogue
+            # entier), dans la place laissée par les documents de référence
+            for p in self.search_passages(query, pole, k=8, types=("produits",)):
+                chunk = f"### {p.heading} ({p.doc.path})\n{p.text}\n"
+                if size + len(chunk) > max_chars:
+                    break
+                parts.append(chunk)
+                size += len(chunk)
         return "\n".join(parts)
 
     # --------------------------------------------------------------- contrôle
+    def _price_known(self, digits: str, named_text: str) -> bool:
+        """Prix des documents de référence, ou prix d'un produit du catalogue dont le nom
+        figure dans le texte (`named_text` : mots du texte entourés d'espaces)."""
+        return digits in self._prices or any(
+            digits in prices and name in named_text for name, prices in self._product_prices)
+
     def verify_facts(self, text: str) -> list[FactIssue]:
         """Liste les faits du texte absents de la base (R-05 : zéro erreur publiée)."""
         issues: list[FactIssue] = []
@@ -367,8 +436,9 @@ class KnowledgeBase:
             if not any(nu == k or nu.startswith(k + "/") for k in self._urls):
                 issues.append(FactIssue("url", u))
         text_wo_urls = _URL.sub(" ", text_wo_emails)
+        named = f" {' '.join(_tokens(text))} "
         for p in _PRICE.findall(text_wo_urls):
-            if _digits(p) not in self._prices:
+            if not self._price_known(_digits(p), named):
                 issues.append(FactIssue("prix", p.strip()))
         text_wo_prices = _PRICE.sub(" ", text_wo_urls)
         for p in _PHONE.findall(text_wo_prices):
