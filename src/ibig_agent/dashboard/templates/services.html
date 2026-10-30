@@ -22,6 +22,20 @@
 </div>
 <p class="muted small" style="margin:-4px 0 16px">{{ on }} service{{ 's' if on > 1 }} sur {{ SERVICES | length }} raccordé{{ 's' if on > 1 }}. Aucun n'est obligatoire : sans eux, l'agent fonctionne, avec moins de possibilités.</p>
 
+<section class="card" id="svc-ia" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('bot') }} Intelligence artificielle — modèles et plafond</h2><div class="sub">Le modèle de tri lit les mails ; le modèle d'écriture rédige les réponses, articles et plans. Effectif tout de suite.</div></div>
+    <span class="pill {{ 'amber' if ia_spent >= ia_budget * 0.8 else 'green' }} dot">{{ '%.2f' | format(ia_spent) }} $ sur {{ '%g' | format(ia_budget) }} $ ce mois-ci</span></div>
+  <form method="post" action="/services/ia" class="grid g-3" style="gap:12px;align-items:end">
+    <label class="field"><span>Tri des mails</span>
+      <select name="triage">{% for id, name, note in ia_models %}<option value="{{ id }}" {{ 'selected' if id == ia_triage }}>{{ name }} — {{ note }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Rédaction</span>
+      <select name="ecriture">{% for id, name, note in ia_models %}<option value="{{ id }}" {{ 'selected' if id == ia_writing }}>{{ name }} — {{ note }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Plafond du mois (dollars)</span>
+      <input type="number" name="plafond" min="1" max="10000" step="1" value="{{ '%g' | format(ia_budget) }}" required></label>
+    <button class="btn primary">{{ icon('check') }} Enregistrer</button>
+  </form>
+</section>
+
 <section class="card svc" id="svc-brevo">
   <div class="svc-side">
     <div class="card-head"><div><h2>{{ icon('mail') }} Brevo — campagnes mail</h2><div class="sub">Section 9 : les newsletters ne partent jamais des boîtes LWS ou Gmail.</div></div>

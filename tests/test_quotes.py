@@ -170,3 +170,22 @@ def test_menu_badges_endpoint_is_json_and_needs_a_login(rt, web):
     anonymous = web("inconnu@ibig.test").get("/_pastilles", follow_redirects=False)
     assert anonymous.status_code in (303, 401)
 
+
+
+def test_ai_models_and_budget_can_be_changed_from_the_services_page(rt, web):
+    dg = web("dg@ibig.test")
+    assert "Tri des mails" in dg.get("/services").text
+    refused = dg.post("/services/ia", data={"triage": "gpt-inconnu", "ecriture": "claude-haiku-4-5",
+                                            "plafond": "10"}, follow_redirects=False)
+    assert "Refus" in refused.headers["location"]
+    ok = dg.post("/services/ia", data={"triage": "claude-haiku-4-5", "ecriture": "claude-sonnet-5-5",
+                                       "plafond": "12"}, follow_redirects=False)
+    assert "Refus" not in ok.headers["location"]
+    from types import SimpleNamespace
+
+    from ibig_agent.llm import ClaudeClient
+
+    client = ClaudeClient(rt.settings, rt.sessions, client=SimpleNamespace())
+    assert client._model("writing") == "claude-sonnet-5-5"       # effectif sans redémarrage
+    assert client.budget() == 12.0
+    assert web("val@ibig.test").post("/services/ia", data={}).status_code == 403

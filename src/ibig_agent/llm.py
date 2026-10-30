@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from .config import Settings
-from .db import AIUsage, JournalEntry, utcnow
+from .db import AIUsage, JournalEntry, ServiceSetting, utcnow
 
 # Prix publics en USD par million de jetons (entrée, sortie). À tenir à jour.
 PRICES: dict[str, tuple[float, float]] = {
@@ -81,8 +81,16 @@ class ClaudeClient:
             total = s.scalar(select(func.sum(AIUsage.cost_usd)).where(AIUsage.created_at >= start))
         return float(total or 0.0)
 
+    def budget(self) -> float:
+        """Plafond mensuel : celui de la page Services s'il existe, sinon l'environnement."""
+        try:
+            value = float(self._override("ia_budget").replace(",", "."))
+        except ValueError:
+            value = 0.0
+        return value if value > 0 else self.settings.monthly_ai_budget_usd
+
     def _check_budget(self) -> None:
-        budget = self.settings.monthly_ai_budget_usd
+        budget = self.budget()
         spent = self.month_spend()
         if spent >= budget:
             raise BudgetExceeded(f"Plafond mensuel atteint ({spent:.2f} / {budget:.2f} USD)")
@@ -116,7 +124,16 @@ class ClaudeClient:
             s.commit()
 
     # ---------------------------------------------------------------- appels
+    def _override(self, name: str) -> str:
+        """Réglage choisi dans l'application (page Services), prioritaire sur l'environnement."""
+        with self._sessions() as s:
+            row = s.get(ServiceSetting, name)
+        return (row.value or "").strip() if row else ""
+
     def _model(self, kind: ModelKind) -> str:
+        chosen = self._override(f"ia_model_{kind}")
+        if chosen in PRICES:
+            return chosen
         return self.settings.triage_model if kind == "triage" else self.settings.writing_model
 
     def _call(self, purpose: str, model: str, system: str, user: str, max_tokens: int,

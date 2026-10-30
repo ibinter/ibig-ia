@@ -36,6 +36,7 @@ from ..db import (
 )
 from ..governance import as_utc
 from ..knowledge import IMPORT_MARK, PLACEHOLDER, split_front_matter
+from ..llm import PRICES
 from ..runtime import Runtime, emailing_client
 from ..vault import encrypt
 
@@ -64,6 +65,12 @@ def _todo_lines(text: str) -> list[str]:
 
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:50] or "guide"
+
+
+MODEL_CHOICES = [("claude-haiku-4-5", "Haiku 4.5", "le moins cher"),
+                 ("claude-sonnet-5-5", "Sonnet 5.5", "intermédiaire"),
+                 ("claude-opus-5-5", "Opus 5.5", "soigné, 4 fois plus cher que Haiku"),
+                 ("claude-fable-5-1", "Fable 5.1", "le plus puissant, 10 fois plus cher")]
 
 
 def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
@@ -372,7 +379,29 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                     pgvector=sem.pgvector() if sem else False,
                     sem_error=sem.last_error if sem else "",
                     openai_key=bool(get("openai_api_key")),
-                    image_model=get("openai_image_model") or "gpt-image-1")
+                    image_model=get("openai_image_model") or "gpt-image-1",
+                    ia_models=MODEL_CHOICES,
+                    ia_triage=get("ia_model_triage") or rt.settings.triage_model,
+                    ia_writing=get("ia_model_writing") or rt.settings.writing_model,
+                    ia_budget=float(get("ia_budget") or rt.settings.monthly_ai_budget_usd),
+                    ia_spent=rt.llm.month_spend() if hasattr(rt.llm, "month_spend") else 0.0)
+
+    @app.post("/services/ia")
+    def ia_settings(triage: str = Form(""), ecriture: str = Form(""), plafond: str = Form(""),
+                    who: Principal = Depends(user)):
+        direction_only(who)
+        if triage not in PRICES or ecriture not in PRICES:
+            return back("/services", "Refusé : choisissez un modèle de la liste")
+        try:
+            budget = float(plafond.strip().replace(",", "."))
+        except ValueError:
+            return back("/services", "Refusé : le plafond est un nombre en dollars")
+        if not 1 <= budget <= 10000:
+            return back("/services", "Refusé : le plafond est compris entre 1 et 10 000 dollars")
+        for name, value in (("ia_model_triage", triage), ("ia_model_writing", ecriture),
+                            ("ia_budget", f"{budget:g}")):
+            set_service_value(rt.sessions, rt.settings, name, value, who.label)
+        return back("/services", "Modèles et plafond enregistrés : effectifs tout de suite")
 
     @app.post("/services/voyage")
     def save_voyage(cle: str = Form(""), who: Principal = Depends(user)):
