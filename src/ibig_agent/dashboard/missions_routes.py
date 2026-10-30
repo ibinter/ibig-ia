@@ -6,7 +6,9 @@ un agent ou changer ses quotas engagent l'entreprise.
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select
 
@@ -15,6 +17,7 @@ from ..auth import Principal
 from ..db import JournalEntry
 from ..governance import AGENT_AUTONOMY, CHANNELS
 from ..missions import AUTONOMIES, KINDS, STATUS_LABELS, MissionError
+from ..prospecteur import parse_csv
 from ..runtime import Runtime
 
 FIELDS = ("name", "kind", "pole", "product", "zone", "target", "objective", "criteria", "agent",
@@ -70,6 +73,30 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except MissionError as exc:
             return back(f"/missions/{mid}", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Mission modifiée : relancez la simulation")
+
+    @app.post("/missions/{mid:int}/fichier")
+    async def mission_file(mid: int, fichier: Annotated[UploadFile, File()],
+                           who: Principal = Depends(user)):
+        """Dépôt d'un CSV de prospects (export de réseau, d'annuaire, liste achetée)."""
+        direction_only(who)
+        m = rt.missions.get(mid)
+        if m is None:
+            raise HTTPException(404)
+        if m.kind != "prospection":
+            return back(f"/missions/{mid}", "Refusé : cette mission n'est pas une prospection")
+        raw = await fichier.read(5_000_001)
+        if len(raw) > 5_000_000:
+            return back(f"/missions/{mid}", "Refusé : fichier de plus de 5 Mo")
+        rows = parse_csv(raw.decode("utf-8-sig", errors="replace"))
+        if not rows:
+            return back(f"/missions/{mid}", "Refusé : aucune adresse e-mail reconnue "
+                                            "(colonne « email » attendue)")
+        folder = rt.settings.prospect_dir
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"mission_{mid}.csv").write_bytes(raw)
+        rt.missions.note(mid, f"Fichier déposé : {len(rows)} adresse(s) à traiter", who.label)
+        return back(f"/missions/{mid}", f"{len(rows)} adresse(s) reconnue(s) : traitées au "
+                                        "prochain passage de la mission en cours")
 
     @app.post("/missions/{mid:int}/{action}")
     def mission_action(mid: int, action: str, motif: str = Form(""),

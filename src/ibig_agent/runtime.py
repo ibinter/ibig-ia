@@ -293,9 +293,12 @@ class Runtime:
 
     @property
     def missions(self):
-        from .missions import MissionService
+        from .missions import RUNNERS, MissionService
+        from .prospecteur import make_runner
 
-        return MissionService(self.sessions, self.governor, self.org.pole_codes)
+        runners = {**RUNNERS, "prospection": make_runner(self.sessions,
+                                                         self.settings.prospect_dir)}
+        return MissionService(self.sessions, self.governor, self.org.pole_codes, runners)
 
     def mailaby_stats(self, days: int) -> dict | None:
         """Statistiques des campagnes si Mailaby est raccordé, sinon None."""

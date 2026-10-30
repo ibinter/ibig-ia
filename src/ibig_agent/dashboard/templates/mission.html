@@ -54,6 +54,13 @@
       {% if m.status not in ['termine', 'arrete'] %}<form method="post" action="/missions/{{ m.id }}/arreter" onsubmit="return confirm('Arrêter définitivement cette mission ?')"><button class="btn" style="width:100%;justify-content:center;color:var(--bad)">{{ icon('x') }} Arrêter</button></form>{% endif %}
       {% if m.status in ['termine', 'arrete'] %}<p class="muted">Mission close le {{ m.ended_at | quand }}.</p>{% endif %}
     </div>
+    {% if m.kind == 'prospection' and m.status not in ['termine', 'arrete'] %}
+    <form class="card" method="post" action="/missions/{{ m.id }}/fichier" enctype="multipart/form-data" style="margin-top:16px">
+      <div class="card-head"><div><h2>Déposer des prospects</h2><div class="sub">CSV (colonne « email » ; nom, entreprise, téléphone, site, ville, lien facultatifs) : export de Facebook, Google, LinkedIn, annuaire. Doublons écartés, score expliqué.</div></div></div>
+      <input type="file" name="fichier" accept=".csv,text/csv" required style="width:100%;margin-bottom:8px">
+      <button class="btn" style="width:100%;justify-content:center">{{ icon('check') }} Envoyer le fichier</button>
+    </form>
+    {% endif %}
     {% if m.status in ['brouillon', 'simule'] %}
     <form class="card" method="post" action="/missions/{{ m.id }}/modifier" style="margin-top:16px">
       <div class="card-head"><div><h2>{{ icon('check') }} Modifier</h2><div class="sub">Toute modification demande une nouvelle simulation</div></div></div>

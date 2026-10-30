@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     # Catalogue complet des produits, généré depuis le registre : dossier inscriptible
     # (knowledge/ est monté en lecture seule dans le conteneur)
     catalog_dir: Path = Path("./exports/catalogue")
+    # Fichiers de prospects déposés pour les missions de prospection (inscriptible)
+    prospect_dir: Path = Path("./exports/prospection")
     # État de la dernière sauvegarde (deploy/sauvegarde.sh écrit state/sauvegarde.json)
     state_dir: Path = Path("./state")
     mail_poll_minutes: int = 5

@@ -243,6 +243,13 @@ class MissionService:
             self._pause(s, m, reason.strip() or "pause demandée", by)
             s.commit()
 
+    def note(self, mission_id: int, summary: str, by: str) -> None:
+        """Inscrit une remarque (ex. dépôt d'un fichier) à l'historique de la mission."""
+        with self._sessions() as s:
+            self._mission(s, mission_id)
+            self._event(s, mission_id, "etat", summary, by)
+            s.commit()
+
     def _pause(self, s: Session, m: Mission, reason: str, by: str) -> None:
         m.status, m.pause_reason, m.updated_at = "en_pause", reason[:300], utcnow()
         self._event(s, m.id, "etat", f"En pause : {reason}", by)

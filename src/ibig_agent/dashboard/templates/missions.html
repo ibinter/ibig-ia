@@ -7,7 +7,7 @@
 {% block content %}
 {% set tone = {'brouillon': '', 'simule': 'blue', 'approuve': 'violet', 'en_cours': 'green', 'en_pause': 'amber', 'termine': 'green', 'arrete': 'red'} %}
 {% if 'prospection' not in runners %}
-<div class="alert amber" style="margin-bottom:14px">{{ icon('alert') }}<span><b>Les missions de prospection ne cherchent encore personne.</b> L'agent Prospecteur n'est pas encore raccordé (Lot 3) : le cycle de vie, les limites, les pauses automatiques et la supervision fonctionnent, mais aucune recherche ni aucun contact n'a lieu.</span></div>
+<div class="alert amber" style="margin-bottom:14px">{{ icon('alert') }}<span><b>Le Prospecteur ne contacte personne.</b> Il lit les fichiers que vous déposez sur la mission (exports Facebook, Google, LinkedIn, annuaires) et les pages publiques que le site autorise, écarte les doublons et note chaque fiche. Il ne parcourt pas Google ni les réseaux sociaux de lui-même : leurs conditions l'interdisent. Les autres types de mission restent « en attente d'un agent ».</span></div>
 {% endif %}
 <div class="grid g-main">
   <div class="card">

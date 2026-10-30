@@ -1,5 +1,7 @@
 """Lot 2 — suspension et quotas des agents, missions : cycle de vie, limites, pauses."""
 
+from urllib.parse import unquote
+
 import pytest
 from sqlalchemy import select
 
@@ -301,12 +303,18 @@ FORM = {"name": "Écoles privées", "kind": "prospection", "pole": "SOFT", "prod
 def test_missions_pages_run_the_whole_cycle_and_warn_that_no_agent_executes_yet(rt, web):
     dg = web("dg@ibig.test")
     page = dg.get("/missions").text
-    assert "ne cherchent encore personne" in page and "Nouvelle mission" in page
+    assert "ne contacte personne" in page and "Nouvelle mission" in page
     created = dg.post("/missions", data=FORM, follow_redirects=False)
     mid = int(created.headers["location"].split("/missions/")[1].split("?")[0])
     detail = dg.get(f"/missions/{mid}").text
     assert "Écoles privées" in detail and "Brouillon" in detail and "Simuler" in detail
-    assert "aucune recherche ni contact" in detail                  # honnêteté sur l'agent absent
+    assert "Déposer des prospects" in detail
+    sent = dg.post(f"/missions/{mid}/fichier", follow_redirects=False,
+                   files={"fichier": ("p.csv", "email\nboss@societe.ci\n", "text/csv")})
+    assert "reconnue" in unquote(sent.headers["location"])
+    empty = dg.post(f"/missions/{mid}/fichier", follow_redirects=False,
+                    files={"fichier": ("p.csv", "nom\nAwa\n", "text/csv")})
+    assert "Refus" in empty.headers["location"]
     dg.post(f"/missions/{mid}/simuler")
     assert "Simulée" in dg.get(f"/missions/{mid}").text
     dg.post(f"/missions/{mid}/approuver")
