@@ -22,7 +22,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -177,7 +177,7 @@ def render_file(title: str, pole: str, brand: str, source: str, items: list[Item
 
 
 def build(client: httpx.Client, today: str | None = None) -> Result:
-    today = today or date.today().isoformat()
+    today = today or datetime.now(UTC).date().isoformat()
     out = Result()
     for slug, pole, brand in BRANCHES:
         raw = fetch_branch(client, slug)
