@@ -360,6 +360,12 @@ def build_runtime(settings: Settings | None = None, llm: LLM | None = None,
     settings = settings or get_settings()
     org = load_org_config(settings.config_dir, settings.valideur_defaut)
     sessions = open_db(make_engine(settings.database_url))
+    try:  # le registre du catalogue fait foi : statuts et validations survivent aux redéploiements
+        from .catalog_import import regenerate
+
+        regenerate(settings.knowledge_dir, sessions)
+    except Exception as exc:  # noqa: BLE001 — l'agent démarre avec les fichiers existants
+        log.warning("Catalogue : régénération au démarrage impossible : %s", exc)
     kb = KnowledgeBase(settings.knowledge_dir, knowledge_overrides(sessions))
     from_config = connectors is None
     if connectors is None:

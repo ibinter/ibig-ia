@@ -227,3 +227,17 @@ def test_a_validator_can_read_but_never_decide(rt, tmp_path, web):
     assert val.post(f"/catalogue/{scola.id}/tarif", data={"prix": "1"},
                     follow_redirects=False).status_code == 403
     assert offers(rt)["Scolaby Pro"].status == "actif"
+
+
+def test_files_are_rebuilt_from_the_register_when_the_agent_starts(rt, tmp_path):
+    from ibig_agent.catalog_import import regenerate
+
+    assert regenerate(tmp_path, rt.sessions) == {}               # registre vide : rien n'est touché
+    run(rt, Source(), tmp_path)
+    scola = offers(rt)["Scolaby Pro"]
+    set_status(rt.sessions, scola.id, "suspendu", "Awa")
+    for f in (tmp_path / "produits").glob("*.md"):               # redéploiement : fichiers d'origine
+        f.write_text("ancien contenu", encoding="utf-8")
+    stats = regenerate(tmp_path, rt.sessions)
+    assert stats["ecrits"] >= 1
+    assert "Scolaby Pro" not in text(tmp_path) and "AGRIFRIK — Basique" in text(tmp_path)
