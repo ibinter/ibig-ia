@@ -115,3 +115,32 @@ ci-dessous n'est engagé.
 - Les performances sous charge réelle (volumes de prospects et de mails inconnus).
 - Le contenu de la base de production (aucune donnée de prospect n'a été lue).
 - La conformité juridique de la prospection (avis juridique à prévoir).
+
+## 7. Avancement du Lot 1 (catalogue et CRM) — 30/10/2026
+
+Autorisation de démarrer donnée par la Direction le 30/10/2026. Méthode : sauvegarde vérifiée,
+migration additive et réversible, tests, déploiement, contrôle en production.
+
+**Avant la migration.** Sauvegarde chiffrée faite, déchiffrée et **restaurée dans une base
+temporaire** : mêmes nombres de lignes que la production (journal 274, actions 114, utilisateurs 1),
+schéma 0011 ; base temporaire supprimée. La table des prospects était vide en production.
+
+**Migration 0012** (additive, aller-retour testé) : tables `catalog_offers`,
+`catalog_price_history`, `prospect_activities` ; colonnes d'origine et d'affectation sur
+`prospects`. Appliquée en production (schéma 0011 → 0012), données inchangées.
+
+| Fonction (§) | Classe avant | Livré |
+|---|---|---|
+| Catalogue : identifiant stable, version, statut, date, responsable, historique des tarifs (§8) | B | Registre en base ; 2 928 offres (2 878 actives, 50 à confirmer) ; page « Catalogue » (statut, tarif, validation) ; une décision humaine n'est jamais défaite par un import ; offre absente = archivée, jamais supprimée |
+| Pipeline CRM : étapes manquantes et issues (§7) | B | Intéressé, démo, devis, négociation, à recontacter ; injoignable, invalide, exclu. « Payé / livré » **refusé** en saisie manuelle (réservé au Lot 5). « Exclu » jamais purgé |
+| Fiche prospect : origine, vérification, affectation, activités (§7) | B | Page `/prospects/{id}` : origine (adresse, date, vérification), affectation agent et commercial, notes, fil d'activités, raisons du score, informations manquantes |
+
+**Corrigé en route.** (1) `knowledge/` est en lecture seule dans le conteneur : les fichiers du
+catalogue sont désormais générés dans `exports/catalogue/` (inscriptible), ce qui corrige aussi la
+tâche du dimanche, qui aurait échoué. (2) Un tarif fixé par la Direction était défait à chaque
+import : la source et le tarif retenu sont maintenant mémorisés séparément.
+
+**Tests.** 322 réussis ; 16 échecs préexistants et inchangés (support, PHP local, `bash`).
+
+**Reste pour clore le Lot 1** : décisions de la Direction sur les 50 offres au tarif ambigu
+(page Catalogue), désignation des responsables de validation, copie de sauvegarde hors serveur.

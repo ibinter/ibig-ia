@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..channels.mail import MailConnector, MailMessage
 from ..config import Mailbox, OrgConfig
-from ..db import JournalEntry, ProcessedMessage, Prospect, utcnow
+from ..db import JournalEntry, ProcessedMessage, Prospect, ProspectActivity, utcnow
 from ..governance import ActionRequest, Governor, Level
 from ..knowledge import KnowledgeBase
 from ..llm import LLM, LLMError
@@ -479,8 +479,13 @@ class MessagerieAgent:
         with self._sessions() as s:
             p = s.scalar(select(Prospect).where(Prospect.email == msg.sender))
             if p is None:
-                p = Prospect(email=msg.sender, source=mailbox.adresse, status="nouveau")
+                p = Prospect(email=msg.sender, source=mailbox.adresse, status="nouveau",
+                             collected_at=utcnow())
                 s.add(p)
+                s.flush()
+                s.add(ProspectActivity(prospect_id=p.id, kind="systeme", by=AGENT,
+                                       summary=f"Fiche créée d'après un mail reçu sur "
+                                               f"{mailbox.adresse}"))
             p.name = triage.prospect_nom or msg.sender_name or p.name
             p.pole = triage.pole
             if triage.prospect_besoin:

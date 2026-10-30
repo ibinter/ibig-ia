@@ -26,14 +26,43 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..config import Mailbox, OrgConfig, Settings
-from ..db import JournalEntry, PendingAction, ProcessedMessage, Prospect, User, utcnow
+from ..db import (
+    JournalEntry,
+    PendingAction,
+    ProcessedMessage,
+    Prospect,
+    ProspectActivity,
+    User,
+    utcnow,
+)
 from ..governance import ActionRequest, Governor, as_utc
 from ..knowledge import KnowledgeBase
 from ..llm import LLM, LLMError
 
 AGENT = "commercial"
 ACTIVE = ("nouveau", "qualifie", "en_discussion", "relance")
-CLOSED = ("gagne", "perdu", "sans_suite")
+# Étapes avancées (cahier des charges, section 7) : tenues par un humain, donc SANS relance
+# automatique (on n'importune pas un prospect qui a un devis ou un rendez-vous en cours).
+HUMAN_STAGES = ("interesse", "demo", "devis", "negociation", "a_recontacter")
+# Issues : injoignable, adresse invalide, « ne plus contacter » (conservé : jamais purgé)
+ISSUES = ("injoignable", "invalide", "exclu")
+CLOSED = ("gagne", "perdu", "sans_suite", *ISSUES)
+STAGES = (*ACTIVE, *HUMAN_STAGES, "gagne", "perdu", "sans_suite", *ISSUES)
+# « Payé / livré » ne s'obtient que par une confirmation financière vérifiée (Lot 5)
+RESERVED_STAGES = ("paye_livre",)
+STAGE_LABELS = {
+    "nouveau": "Nouveau", "qualifie": "Qualifié", "en_discussion": "En discussion",
+    "relance": "Relancé", "interesse": "Intéressé", "demo": "Démo / rendez-vous",
+    "devis": "Devis envoyé", "negociation": "Négociation", "a_recontacter": "À recontacter",
+    "gagne": "Gagné", "perdu": "Perdu", "sans_suite": "Sans suite",
+    "injoignable": "Injoignable", "invalide": "Adresse invalide", "exclu": "Ne plus contacter",
+}
+VERIFICATIONS = ("non_verifie", "verifie", "invalide")
+
+
+def _activity(s: Session, prospect_id: int, kind: str, summary: str, by: str = "") -> None:
+    """Ligne du fil d'activités d'une fiche prospect (étape, note, événement système)."""
+    s.add(ProspectActivity(prospect_id=prospect_id, kind=kind, summary=summary[:500], by=by))
 FOLLOWUP_DELAYS = (3, 4, 7)  # jours après notre dernier message : J+3, J+7, J+14
 CLOSE_AFTER_DAYS = 7          # sans réponse 7 jours après la 3e relance : sans suite
 HOT_SCORE = 70
@@ -202,6 +231,9 @@ class CommercialAgent:
             row.updated_at = utcnow()
             if row.status == "nouveau":
                 row.status = "qualifie"
+            _activity(s, row.id, "systeme",
+                      f"Qualifié par l'agent : {row.score}/100, {row.temperature}. "
+                      + "; ".join(str(r) for r in data.get("raisons") or [])[:380], AGENT)
             s.add(JournalEntry(agent=AGENT, action_type="commercial.qualify", level=1,
                                channel="interne", pole=row.pole, status="executed",
                                summary=f"Prospect qualifié : {row.email} ({row.score}/100, "
@@ -386,11 +418,82 @@ class CommercialAgent:
             else:
                 p.status = status
             p.updated_at = utcnow()
+            _activity(s, p.id, "etape", f"Décision : {status}", by)
             s.add(JournalEntry(agent="humain", action_type=f"prospect.{status}", level=2,
                                channel="interne", pole=p.pole, status="executed",
                                summary=f"Prospect {p.email} : {status}",
                                details={"prospect_id": p.id}, decided_by=by))
             s.commit()
+
+    # ------------------------------------------------------------------ fiche prospect (CRM)
+    def set_stage(self, prospect_id: int, stage: str, by: str, note: str = "") -> None:
+        """Change l'étape d'un prospect (pipeline du cahier des charges). Chaque changement est
+        daté, attribué, et inscrit au fil d'activités et au journal."""
+        if stage in RESERVED_STAGES:
+            raise ValueError("« Payé / livré » vient d'une confirmation financière vérifiée, "
+                             "pas d'un changement manuel")
+        if stage not in STAGES:
+            raise ValueError(f"Étape inconnue : {stage}")
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            before, p.status = p.status, stage
+            if stage == "exclu":   # « ne plus contacter » : aucune relance, durablement
+                p.stop_followups = True
+            p.updated_at = utcnow()
+            text = f"{STAGE_LABELS.get(before, before)} → {STAGE_LABELS[stage]}"
+            _activity(s, p.id, "etape", text + (f" — {note.strip()}" if note.strip() else ""), by)
+            s.add(JournalEntry(agent="humain", action_type="prospect.etape", level=2,
+                               channel="interne", pole=p.pole, status="executed",
+                               summary=f"Prospect {p.email} : {text}",
+                               details={"prospect_id": p.id, "etape": stage}, decided_by=by))
+            s.commit()
+
+    def add_note(self, prospect_id: int, text: str, by: str) -> None:
+        if not text.strip():
+            raise ValueError("La note est vide")
+        with self._sessions() as s:
+            if s.get(Prospect, prospect_id) is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            _activity(s, prospect_id, "note", text.strip(), by)
+            s.commit()
+
+    def assign(self, prospect_id: int, agent: str, human: str, by: str) -> None:
+        """Affecte la fiche à un agent IA et/ou à un commercial humain."""
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            p.assigned_agent, p.assigned_to = agent.strip()[:60], human.strip()[:300]
+            p.updated_at = utcnow()
+            _activity(s, p.id, "systeme",
+                      f"Affectation : agent « {p.assigned_agent or '—'} », "
+                      f"commercial « {p.assigned_to or '—'} »", by)
+            s.commit()
+
+    def set_origin(self, prospect_id: int, source_url: str, verification: str, by: str) -> None:
+        """Origine de la fiche : adresse de la source et état de vérification."""
+        if verification not in VERIFICATIONS:
+            raise ValueError(f"Vérification inconnue : {verification}")
+        if source_url.strip() and not source_url.strip().lower().startswith(("http://", "https://")):
+            raise ValueError("La source doit être une adresse web (http:// ou https://)")
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            p.source_url, p.verification = source_url.strip()[:2000], verification
+            if p.source_url and p.collected_at is None:
+                p.collected_at = utcnow()
+            p.updated_at = utcnow()
+            _activity(s, p.id, "systeme", f"Origine : {p.source_url or '—'} ({verification})", by)
+            s.commit()
+
+    def activities(self, prospect_id: int, limit: int = 100) -> list[ProspectActivity]:
+        with self._sessions() as s:
+            return list(s.scalars(select(ProspectActivity).where(
+                ProspectActivity.prospect_id == prospect_id).order_by(
+                ProspectActivity.at.desc(), ProspectActivity.id.desc()).limit(limit)).all())
 
     # ------------------------------------------------------------------ import
     def import_csv(self, path: Path) -> ImportResult:
@@ -418,6 +521,8 @@ class CommercialAgent:
                     p = Prospect(email=email, status="nouveau",
                                  source=row.get("boite") or "import")
                     s.add(p)
+                    s.flush()
+                    _activity(s, p.id, "systeme", f"Fiche créée par import ({p.source})", "import")
                     result.crees += 1
                 else:
                     result.mis_a_jour += 1

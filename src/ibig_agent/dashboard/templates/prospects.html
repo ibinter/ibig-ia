@@ -5,10 +5,11 @@
 {% block lead %}<p class="lead">L'agent Commercial crée une fiche à chaque demande, la note de 0 à 100 et prépare les relances à J+3, J+7 et J+14 (à valider). « Stop » arrête les relances d'un prospect.</p>{% endblock %}
 {% block content %}
 {% set COLS = [
-  ('todo', 'À traiter', ['nouveau', 'qualifie'], 'amber'),
-  ('talk', 'En discussion', ['en_discussion', 'relance'], 'blue'),
+  ('todo', 'À traiter', ['nouveau', 'qualifie', 'a_recontacter'], 'amber'),
+  ('talk', 'En discussion', ['en_discussion', 'relance', 'interesse'], 'blue'),
+  ('deal', 'Démo, devis, négociation', ['demo', 'devis', 'negociation'], 'blue'),
   ('won', 'Gagnés', ['gagne'], 'green'),
-  ('lost', 'Perdus ou sans suite', ['perdu', 'sans_suite'], 'red')] %}
+  ('lost', 'Perdus, sans suite, exclus', ['perdu', 'sans_suite', 'injoignable', 'invalide', 'exclu'], 'red')] %}
 {% set hot = rows | selectattr('temperature', 'equalto', 'chaud') | list | length %}
 {% set trials = rows | selectattr('trial_ends_at') | list | length %}
 {% set won = rows | selectattr('status', 'equalto', 'gagne') | list | length %}
@@ -40,7 +41,7 @@
     <article class="kcard" data-t="{{ p.temperature }}" data-pole="{{ p.pole }}">
       <div class="kcard-head">
         <span class="avatar" style="width:34px;height:34px;font-size:12px">{{ (p.name or p.email) | initiales }}</span>
-        <div class="kname"><b>{{ p.name or p.email.split('@')[0] }}</b><small>{{ p.email }}</small></div>
+        <div class="kname"><b><a href="/prospects/{{ p.id }}">{{ p.name or p.email.split('@')[0] }}</a></b><small>{{ p.email }}</small></div>
         <span class="pill violet">{{ p.pole }}</span>
       </div>
       {% if p.qualified_at %}
