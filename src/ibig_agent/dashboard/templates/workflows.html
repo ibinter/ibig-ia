@@ -26,8 +26,40 @@
       </div>
     </section>
     {% endfor %}
+
+    <section class="card">
+      <div class="card-head"><div><h2>{{ icon('clock') }} Travaux récurrents</h2><div class="sub">Un workflow approuvé qui se relance tout seul à chaque échéance. Rien n'est jamais envoyé ni publié ; si la mission précédente n'est pas terminée, l'échéance est sautée pour ne rien empiler.</div></div></div>
+      {% if not recurrences %}<p class="muted">Aucun travail récurrent.</p>{% endif %}
+      <ul class="prio-list">
+        {% for r in recurrences %}
+        <li><span class="todo-txt"><b>{{ r.subject }}</b> <span class="pill {{ 'green' if r.active else 'amber' }} dot">{{ 'actif' if r.active else 'en pause' }}</span><br>
+          <small class="muted">{{ approved[r.workflow].title if r.workflow in approved else r.workflow ~ ' (plus approuvé)' }} · {{ r.when() }}{% if r.pole %} · {{ r.pole }}{% endif %}{% if r.prepare %} · brouillons préparés par les agents (budget {{ '%g' | format(r.budget) }} $){% endif %}{% if r.last_status %}<br>{{ r.last_status }}{% endif %}</small></span>
+          <span style="display:flex;gap:6px;flex-wrap:wrap">
+            <form method="post" action="/recurrents/{{ r.id }}/lancer"><button class="btn sm">{{ icon('play') }} Lancer maintenant</button></form>
+            <form method="post" action="/recurrents/{{ r.id }}/{{ 'pause' if r.active else 'reprise' }}"><button class="btn sm">{{ 'Pause' if r.active else 'Reprendre' }}</button></form>
+            <form method="post" action="/recurrents/{{ r.id }}/supprimer" onsubmit="return confirm('Supprimer ce travail récurrent ? Les missions déjà créées restent.')"><button class="btn sm ghost-bad">{{ icon('x') }}</button></form>
+          </span></li>
+        {% endfor %}
+      </ul>
+    </section>
   </div>
   <div style="align-self:start">
+    <form class="card" method="post" action="/recurrents" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('clock') }} Programmer un travail récurrent</h2></div></div>
+      {% if not approved %}<p class="muted">Il faut d'abord un workflow approuvé.</p>{% else %}
+      <label class="field"><span>Workflow approuvé</span><select name="workflow" style="width:100%">{% for code, w in approved.items() %}<option value="{{ code }}">{{ w.title }} (v{{ w.version }})</option>{% endfor %}</select></label>
+      <label class="field"><span>Sujet de chaque mission</span><input type="text" name="sujet" required maxlength="200" placeholder="Point des ventes du {date}"></label>
+      <label class="field"><span>Pôle</span><select name="pole" style="width:100%"><option value="">—</option>{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Répéter</span><select name="cadence" style="width:100%">{% for k, v in cadences.items() %}<option value="{{ k }}" {{ 'selected' if k == 'semaine' }}>{{ v }}</option>{% endfor %}</select></label>
+      <div class="grid g-3" style="gap:8px">
+        <label class="field"><span>Jour (semaine)</span><select name="jour_semaine">{% for d in weekdays %}<option value="{{ loop.index0 }}">{{ d }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Jour (mois)</span><input type="number" name="jour_mois" value="1" min="1" max="28"></label>
+        <label class="field"><span>Heure</span><input type="number" name="heure" value="8" min="0" max="23"></label>
+      </div>
+      <label class="inline" style="margin:8px 0"><input type="checkbox" name="preparer" value="1"> Faire préparer les brouillons par les agents (coûte du crédit)</label>
+      <label class="field"><span>Budget par mission ($)</span><input type="text" name="budget" value="0.5" size="5"></label>
+      <button class="btn primary">{{ icon('check') }} Programmer</button>{% endif %}
+    </form>
     <form class="card" method="post" action="/workflows/adopter" style="margin-bottom:16px">
       <div class="card-head"><div><h2>{{ icon('book') }} Partir d'une procédure</h2><div class="sub">Copie une procédure de la bibliothèque en brouillon.</div></div></div>
       <label class="field"><span>Procédure</span><select name="procedure" style="width:100%">{% for p in library %}<option value="{{ p.code }}">{{ p.title }}</option>{% endfor %}</select></label>

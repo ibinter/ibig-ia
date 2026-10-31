@@ -71,6 +71,12 @@ class WorkflowService:
         with self._sessions() as s:
             return s.get(WorkflowDef, workflow_id)
 
+    def approved(self) -> dict[str, WorkflowDef]:
+        """Dernière version approuvée de chaque workflow, par code."""
+        with self._sessions() as s:
+            rows = s.scalars(select(WorkflowDef).where(WorkflowDef.status == "approuve")).all()
+        return {w.code: w for w in rows}
+
     # ------------------------------------------------------------------ création
     def create(self, code: str, title: str, trigger: str, pole: str, steps: list, by: str) -> int:
         """Crée un brouillon ; si le code existe déjà, c'est la version suivante."""

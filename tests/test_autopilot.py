@@ -437,3 +437,91 @@ def test_workflows_page_flow_and_access(rt):
                   follow_redirects=False)
     assert "/missions/" in made.headers["location"]
     assert client("v@ibig.test").get("/workflows").status_code == 403
+
+
+def _approved_workflow(rt):
+    _workflow_users(rt)
+    wid = rt.workflows.create("point-hebdo", "Point hebdomadaire", "Chaque lundi", "SOFT",
+                              [{"title": "Rassembler les chiffres", "agent": "chef"},
+                               {"title": "Lire le point", "agent": "", "after": [1]}], "Awa")
+    rt.workflows.approve(wid, "Bakary")
+    return wid
+
+
+def test_recurring_launches_once_per_period_and_never_stacks(rt, llm):
+    from datetime import UTC, datetime
+
+    _approved_workflow(rt)
+    rec = rt.recurring
+    rid = rec.add("point-hebdo", "Point du {date}", "SOFT", "semaine", 0, 1, 8, False, 0.5, "Awa")
+    monday = datetime(2026, 11, 2, 7, 0, tzinfo=UTC)               # lundi, avant 8 h : pas encore
+    assert rec.run_due(monday) == {"launched": 0, "skipped": 0}
+    monday = datetime(2026, 11, 2, 9, 0, tzinfo=UTC)
+    assert rec.run_due(monday)["launched"] == 1
+    assert rec.run_due(monday)["launched"] == 0                    # une seule fois par période
+    first = rec.all()[0]
+    assert first.last_mission and "Point du 02/11/2026" in rt.missions.get(first.last_mission).name
+    assert llm.calls == []                                         # sans « préparer » : aucun appel d'IA
+    nxt = datetime(2026, 11, 9, 9, 0, tzinfo=UTC)                  # lundi suivant, 1re mission ouverte
+    assert rec.run_due(nxt) == {"launched": 0, "skipped": 1}
+    assert "pas terminée" in rec.all()[0].last_status
+    rec.set_active(rid, False, "Awa")
+    assert rec.run_due(datetime(2026, 11, 16, 9, 0, tzinfo=UTC)) == {"launched": 0, "skipped": 0}
+
+
+def test_recurring_respects_emergency_stop_and_unapproved_workflows(rt):
+    from datetime import UTC, datetime
+
+    from ibig_agent.governance import POLE_PREFIX
+    from ibig_agent.recurring import RecurringError
+
+    wid = _approved_workflow(rt)
+    rec = rt.recurring
+    with pytest.raises(RecurringError, match="approuvé"):
+        rec.add("inconnu", "x", "", "jour", 0, 1, 8, False, 0.5, "Awa")
+    rec.add("point-hebdo", "Point {date}", "SOFT", "jour", 0, 1, 6, False, 0.5, "Awa")
+    now = datetime(2026, 11, 2, 9, 0, tzinfo=UTC)
+    rt.governor.set_stopped(f"{POLE_PREFIX}SOFT", True, "Awa", "essai")
+    assert rec.run_due(now) == {"launched": 0, "skipped": 0}       # en attente, rien consommé
+    rt.governor.set_stopped(f"{POLE_PREFIX}SOFT", False, "Awa")
+    assert rec.run_due(now)["launched"] == 1                       # rattrapé dans la même période
+    rt.workflows.archive(wid)                                      # plus approuvé : échéance sautée
+    assert rec.run_due(datetime(2026, 11, 3, 9, 0, tzinfo=UTC)) == {"launched": 0, "skipped": 1}
+
+
+def test_recurring_can_prepare_drafts_within_a_budget(rt, llm):
+    from datetime import UTC, datetime
+
+    _approved_workflow(rt)
+    rt.recurring.add("point-hebdo", "Point {date}", "SOFT", "jour", 0, 1, 6, True, 0.5, "Awa")
+    assert rt.recurring.run_due(datetime(2026, 11, 2, 9, 0, tzinfo=UTC))["launched"] == 1
+    mid = rt.recurring.all()[0].last_mission
+    assert llm.calls == ["chef.autopilot_task"]                    # brouillon de l'agent « chef »
+    assert rt.missions.get(mid).budget_usd == 0.5
+    assert rt.autopilot.tasks(mid)[0].status == "en_cours" and rt.autopilot.tasks(mid)[0].result
+
+
+def test_recurring_manual_run_and_page(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    _approved_workflow(rt)
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "b@ibig.test", "password": "mot-de-passe-solide"})
+    r = c.post("/recurrents", data={"workflow": "point-hebdo", "sujet": "Point {date}",
+                                    "pole": "SOFT", "cadence": "semaine", "jour_semaine": 0,
+                                    "jour_mois": 1, "heure": 8, "budget": "0,5"},
+               follow_redirects=False)
+    assert r.status_code == 303 and len(rt.recurring.all()) == 1
+    assert "Travaux récurrents" in c.get("/workflows").text and "chaque lundi à 8 h" in c.get("/workflows").text
+    made = c.post(f"/recurrents/{rt.recurring.all()[0].id}/lancer", follow_redirects=False)
+    assert "/missions/" in made.headers["location"]
+    assert rt.recurring.all()[0].last_period == ""                 # le manuel n'use pas l'échéance
+    c.post(f"/recurrents/{rt.recurring.all()[0].id}/supprimer")
+    assert rt.recurring.all() == []
+    UserStore(rt.sessions, rt.org).create("v@ibig.test", "v", "valideur", "mot-de-passe-solide")
+    v = TestClient(create_app(rt), base_url="https://testserver")
+    v.post("/login", data={"email": "v@ibig.test", "password": "mot-de-passe-solide"})
+    assert v.post("/recurrents", data={"workflow": "point-hebdo", "sujet": "x"}).status_code == 403

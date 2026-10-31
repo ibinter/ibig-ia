@@ -79,6 +79,9 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
         # Missions en cours : limites, pauses automatiques, suspension d'un agent, exécution
         JobSpec("missions_tick", "Surveillance des missions", "toutes les 5 min",
                 lambda: rt.missions.tick(), "interval", {"minutes": 5, **every}),
+        # Travaux récurrents : lance les échéances atteintes (jour, semaine, mois)
+        JobSpec("recurring_work", "Travaux récurrents", "toutes les heures",
+                lambda: rt.recurring.run_due(), "interval", {"hours": 1, **every}),
         JobSpec("quotes_expire", "Expiration des devis", "chaque jour à 1 h",
                 lambda: rt.quotes.expire_due(), "cron", {"hour": 1, "minute": 0, **every}),
         # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin

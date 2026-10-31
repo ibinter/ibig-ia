@@ -304,6 +304,13 @@ class Runtime:
         return WorkflowService(self.sessions, self.autopilot)
 
     @property
+    def recurring(self):
+        from .recurring import RecurringService
+
+        return RecurringService(self.sessions, self.settings, self.workflows, self.autopilot,
+                                self.governor)
+
+    @property
     def finance(self):
         from .finance import FinanceService
 
