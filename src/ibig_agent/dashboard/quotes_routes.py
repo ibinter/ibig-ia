@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import desc, func, select
 
+from .. import command_center
 from ..auth import Principal
 from ..catalog_store import list_offers
 from ..db import ProcessedMessage, Prospect, Ticket
@@ -121,6 +122,12 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except QuoteError as exc:
             return back(f"/devis/{qid}", f"Refusé : {exc}")
         return back(f"/devis/{qid}", ok)
+
+    @app.get("/commande", response_class=HTMLResponse)
+    def command(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        return page(request, "commande.html",
+                    c=command_center.build(rt.sessions, rt.org.pole_codes))
 
     @app.post("/boite/retraiter")
     def reprocess(who: Principal = Depends(user)):

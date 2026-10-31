@@ -41,6 +41,7 @@
       <div class="nav-group nav-top">
         {% if user.role != 'valideur' and badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Mise en route', badges.get('demarrage'), cls='setup') }}{% endif %}
         {{ nav('/', 'home', 'Accueil') }}
+        {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
         {{ nav('/validations', 'check-circle', 'Validations', badges.get('validations', 0)) }}
         {{ nav('/boite', 'inbox', 'Messages') if user.role != 'valideur' }}
         {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
