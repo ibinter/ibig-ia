@@ -45,7 +45,7 @@ from ..channels.web import sanitize_html
 from ..config import Mailbox
 from ..configstore import service_value
 from ..db import JobStatus, JournalEntry, MediaAsset, PendingAction, Prospect, Ticket, User
-from ..governance import ALL_CHANNELS, CHANNELS, GovernanceError
+from ..governance import ALL_CHANNELS, CHANNELS, POLE_PREFIX, GovernanceError
 from ..runtime import Runtime
 from ..scheduler import _safe
 from . import (
@@ -727,18 +727,20 @@ def create_app(rt: Runtime) -> FastAPI:
     @app.get("/arret", response_class=HTMLResponse)
     def stop_page(request: Request, who: Principal = Depends(user)):
         return page(request, "arret.html", channels=[ALL_CHANNELS, *CHANNELS],
-                    states=rt.governor.channel_states())
+                    states=rt.governor.channel_states(), poles=rt.org.poles)
 
     @app.post("/arret")
     def stop(canal: str = Form(...), action: str = Form(...), motif: str = Form(""),
              who: Principal = Depends(user)):
-        if canal not in (ALL_CHANNELS, *CHANNELS) or action not in ("stop", "reprise"):
+        poles = [f"{POLE_PREFIX}{c}" for c in rt.org.pole_codes]
+        if canal not in (ALL_CHANNELS, *CHANNELS, *poles) or action not in ("stop", "reprise"):
             raise HTTPException(400)
         # Tout le monde peut arrêter ; seules l'administration et la direction relancent.
         if action == "reprise" and not who.can_resume():
             return back("/arret", "Refusé : la réactivation est réservée à la direction")
         rt.governor.set_stopped(canal, action == "stop", by=who.label, reason=motif)
-        label = "tout le périmètre" if canal == ALL_CHANNELS else canal
+        label = ("tout le périmètre" if canal == ALL_CHANNELS
+                 else canal.replace(POLE_PREFIX, "département "))
         return back("/arret", f"{label} : {'suspendu' if action == 'stop' else 'réactivé'}")
 
     @app.get("/prospects", response_class=HTMLResponse)

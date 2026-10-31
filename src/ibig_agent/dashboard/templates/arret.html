@@ -44,4 +44,25 @@
   </div>
   {% endfor %}
 </div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Par département</h2><div class="sub">Suspendre un département : ses agents n'exécutent plus rien pour lui, sans toucher aux autres</div></div></div>
+  {% for p in poles %}{% set key = 'pole:' ~ p.code %}{% set st = states.get(key) %}{% set off = st and st.stopped %}
+  <div class="switch-row {{ 'off' if off }}">
+    <div class="name"><span class="ico">{{ icon('shield') }}</span>
+      <div><b>{{ p.code }}</b><div class="muted">{% if off %}suspendu · {{ st.reason or 'sans motif' }} · par {{ st.updated_by }}{% else %}{{ p.nom }} · actif{% endif %}</div></div></div>
+    {% if off %}<span class="pill red dot">suspendu</span>{% else %}<span class="pill green dot">actif</span>{% endif %}
+    <form method="post" action="/arret">
+      <input type="hidden" name="canal" value="{{ key }}">
+      {% if off %}
+        {% if user.role in ('admin', 'direction') %}<input type="hidden" name="action" value="reprise"><button class="btn ok sm">{{ icon('play') }} Réactiver</button>
+        {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
+      {% else %}
+        <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
+        <button class="btn ghost-bad sm">{{ icon('pause') }} Suspendre</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -390,3 +390,15 @@ def test_supervision_shows_job_sheets_and_saves_the_human_owner(rt, web):
                    follow_redirects=False).status_code == 404
     assert web("val@ibig.test").post("/supervision/commercial/responsable",
                                      data={"responsable": "x"}).status_code == 403
+
+
+def test_a_stopped_department_pauses_its_running_missions(rt):
+    from ibig_agent.governance import POLE_PREFIX
+
+    svc = MissionService(rt.sessions, rt.governor, rt.org.pole_codes,
+                         runners={"prospection": lambda m: RunResult(True, "ok")})
+    mid = approved(svc)
+    svc.launch(mid, "Awa")
+    rt.governor.set_stopped(f"{POLE_PREFIX}SOFT", True, "Awa", "essai")
+    assert svc.tick()["mises_en_pause"] == 1
+    assert svc.get(mid).status == "en_pause" and "département" in svc.get(mid).pause_reason

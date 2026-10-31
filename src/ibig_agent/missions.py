@@ -356,6 +356,8 @@ class MissionService:
                     reason = "arrêt d'urgence"
                 elif agent_control.is_suspended(self._sessions, m.agent):
                     reason = "agent suspendu"
+                elif self.governor.is_pole_stopped(m.pole):
+                    reason = "département suspendu"
                 if reason:
                     self._pause(s, m, reason, "système")
                     s.commit()

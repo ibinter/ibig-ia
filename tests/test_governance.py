@@ -115,3 +115,41 @@ def test_placeholder_text_can_never_be_approved(rt, connector):
     done = rt.governor.approve(out.pending_id, by="Awa",
                                payload_override={"body": "Bonjour, le prix est sur devis."})
     assert done.status == "executed" and connector.sent[0]["body"].endswith("sur devis.")
+
+
+def test_a_stopped_department_blocks_only_its_own_actions(rt):
+    from ibig_agent.governance import POLE_PREFIX, ActionRequest
+
+    def report(pole):
+        return rt.governor.submit(ActionRequest(agent="chef", action_type="report.publish",
+                                                channel="rapport", title="Rapport", pole=pole,
+                                                payload={"text": "bilan"}))
+
+    assert report("SOFT").status == "executed"
+    rt.governor.set_stopped(f"{POLE_PREFIX}SOFT", True, "Awa", "essai")
+    blocked = report("SOFT")
+    assert blocked.status == "blocked" and "SOFT" in blocked.error
+    assert report("EDUFORM").status == "executed" and report("").status == "executed"
+    assert rt.governor.is_pole_stopped("SOFT") and not rt.governor.is_pole_stopped("")
+    rt.governor.set_stopped(f"{POLE_PREFIX}SOFT", False, "Awa")
+    assert report("SOFT").status == "executed"
+
+
+def test_stop_page_accepts_departments_and_refuses_unknown_ones(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction",
+                                          "mot-de-passe-solide")
+    dg = TestClient(create_app(rt), base_url="https://testserver")
+    dg.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    assert "Par département" in dg.get("/arret").text
+    ok = dg.post("/arret", data={"canal": "pole:SOFT", "action": "stop", "motif": "essai"},
+                 follow_redirects=False)
+    assert ok.status_code == 303 and rt.governor.is_pole_stopped("SOFT")
+    assert dg.post("/arret", data={"canal": "pole:NULLE", "action": "stop"},
+                   follow_redirects=False).status_code == 400
+    dg.post("/arret", data={"canal": "pole:SOFT", "action": "reprise"})
+    assert not rt.governor.is_pole_stopped("SOFT")
