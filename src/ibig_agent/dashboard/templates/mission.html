@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_mission_form.html" import fields %}
+{% block title %}{{ m.name }}{% endblock %}
+{% block heading %}{{ m.name }}{% endblock %}
+{% set tone = {'brouillon': '', 'simule': 'blue', 'approuve': 'violet', 'en_cours': 'green', 'en_pause': 'amber', 'termine': 'green', 'arrete': 'red'} %}
+{% block lead %}<p class="lead"><a href="/missions">← Toutes les missions</a> · <span class="pill {{ tone[m.status] }}">{{ labels[m.status] }}</span>{% if m.pause_reason %} · pause : {{ m.pause_reason }}{% endif %}</p>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div>
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('shield-check') }} Vérifications</h2><div class="sub">Simulation : aucune communication, aucun appel externe</div></div></div>
+      <ul>
+        {% for c in checks %}<li>{{ '✔' if c.ok else ('✖' if c.blocking else '⚠') }} <b>{{ c.label }}</b> — {{ c.detail }}</li>{% endfor %}
+      </ul>
+      {% if failures %}<div class="alert amber" style="margin-top:10px">{{ icon('alert') }}<span>{{ failures | length }} point{{ 's' if failures | length > 1 }} bloquant{{ 's' if failures | length > 1 }} : la mission ne peut pas avancer tant qu'il{{ 's' if failures | length > 1 }} ne {{ 'sont' if failures | length > 1 else 'est' }} pas résolu{{ 's' if failures | length > 1 }}.</span></div>{% endif %}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('target') }} Mission</h2></div></div>
+      <dl class="kv">
+        <dt>Branche / produit</dt><dd>{{ m.pole }}{% if m.product %} · {{ m.product }}{% endif %}</dd>
+        <dt>Zone et cible</dt><dd>{{ m.zone or '—' }} · {{ m.target or '—' }}</dd>
+        <dt>Objectif</dt><dd>{{ m.objective or '—' }}</dd>
+        <dt>Critères</dt><dd>{{ m.criteria or '—' }}</dd>
+        <dt>Agent</dt><dd>{{ agent_labels.get(m.agent, m.agent) }} · canal : {{ m.channel or '—' }}</dd>
+        <dt>Autonomie</dt><dd>{{ autonomies.get(m.autonomy, m.autonomy) }}</dd>
+        <dt>Limites</dt><dd>budget {{ ('%.2f USD' | format(m.budget_usd)) if m.budget_usd is not none else '—' }} · {{ m.max_total or '—' }} au total · {{ m.max_per_day or '—' }} par jour · pause après {{ m.error_threshold }} échecs</dd>
+        <dt>Consommation</dt><dd>{{ '%.2f' | format(m.spent_usd) }} USD · {{ m.runs }} exécution{{ 's' if m.runs > 1 }} · {{ m.failures }} échec{{ 's' if m.failures > 1 }}</dd>
+        <dt>Dernier résultat</dt><dd>{{ m.last_result or '—' }}</dd>
+        <dt>Approbation</dt><dd>{% if m.approved_by %}{{ m.approved_by }} · {{ m.approved_at | quand }}{% else %}—{% endif %}</dd>
+      </dl>
+    </div>
+
+    {% if m.kind == 'autopilot' %}
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('check-circle') }} Tâches</h2><div class="sub">Une tâche est prête quand ses dépendances sont terminées ; elle se clôt avec une preuve.</div></div></div>
+      <ol class="prio-list">
+      {% for t in tasks %}<li><span class="todo-txt"><b>{{ t.position }}. {{ t.title }}</b> <span class="pill {{ {'terminee': 'green', 'prete': 'blue', 'en_cours': 'amber', 'echec': 'red', 'bloquee': 'red'}.get(t.status, '') }}">{{ task_labels.get(t.status, t.status) }}</span>
+        <br><small class="muted">{{ agent_labels.get(t.agent, 'Une personne') if t.agent else 'Une personne' }}{% if t.depends_on %} · après {% for d in t.depends_on %}{% for u in tasks if u.id == d %}{{ u.position }}{{ ', ' if not loop.last }}{% endfor %}{% endfor %}{% endif %}{% if t.attempts %} · essai {{ t.attempts }}/{{ t.max_attempts }}{% endif %}</small>
+        {% if t.detail %}<br><small>{{ t.detail }}</small>{% endif %}
+        {% if t.result and t.status != 'echec' %}<details style="margin-top:4px"><summary>Brouillon de l'agent</summary><pre style="white-space:pre-wrap;font:inherit;margin:6px 0">{{ t.result }}</pre></details>{% endif %}
+        {% if t.evidence %}<br><small class="muted">Preuve : {{ t.evidence }} · {{ t.finished_by }}</small>{% endif %}
+        {% if t.agent and t.status in ['prete', 'en_cours'] %}<form method="post" action="/missions/{{ m.id }}/tache/{{ t.id }}/preparer" style="margin-top:6px"><button class="btn sm">{{ icon('sparkles') }} Faire préparer un brouillon par l'agent</button></form>{% endif %}
+        {% if t.status in ['prete', 'en_cours'] %}
+        <form method="post" action="/missions/{{ m.id }}/tache/{{ t.id }}/terminer" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <input type="text" name="preuve" placeholder="Preuve ou raison" required maxlength="1000" style="flex:1;min-width:180px">
+          <button class="btn sm primary">Terminer</button>
+          <button class="btn sm" formaction="/missions/{{ m.id }}/tache/{{ t.id }}/echec">Échec</button>
+          {% if t.status == 'prete' %}<button class="btn sm" formaction="/missions/{{ m.id }}/tache/{{ t.id }}/demarrer" formnovalidate>Démarrer</button>{% endif %}
+        </form>{% endif %}
+        </span></li>{% endfor %}
+      </ol>
+    </div>
+    {% endif %}
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('list') }} Journal de la mission</h2></div></div>
+      <ul class="prio-list">
+        {% for e in events %}<li><span class="todo-txt"><b>{{ {'etat': 'État', 'alerte': 'Alerte', 'resultat': 'Résultat', 'simulation': 'Simulation'}.get(e.kind, e.kind) }}</b> · {{ e.summary }}<br><small class="muted">{{ e.at | quand }}{% if e.by %} · {{ e.by }}{% endif %}</small></span></li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div style="align-self:start">
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('arrow-right') }} Actions</h2></div></div>
+      {% macro act(name, label, cls='') %}<form method="post" action="/missions/{{ m.id }}/{{ name }}" style="margin-bottom:8px"><button class="btn {{ cls }}" style="width:100%;justify-content:center">{{ label }}</button></form>{% endmacro %}
+      {% if m.status in ['brouillon', 'simule'] %}{{ act('simuler', 'Simuler (sans contact externe)', 'primary') }}{% endif %}
+      {% if m.status == 'simule' %}{{ act('approuver', 'Approuver', 'primary') }}{% endif %}
+      {% if m.status == 'approuve' %}{{ act('lancer', 'Lancer', 'primary') }}{% endif %}
+      {% if m.status == 'en_cours' %}
+      <form method="post" action="/missions/{{ m.id }}/pause" style="margin-bottom:8px"><input type="text" name="motif" placeholder="Motif (facultatif)" style="width:100%;margin-bottom:6px"><button class="btn" style="width:100%;justify-content:center">{{ icon('pause') }} Mettre en pause</button></form>
+      {% endif %}
+      {% if m.status == 'en_pause' %}{{ act('reprendre', 'Reprendre', 'primary') }}{% endif %}
+      {% if m.status not in ['termine', 'arrete'] %}<form method="post" action="/missions/{{ m.id }}/arreter" onsubmit="return confirm('Arrêter définitivement cette mission ?')"><button class="btn" style="width:100%;justify-content:center;color:var(--bad)">{{ icon('x') }} Arrêter</button></form>{% endif %}
+      {% if m.status in ['termine', 'arrete'] %}<p class="muted">Mission close le {{ m.ended_at | quand }}.</p>{% endif %}
+    </div>
+    {% if m.kind == 'prospection' and m.status not in ['termine', 'arrete'] %}
+    <form class="card" method="post" action="/missions/{{ m.id }}/fichier" enctype="multipart/form-data" style="margin-top:16px">
+      <div class="card-head"><div><h2>Déposer des prospects</h2><div class="sub">CSV (colonne « email » ; nom, entreprise, téléphone, site, ville, lien facultatifs) : export de Facebook, Google, LinkedIn, annuaire. Doublons écartés, score expliqué.</div></div></div>
+      <input type="file" name="fichier" accept=".csv,text/csv" required style="width:100%;margin-bottom:8px">
+      <button class="btn" style="width:100%;justify-content:center">{{ icon('check') }} Envoyer le fichier</button>
+    </form>
+    {% endif %}
+    {% if m.status in ['brouillon', 'simule'] %}
+    <form class="card" method="post" action="/missions/{{ m.id }}/modifier" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('check') }} Modifier</h2><div class="sub">Toute modification demande une nouvelle simulation</div></div></div>
+      {{ fields(m, poles, kinds, autonomies, channels, agents, agent_labels) }}
+      <button class="btn">{{ icon('check') }} Enregistrer</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Rapports{% endblock %}
+{% block heading %}Rapports{% endblock %}
+{% block lead %}<p class="lead">Rapport quotidien de 8 h, bilan des indicateurs chaque semaine, revue mensuelle et plan de la semaine (section 12). Ils sont aussi envoyés par mail à la direction.</p>{% endblock %}
+{% block content %}
+{% set KINDS = [('quotidien', 'Quotidiens', 'file', 'blue', 'rapport', 'Rapport du jour'),
+                ('hebdo', 'Indicateurs', 'chart', 'green', 'indicateurs', 'Bilan des indicateurs'),
+                ('mensuel', 'Revues mensuelles', 'trending', 'violet', 'revue', 'Revue du mois'),
+                ('plan', 'Plans de la semaine', 'calendar', 'amber', 'plan', 'Plan de la semaine')] %}
+{% set META = {'quotidien': ('file', 'blue', 'Rapport quotidien'), 'hebdo': ('chart', 'green', 'Indicateurs'),
+               'mensuel': ('trending', 'violet', 'Revue mensuelle'), 'plan': ('calendar', 'amber', 'Plan'),
+               'autre': ('file', '', 'Rapport')} %}
+
+<div class="gen-row">
+  {% for k, lbl, ic, col, job, action in KINDS %}
+  <form method="post" action="/agents/lancer/{{ job }}" class="gen-card g-{{ col }}">
+    <input type="hidden" name="retour" value="/rapports">
+    <span class="gen-ico">{{ icon(ic) }}</span>
+    <span class="gen-txt"><b>{{ kinds.get(k, 0) }}</b><small>{{ lbl | lower }}</small></span>
+    <button class="btn sm" {{ 'disabled' if job in running }} title="Préparer maintenant" onclick="this.innerHTML='En cours…'">{{ icon('play') }} {{ action }}</button>
+  </form>
+  {% endfor %}
+</div>
+
+{% if not rows %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('file') }}</div><b>Aucun rapport pour l'instant</b>Le premier rapport quotidien sera publié demain à 8 h. Vous pouvez aussi en préparer un maintenant avec les boutons ci-dessus, puis actualiser la page dans une minute.</div></div>
+{% else %}
+<div class="filter-bar">
+  <div class="chips">
+    <button type="button" class="chip on" data-k="">Tous <span>{{ rows | length }}</span></button>
+    {% for k, lbl, ic, col, job, action in KINDS if kinds.get(k) %}
+    <button type="button" class="chip" data-k="{{ k }}">{{ lbl }} <span>{{ kinds[k] }}</span></button>
+    {% endfor %}
+  </div>
+  <input type="search" id="q" placeholder="Chercher dans les rapports…" style="width:240px">
+</div>
+
+<div class="reader">
+  <aside class="card reader-list">
+    {% set ns = namespace(day='') %}
+    {% for r in rows %}
+    {% set k = r.summary | genre_rapport %}{% set m = META[k] %}
+    {% set d = r.created_at | jour_titre %}
+    {% if d != ns.day %}{% set ns.day = d %}<h4 class="tl-day">{{ d }}</h4>{% endif %}
+    <button type="button" class="rl-item {{ 'on' if loop.first }}" data-id="r{{ r.id }}" data-k="{{ k }}">
+      <span class="todo-ico" style="background:var(--{{ {'blue': 'brand', 'green': 'ok', 'violet': 'violet', 'amber': 'warn'}.get(m[1], 'bg') }}-soft);color:var(--{{ {'blue': 'brand', 'green': 'ok', 'violet': 'violet', 'amber': 'warn'}.get(m[1], 'muted') }})">{{ icon(m[0]) }}</span>
+      <span class="todo-txt"><b>{{ r.summary }}</b><small>{{ m[2] }} · {{ r.created_at | heure }}</small></span>
+    </button>
+    {% endfor %}
+    <p class="muted small filter-empty" hidden style="text-align:center;padding:12px">Aucun rapport pour ce filtre.</p>
+  </aside>
+
+  <div class="reader-pane" id="pane">
+    {% for r in rows %}
+    {% set k = r.summary | genre_rapport %}{% set m = META[k] %}
+    {% set text = r.details.get('texte', '') %}
+    <article class="card report" id="r{{ r.id }}" {{ 'hidden' if not loop.first }}>
+      <header class="report-head">
+        <div>
+          <span class="pill {{ m[1] }}">{{ icon(m[0]) }} {{ m[2] }}</span>
+          <h2>{{ r.summary }}</h2>
+          <div class="muted small">{{ r.created_at | quand }} · agent {{ r.agent }}{% if loop.first %} · <b style="color:var(--brand)">le plus récent</b>{% endif %}</div>
+        </div>
+        <div class="inline" style="gap:6px">
+          <button type="button" class="btn sm" data-copy="t{{ r.id }}">{{ icon('file') }} Copier</button>
+          <button type="button" class="btn sm" onclick="window.print()">{{ icon('share') }} Imprimer</button>
+        </div>
+      </header>
+      {% if text %}
+      <div class="report-body">
+        {% set blocks = text | rapport %}
+        {% for kind, line in blocks %}
+          {% if kind == 'h' %}{% if loop.index > 1 %}<h3>{{ line }}</h3>{% else %}<p class="report-intro">{{ line }}</p>{% endif %}
+          {% elif kind == 'p' %}<p>{{ line }}</p>
+          {% else %}<div class="rline r-{{ kind }}"><span>{{ icon({'ok': 'check', 'ko': 'x', 'wait': 'clock'}.get(kind, 'arrow-right')) }}</span><p>{{ line }}</p></div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <textarea id="t{{ r.id }}" hidden>{{ text }}</textarea>
+      {% else %}
+      <p class="muted">Texte non conservé pour ce rapport.</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+<script>
+(function () {
+  var k = '', q = '';
+  var items = document.querySelectorAll('.rl-item');
+  function show(id) {
+    items.forEach(function (b) { b.classList.toggle('on', b.dataset.id === id); });
+    document.querySelectorAll('.report').forEach(function (a) { a.hidden = a.id !== id; });
+  }
+  function apply() {
+    var first = null, current = document.querySelector('.rl-item.on');
+    items.forEach(function (b) {
+      var art = document.getElementById(b.dataset.id);
+      var ok = (!k || b.dataset.k === k) && (!q || art.textContent.toLowerCase().indexOf(q) !== -1);
+      b.hidden = !ok; if (ok && !first) first = b;
+    });
+    document.querySelectorAll('.reader-list .tl-day').forEach(function (h) {
+      var n = h.nextElementSibling, any = false;
+      while (n && !n.classList.contains('tl-day')) { if (n.classList.contains('rl-item') && !n.hidden) any = true; n = n.nextElementSibling; }
+      h.hidden = !any;
+    });
+    var e = document.querySelector('.filter-empty'); if (e) e.hidden = !!first;
+    if (first && (!current || current.hidden)) show(first.dataset.id);
+  }
+  items.forEach(function (b) {
+    b.addEventListener('click', function () {
+      show(b.dataset.id);
+      if (window.innerWidth < 900) document.getElementById('pane').scrollIntoView({behavior: 'smooth'});
+    });
+  });
+  document.querySelectorAll('.chip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      c.classList.add('on'); k = c.dataset.k; apply();
+    });
+  });
+  var s = document.getElementById('q'); if (s) s.addEventListener('input', function () { q = s.value.toLowerCase(); apply(); });
+  document.querySelectorAll('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var t = document.getElementById(b.dataset.copy).value;
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () {
+        b.textContent = 'Copié ✓';
+      }, function () { b.textContent = 'Copie impossible'; });
+    });
+  });
+})();
+</script>
+{% endblock %}

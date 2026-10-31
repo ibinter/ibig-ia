@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Validation{% endblock %}
+{% block bare %}
+<div style="min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg)">
+<div class="card" style="width:100%;max-width:720px">
+  <div class="brand" style="padding:0 0 18px;color:var(--ink)">
+    <span class="logo"><svg viewBox="0 0 24 24"><path d="M7 18V6m5 12V6m5 12V6"/></svg></span>
+    <span><b>Agent IA IBIG</b><small style="color:var(--muted)">Validation par mail</small></span>
+  </div>
+  {% if error %}
+    <div class="alert">{{ icon('alert') }}<span>{{ error }}</span></div>
+    <p style="margin-top:14px"><a class="btn" href="/validations">Ouvrir le tableau de bord</a></p>
+  {% elif done %}
+    <div class="flash ok">{{ icon('check-circle') }}<span>{{ done }}</span></div>
+    <p class="muted">{{ pa.title }} · décision enregistrée au nom de {{ who.name }}.</p>
+    <a class="btn" href="/validations">Voir les autres validations</a>
+  {% else %}
+    <div class="meta pills" style="margin-bottom:10px"><span class="pill amber">à valider</span><span class="pill blue">{{ pa.channel }}</span>{% if pa.pole %}<span class="pill violet">{{ pa.pole }}</span>{% endif %}<span class="muted">{{ pa.created_at | quand }}</span></div>
+    <h2 style="margin-bottom:10px">{{ pa.title }}</h2>
+    {% if pa.payload.get('resume') %}<div class="summary"><b>Résumé :</b> {{ pa.payload.resume }}</div>{% endif %}
+    {% if pa.payload.get('contenu_html') %}
+      <div class="article"><h2>{{ pa.payload.get('titre', '') }}</h2>{{ pa.payload.contenu_html | apercu }}</div>
+    {% else %}
+      {% set txt = pa.payload.get('body') or pa.payload.get('texte') or '' %}
+      <div class="article"><pre style="font-family:inherit;font-size:14.5px;color:var(--ink)">{{ txt }}</pre></div>
+    {% endif %}
+    {% for al in pa.payload.get('alertes', []) %}<div class="alert" style="margin-top:8px">{{ icon('alert') }}<span>Absent de la base de connaissances — {{ al }}</span></div>{% endfor %}
+    {% set txt = pa.payload.get('body') or pa.payload.get('texte') or pa.payload.get('contenu_html') or '' %}
+    {% if 'COMPLÉTER' in txt.upper() %}<div class="alert amber" style="margin-top:10px">{{ icon('alert') }}<span>Texte incomplet : corrigez-le depuis le tableau de bord avant de valider.</span></div>{% endif %}
+    <form method="post" class="actions" style="margin-top:18px">
+      <button class="btn ok" name="decision" value="valider">{{ icon('check') }} Valider et envoyer</button>
+      <a class="btn" href="/validations">Modifier dans le tableau de bord</a>
+    </form>
+    <form method="post" class="actions">
+      <input class="grow" type="text" name="motif" placeholder="Motif du rejet">
+      <button class="btn ghost-bad" name="decision" value="rejeter">{{ icon('x') }} Rejeter</button>
+    </form>
+    <p class="muted small" style="margin-top:14px">{{ icon('lock') }} Lien personnel de {{ who.name }}, valable 48 h. La décision est inscrite au journal.</p>
+  {% endif %}
+</div>
+</div>
+{% endblock %}

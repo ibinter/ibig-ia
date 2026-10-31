@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Base de connaissances{% endblock %}
+{% block heading %}Base de connaissances{% endblock %}
+{% block lead %}<p class="lead">La source unique de vérité (section 7) : un agent ne publie jamais un prix, un contact ou une promesse qui n'y figure pas. Complétez chaque « À COMPLÉTER » ici, directement.</p>{% endblock %}
+{% block content %}
+{% set ns = namespace(total=0, done=0, todo=0, review=0) %}
+{% for title, ic, why, kind, rows in groups if kind != 'publication' %}{% for d, todo, edited, review in rows %}
+  {% set ns.total = ns.total + 1 %}{% set ns.todo = ns.todo + todo %}{% set ns.review = ns.review + review %}
+  {% if not todo and not review and d.meta.get('statut') != 'a_completer' %}{% set ns.done = ns.done + 1 %}{% endif %}
+{% endfor %}{% endfor %}
+{% set pct = (100 * ns.done / ns.total) | round | int if ns.total else 0 %}
+{% set sites = poles | selectattr('site') | list %}
+{% set n_imported = namespace(v=0) %}{% for p in sites %}{% if imports.get(p.code, {}).get('etat') == 'fait' %}{% set n_imported.v = n_imported.v + 1 %}{% endif %}{% endfor %}
+{% set all_poles = namespace(v=[]) %}
+{% for title, ic, why, kind, rows in groups %}{% for d, t, e, r in rows %}{% if d.pole and d.pole not in all_poles.v %}{% set all_poles.v = all_poles.v + [d.pole] %}{% endif %}{% endfor %}{% endfor %}
+
+<section class="score-hero">
+  <div class="score-ring">
+    <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="ring-bg"/>
+      <circle cx="50" cy="50" r="42" class="ring-val {{ 'good' if pct >= 75 else ('mid' if pct >= 40 else 'low') }}" stroke-dasharray="{{ (263.9 * pct / 100) | round(1) }} 263.9"/></svg>
+    <div class="ring-txt"><b>{{ pct }}<small>%</small></b><span>de la base complète</span></div>
+  </div>
+  <div class="score-txt">
+    <h2>{{ ns.done }} document{{ 's' if ns.done > 1 }} complet{{ 's' if ns.done > 1 }} sur {{ ns.total }}</h2>
+    <p class="muted">Plus la base est complète, plus les agents répondent seuls et juste. Commencez par les fiches des pôles : sans fiche validée, un pôle n'a ni publications ni articles.</p>
+    <div class="inline" style="gap:8px;margin-top:10px">
+      <span class="pill amber dot">{{ ns.todo }} « À COMPLÉTER »</span>
+      <span class="pill blue dot">{{ ns.review }} réponse{{ 's' if ns.review > 1 }} importée{{ 's' if ns.review > 1 }} à relire</span>
+      <span class="pill green dot">{{ faq_ready }} réponse{{ 's' if faq_ready > 1 }} FAQ prête{{ 's' if faq_ready > 1 }}</span>
+      <span class="pill violet dot">{{ n_imported.v }} / {{ sites | length }} sites importés</span>
+    </div>
+  </div>
+</section>
+
+<div class="filter-bar">
+  <div class="chips">
+    <button type="button" class="chip on" data-s="">Tout</button>
+    <button type="button" class="chip" data-s="todo">À compléter ou relire</button>
+    <button type="button" class="chip" data-s="ok">Complets</button>
+  </div>
+  <div class="inline" style="gap:8px">
+    {% if all_poles.v | length > 1 %}<select id="f-pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in all_poles.v | sort %}<option>{{ p }}</option>{% endfor %}</select>{% endif %}
+    <input type="search" id="q" placeholder="Chercher un document…" style="width:220px">
+  </div>
+</div>
+
+<div class="card">
+  <div class="tabs" role="tablist" data-remember="kb">
+    {% for title, ic, why, kind, rows in groups if kind != 'publication' %}
+    {% set left = rows | selectattr('1') | list | length + rows | selectattr('3') | list | length %}
+    <button type="button" class="tab {{ 'on' if loop.first }}" data-tab="kb-{{ kind or 'commun' }}">{{ icon(ic) }} {{ title.split(',')[0] if kind == '' else title }} <span class="pill {{ 'amber' if left }}">{{ rows | length }}</span></button>
+    {% endfor %}
+    {% if can_edit %}<button type="button" class="tab" data-tab="kb-import">{{ icon('globe') }} Import des sites <span class="pill {{ 'green' if n_imported.v == sites | length and sites }}">{{ n_imported.v }}/{{ sites | length }}</span></button>{% endif %}
+  </div>
+
+  {% for title, ic, why, kind, rows in groups if kind != 'publication' %}
+  <section class="tab-panel" id="kb-{{ kind or 'commun' }}" {{ 'hidden' if not loop.first }}>
+    <div class="panel-head">
+      <p class="muted">{{ why }}</p>
+      {% if kind == 'guide' and can_edit %}
+      <form method="post" action="/connaissances/guide" class="inline new-guide">
+        <input type="text" name="titre" placeholder="Titre du guide (ex. IBIG School : inscrire un élève)" required>
+        <select name="pole">{% for p in poles %}<option value="{{ p.code }}" {{ 'selected' if p.code == 'SOFT' }}>{{ p.code }}</option>{% endfor %}</select>
+        <button class="btn sm primary">{{ icon('edit') }} Nouveau guide</button>
+      </form>{% endif %}
+    </div>
+    {% if rows %}
+    <div class="kb-grid">
+      {% for d, todo, edited, review in rows | sort(attribute='1', reverse=true) %}
+      {% set ok = not todo and not review and d.meta.get('statut') != 'a_completer' %}
+      <a href="/connaissances/document?chemin={{ d.path | urlencode }}" class="kb-card {{ 'ok' if ok else 'todo' }}" data-s="{{ 'ok' if ok else 'todo' }}" data-pole="{{ d.pole }}">
+        <span class="kb-ico {{ 'ok' if ok else 'todo' }}">{{ icon('check' if ok else 'edit') }}</span>
+        <span class="kb-main">
+          <b>{{ d.titre }}</b>
+          <small>{% if d.pole %}<span class="pill violet">{{ d.pole }}</span>{% endif %}
+            {% if ok %}<span class="pill green">complet</span>{% endif %}
+            {% if todo %}<span class="pill amber">{{ todo }} à compléter</span>{% endif %}
+            {% if review %}<span class="pill blue">{{ review }} à relire</span>{% endif %}
+            {% if not ok and not todo and not review %}<span class="pill amber">à valider</span>{% endif %}
+            {% if edited %}<span class="pill">modifié ici</span>{% endif %}
+            {% if kind == 'guide' %}<span class="pill {{ 'green' if d.meta.get('reponses_auto') else '' }}">{{ 'réponses automatiques' if d.meta.get('reponses_auto') else 'réponses relues' }}</span>{% endif %}
+          </small>
+        </span>
+        <span class="kb-go">{{ icon('arrow-right') }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <p class="muted filter-empty" hidden style="text-align:center">Aucun document pour ce filtre.</p>
+    {% else %}
+    <div class="empty"><div class="bubble">{{ icon(ic) }}</div><b>Aucun document</b>{{ 'Créez le premier guide avec le formulaire ci-dessus.' if kind == 'guide' else 'Lancez l\'import des sites pour remplir cette partie.' }}</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if can_edit %}
+  <section class="tab-panel" id="kb-import" hidden>
+    <div class="panel-head">
+      <p class="muted"><b style="color:var(--ink)">Importer depuis vos sites.</b> L'agent lit le site de chaque pôle et les sites qu'il cite, puis remplit la fiche, le catalogue, les questions fréquentes et les contacts avec ce qui y est écrit — rien d'inventé. Chaque fiche reste « à valider » jusqu'à votre relecture.</p>
+      <form method="post" action="/connaissances/importer"><button class="btn primary" {{ 'disabled' if importing }}>{{ icon('sparkles') }} {{ 'Import en cours…' if importing else 'Tout importer' }}</button></form>
+    </div>
+    <div class="imp-grid">
+      {% for p in sites %}{% set st = imports.get(p.code, {}) %}{% set e = st.get('etat', '') %}
+      <div class="imp e-{{ e or 'jamais' }}">
+        <div class="imp-head">
+          <span class="acc-ico" style="background:var(--brand-soft);color:var(--brand)">{{ icon('globe') }}</span>
+          <div class="acc-name"><b>{{ p.nom }}</b><small><a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site | replace('https://', '') | replace('www.', '') | trim('/') }}</a></small></div>
+        </div>
+        <div class="imp-state">
+          {% if e == 'fait' %}<span class="pill green dot">importé</span>{% elif e == 'en_cours' %}<span class="pill amber dot">en cours</span>{% elif e == 'echec' %}<span class="pill red dot">échec</span>{% else %}<span class="pill dot">jamais importé</span>{% endif %}
+          {% if st.get('at') %}<span class="muted small">le {{ st.at[8:10] }}/{{ st.at[5:7] }}/{{ st.at[:4] }}</span>{% endif %}
+        </div>
+        {% if st.get('resume') %}<p class="muted small imp-sum">{{ st.resume }}</p>{% endif %}
+        <form method="post" action="/connaissances/importer"><input type="hidden" name="pole" value="{{ p.code }}">
+          <button class="btn sm" {{ 'disabled' if importing }}>{{ icon('arrow-right') }} {{ 'Réimporter' if e == 'fait' else 'Importer' }}</button></form>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+
+<a class="setup-strip" href="/publications" style="margin-top:16px">
+  <span class="setup-strip-ico">{{ icon('sparkles') }}</span>
+  <span class="setup-strip-txt"><b>Publications réussies</b><small>Les modèles de style de l'agent Communication ont leur propre page.</small></span>
+  {{ icon('arrow-right') }}
+</a>
+<script>
+(function () {
+  var s = '', pole = '', q = '';
+  function apply() {
+    document.querySelectorAll('.tab-panel').forEach(function (panel) {
+      var cards = panel.querySelectorAll('.kb-card'), shown = 0;
+      cards.forEach(function (c) {
+        var ok = (!s || c.dataset.s === s) && (!pole || c.dataset.pole === pole) && (!q || c.textContent.toLowerCase().indexOf(q) !== -1);
+        c.hidden = !ok; if (ok) shown++;
+      });
+      var e = panel.querySelector('.filter-empty'); if (e) e.hidden = !cards.length || shown > 0;
+    });
+  }
+  document.querySelectorAll('.chip').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); s = b.dataset.s; apply();
+    });
+  });
+  var sel = document.getElementById('f-pole'); if (sel) sel.addEventListener('change', function () { pole = sel.value; apply(); });
+  document.getElementById('q').addEventListener('input', function () { q = this.value.toLowerCase(); apply(); });
+})();
+</script>
+{% endblock %}

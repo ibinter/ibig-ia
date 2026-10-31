@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Comptes{% endblock %}
+{% block heading %}Comptes du tableau de bord{% endblock %}
+{% block lead %}<p class="lead">Comptes nominatifs : chaque décision est tracée au nom de la personne. Les pôles d'un valideur viennent de <code>config/poles.yaml</code>.</p>{% endblock %}
+{% block content %}
+{% set ROLES = {'admin': ('violet', 'Administration', 'shield'), 'direction': ('blue', 'Direction', 'users'), 'valideur': ('amber', 'Valideur', 'check-circle')} %}
+{% set actives = rows | selectattr('0.active') | list %}
+{% set heads = actives | selectattr('0.role', 'in', ['admin', 'direction']) | list | length %}
+{% set vals = actives | selectattr('0.role', 'equalto', 'valideur') | list %}
+{% set phones = actives | selectattr('0.phone') | list | length %}
+{% set cov = namespace(missing=[]) %}
+{% for p in poles if p.code != 'GROUPE' %}{% set ns = namespace(n=0) %}
+  {% for u, ups in vals %}{% if p.code in ups %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+  {% if not ns.n %}{% set cov.missing = cov.missing + [p.code] %}{% endif %}
+{% endfor %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-blue"><b>{{ actives | length }}</b><span>compte{{ 's' if actives | length > 1 }} actif{{ 's' if actives | length > 1 }}</span></div>
+  <div class="cal-stat s-violet"><b>{{ heads }}</b><span>direction ou administration</span></div>
+  <div class="cal-stat s-amber"><b>{{ vals | length }}</b><span>valideur{{ 's' if vals | length > 1 }} de pôle</span></div>
+  <div class="cal-stat s-green"><b>{{ phones }}/{{ actives | length }}</b><span>valident aussi par WhatsApp</span></div>
+</div>
+
+<div class="grid g-main">
+  <div class="stack">
+    <div class="user-grid">
+      {% for u, ups in rows %}{% set r = ROLES.get(u.role, ('', u.role, 'user')) %}
+      <article class="card user {{ 'off' if not u.active }}">
+        <header>
+          <span class="avatar" style="width:44px;height:44px;font-size:15px">{{ u.name | initiales }}</span>
+          <div class="acc-name"><b>{{ u.name }}</b><small>{{ u.email }}</small></div>
+          {% if u.active %}<span class="pill green dot">actif</span>{% else %}<span class="pill red dot">désactivé</span>{% endif %}
+        </header>
+        <div class="user-role">
+          <span class="pill {{ r[0] }}">{{ icon(r[2]) }} {{ r[1] }}</span>
+          {% if ups %}{% for p in ups %}<span class="pill">{{ p }}</span>{% endfor %}
+          {% else %}<span class="muted small">{{ 'tous les pôles' if u.role != 'valideur' else 'aucun pôle' }}</span>{% endif %}
+        </div>
+        <form method="post" action="/utilisateurs/{{ u.id }}/telephone" class="user-phone">
+          <label><span class="muted small">{{ icon('message') }} WhatsApp pour valider</span>
+            <input type="tel" name="telephone" value="{{ '+' ~ u.phone if u.phone else '' }}" placeholder="+225 07 00 00 00 00"></label>
+          <button class="btn sm" title="Enregistrer le numéro">{{ icon('check') }} Enregistrer</button>
+        </form>
+        <details class="user-reset">
+          <summary>{{ icon('lock') }} {{ 'Changer mon mot de passe' if u.id == user.id else 'Réinitialiser le mot de passe' }}</summary>
+          {% if u.id == user.id %}<p class="muted small"><a href="/compte">Passez par « Mon compte »</a> : l'ancien mot de passe y est demandé.</p>
+          {% else %}
+          <form method="post" action="/utilisateurs/{{ u.id }}/mot-de-passe" autocomplete="off"
+                data-confirm="Changer le mot de passe de {{ u.name }} ? Ses sessions ouvertes seront fermées.">
+            <input type="password" name="nouveau" required minlength="10" placeholder="Nouveau mot de passe (10 caractères min.)" autocomplete="new-password">
+            <input type="password" name="confirmation" required minlength="10" placeholder="Confirmer" autocomplete="new-password">
+            <button class="btn sm">{{ icon('check') }} Enregistrer</button>
+            <p class="muted small" style="margin:0">Communiquez-le à la personne de vive voix ; elle le changera dans « Mon compte ».</p>
+          </form>
+          {% endif %}
+        </details>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="stack" style="align-self:start">
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('shield-check') }} Validation par pôle</h2><div class="sub">Qui valide quoi</div></div></div>
+      <ul class="mini-list">
+        {% for p in poles if p.code != 'GROUPE' %}
+        {% set names = namespace(v=[]) %}{% for u, ups in vals %}{% if p.code in ups %}{% set names.v = names.v + [u.name.split(' (')[0]] %}{% endif %}{% endfor %}
+        <li><span class="mini-txt"><b>{{ p.code }}</b><small>{{ names.v | join(', ') if names.v else 'la direction seulement' }}</small></span>
+          {% if names.v %}<span class="pill green dot">{{ names.v | length }}</span>{% else %}<span class="pill amber dot">aucun valideur</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% if cov.missing %}<p class="muted small" style="margin:10px 0 0">Sans valideur, les éléments de ces pôles attendent la direction.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('message') }} Valider depuis WhatsApp</h2><div class="sub">Section 12</div></div>
+        {% if whatsapp_ready %}<span class="pill green dot">raccordé</span>{% else %}<span class="pill amber dot">non raccordé</span>{% endif %}</div>
+      <ul class="agent-does">
+        <li>{{ icon('check') }}<span>Chaque nouvel élément à valider est signalé au valideur avec son numéro.</span></li>
+        <li>{{ icon('check') }}<span>Il répond <b>OK 123</b> pour valider, <b>NON 123 motif</b> pour rejeter. Seuls ses pôles ; le niveau 3 reste au tableau de bord.</span></li>
+        <li>{{ icon('alert') }}<span>Hors des 24 h qui suivent son dernier message, Meta n'accepte qu'un modèle validé : indiquez son nom dans <code>IBIG_WHATSAPP_VALIDATION_TEMPLATE</code>{% if template %} (actuel : <b>{{ template }}</b>){% endif %}.</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('user') }} Ajouter un compte</h2><div class="sub">Sur le serveur, dans /opt/ibig-ia</div></div></div>
+      {% set cmd = 'docker compose exec agent ibig-agent utilisateur ajouter --email prenom@ibigsoft.com --nom "Prénom Nom" --role valideur' %}
+      <pre class="cmd">{{ cmd }}</pre>
+      <button type="button" class="btn sm" data-copy-text="{{ cmd }}">{{ icon('file') }} Copier la commande</button>
+      <div class="role-help">
+        <div><span class="pill violet">admin</span><small>tout, y compris les comptes</small></div>
+        <div><span class="pill blue">direction</span><small>tous les pôles, lancer les agents</small></div>
+        <div><span class="pill amber">valideur</span><small>ses pôles seulement</small></div>
+      </div>
+      <p class="muted small" style="margin:8px 0 0">Le mot de passe est demandé à la création.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

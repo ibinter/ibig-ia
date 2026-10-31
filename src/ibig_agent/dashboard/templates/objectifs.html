@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Objectifs{% endblock %}
+{% block heading %}Objectifs et consignes{% endblock %}
+{% block lead %}<p class="lead">Vos priorités pour les agents (section 5) : l'agent chef en tient compte dans le plan de la semaine, et les agents qui rédigent les suivent — toujours dans le respect de la base de connaissances.</p>{% endblock %}
+{% block content %}
+{% set ns = namespace(soon=0, group=0) %}
+{% for d in active %}{% if d.until and (d.until | jours_restants) <= 7 %}{% set ns.soon = ns.soon + 1 %}{% endif %}{% if not d.pole %}{% set ns.group = ns.group + 1 %}{% endif %}{% endfor %}
+{% set poles_cov = active | map(attribute='pole') | reject('equalto', '') | unique | list %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-blue"><b>{{ active | length }}</b><span>objectif{{ 's' if active | length > 1 }} en cours</span></div>
+  <div class="cal-stat s-violet"><b>{{ ns.group }}</b><span>pour tout le groupe</span></div>
+  <div class="cal-stat s-green"><b>{{ poles_cov | length }}</b><span>pôle{{ 's' if poles_cov | length > 1 }} avec une consigne</span></div>
+  <div class="cal-stat s-amber"><b>{{ ns.soon }}</b><span>se termine{{ 'nt' if ns.soon > 1 }} sous 7 jours</span></div>
+</div>
+
+<div class="grid g-main">
+  <div class="stack">
+    {% if can_edit %}
+    <form class="card" method="post" action="/objectifs" id="new">
+      <div class="card-head"><div><h2>{{ icon('target') }} Nouvel objectif</h2><div class="sub">Une phrase claire suffit : les agents la reçoivent telle quelle.</div></div></div>
+      <div class="idea-chips">
+        <span class="muted small">Idées :</span>
+        {% for idea in ["Mettre en avant la rentrée d'IBIG School tout le mois d'octobre",
+                        "Annoncer le salon de l'immobilier du 15 novembre",
+                        "Pousser l'offre d'essai gratuit du logiciel de gestion scolaire",
+                        "Publier plus de témoignages clients cette semaine",
+                        "Ton plus chaleureux dans les réponses aux parents d'élèves"] %}
+        <button type="button" class="chip" data-idea="{{ idea }}">{{ idea }}</button>
+        {% endfor %}
+      </div>
+      <label class="field"><span>Objectif ou consigne</span><textarea name="texte" id="texte" required maxlength="1000" style="min-height:100px" placeholder="Ce que les agents doivent pousser en priorité…"></textarea>
+        <small class="muted counter" id="cnt">0 / 1000</small></label>
+      <div class="grid g-2" style="gap:12px">
+        <label class="field"><span>Pôle concerné</span><select name="pole" style="width:100%"><option value="">Tout le groupe</option>{% for p in poles %}<option value="{{ p.code }}">{{ p.nom }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Jusqu'au (facultatif)</span><input type="date" name="jusqu_au"></label>
+      </div>
+      <button class="btn primary">{{ icon('check') }} Enregistrer l'objectif</button>
+    </form>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('list') }} Objectifs en cours</h2><div class="sub">Suivis par les agents dès leur prochaine rédaction</div></div></div>
+      {% if not active %}
+      <div class="empty"><div class="bubble">{{ icon('target') }}</div><b>Aucun objectif</b>Sans consigne, les agents suivent simplement le rythme prévu par le cahier des charges.</div>
+      {% endif %}
+      <div class="obj-list">
+      {% for d in active %}
+        {% set left = d.until | jours_restants if d.until else none %}
+        <article class="obj {{ 'soon' if left is not none and left <= 7 }}">
+          <span class="obj-ico">{{ icon('target') }}</span>
+          <div class="obj-body">
+            <p>{{ d.text }}</p>
+            <div class="obj-meta">
+              <span class="pill {{ 'violet' if d.pole else 'blue' }}">{{ d.pole or 'Tout le groupe' }}</span>
+              {% if left is none %}<span class="pill">sans échéance</span>
+              {% elif left <= 0 %}<span class="pill amber dot">se termine aujourd'hui</span>
+              {% else %}<span class="pill {{ 'amber' if left <= 7 else 'green' }} dot">encore {{ left }} jour{{ 's' if left > 1 }} · {{ d.until | quand(false) }}</span>{% endif %}
+              <span class="muted small">{{ d.created_by.split(' <')[0] }} · {{ d.created_at | quand(false) }}</span>
+            </div>
+          </div>
+          {% if can_edit %}<form method="post" action="/objectifs/{{ d.id }}/retirer" onsubmit="return confirm('Retirer cet objectif ?')"><button class="icon-btn" title="Retirer" aria-label="Retirer">{{ icon('x') }}</button></form>{% endif %}
+        </article>
+      {% endfor %}
+      </div>
+      {% if past %}
+      <details class="past">
+        <summary>{{ past | length }} objectif{{ 's' if past | length > 1 }} terminé{{ 's' if past | length > 1 }} ou retiré{{ 's' if past | length > 1 }}</summary>
+        <ul class="mini-list">
+          {% for d in past %}<li><span class="mini-txt"><b style="font-weight:500">{{ d.text }}</b><small>{{ d.pole or 'tout le groupe' }} · {{ d.created_at | quand(false) }}{% if d.until %} → {{ d.until | quand(false) }}{% endif %}</small></span></li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card plan-card" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('calendar') }} Plan de la semaine</h2><div class="sub">Rédigé par l'agent chef chaque lundi à 7 h 30, d'après vos objectifs</div></div></div>
+    {% if can_edit %}<form method="post" action="/agents/lancer/plan" style="margin-bottom:14px"><input type="hidden" name="retour" value="/objectifs">
+      <button class="btn primary sm" onclick="this.innerHTML='Préparation…'">{{ icon('sparkles') }} {{ 'Refaire le plan' if plan else 'Préparer le plan maintenant' }}</button></form>{% endif %}
+    {% if plan %}
+      <div class="muted small" style="margin-bottom:10px">{{ plan.summary }} · {{ plan.created_at | depuis }}</div>
+      <div class="report-body compact">
+      {% for kind, line in plan.details.get('texte', '') | rapport %}
+        {% if kind == 'h' %}<h3>{{ line }}</h3>{% elif kind == 'p' %}<p>{{ line }}</p>
+        {% else %}<div class="rline r-{{ kind }}"><span>{{ icon({'ok': 'check', 'ko': 'x', 'wait': 'clock'}.get(kind, 'arrow-right')) }}</span><p>{{ line }}</p></div>{% endif %}
+      {% endfor %}
+      </div>
+      <a class="btn sm" href="/rapports" style="margin-top:12px">{{ icon('file') }} Tous les rapports</a>
+    {% else %}
+      <div class="empty"><div class="bubble">{{ icon('calendar') }}</div><b>Pas encore de plan</b>Cliquez sur « Préparer le plan maintenant », puis actualisez la page dans une minute.</div>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  var t = document.getElementById('texte'), c = document.getElementById('cnt');
+  if (!t) return;
+  function count() { c.textContent = t.value.length + ' / 1000'; }
+  t.addEventListener('input', count);
+  document.querySelectorAll('[data-idea]').forEach(function (b) {
+    b.addEventListener('click', function () { t.value = b.dataset.idea; count(); t.focus(); });
+  });
+})();
+</script>
+{% endblock %}

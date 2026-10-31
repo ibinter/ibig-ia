@@ -1,0 +1,90 @@
+# Les 8 pôles d'IBIG SARL (section 2 du cahier des charges).
+# `code` est l'identifiant utilisé partout (classement, comptes, fiches).
+# `valideur` / `suppleant` : ADRESSES MAIL, à compléter par IBIG avant la phase 1
+# (section 19). Elles donnent les droits de validation du pôle dans le tableau de bord
+# (compte créé avec `ibig-agent utilisateur ajouter`) et reçoivent les alertes.
+# `commercial` : adresse du commercial du pôle, qui reçoit les alertes prospects
+# (à défaut, le valideur). `support` : adresse qui reçoit les tickets du support
+# (à défaut, le valideur).
+poles:
+  - code: GROUPE
+    nom: IBIG SARL (Groupe)
+    site: https://intermark-business.com/
+    activite: Communication institutionnelle du groupe
+    cibles: Grand public, partenaires, institutions
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: EDUFORM
+    nom: IBIG EDUFORM
+    site: https://ibig-eduform.com/
+    activite: Formation professionnelle, certifications métiers, insertion
+    cibles: Jeunes diplômés, salariés, entreprises
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: IMMOTRUST
+    nom: IBIG IMMOTRUST
+    site: https://ibigimmotrust.com/
+    activite: Immobilier, BTP, sécurisation des investissements
+    cibles: Investisseurs, diaspora, particuliers
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: SOFT
+    nom: IBIG SOFT
+    site: https://ibigsoft.com/
+    activite: Édition logicielle, SaaS, applications métiers (14 solutions)
+    cibles: PME, écoles, cliniques, agences, ONG
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: MARKET
+    nom: IBIG MARKET
+    site: https://ibig-market.com/
+    activite: Commerce, distribution, e-commerce
+    cibles: Particuliers, revendeurs
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: DIGITAL
+    nom: IBIG DIGITAL
+    site: https://ibig-digital.com/
+    activite: Digitalisation, ERP, intelligence artificielle
+    cibles: Entreprises et institutions
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: CONSEIL
+    nom: IBIG CONSEIL+
+    site: https://intermark-business.com/conseil/
+    activite: Conseil stratégique, ingénierie de projets, structuration
+    cibles: Dirigeants, porteurs de projets
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: PARTNERS
+    nom: IBIG PARTNERS
+    site: https://www.ibigpartners.com/
+    activite: Représentation commerciale, partenariats stratégiques
+    cibles: Revendeurs, apporteurs d'affaires
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""
+  - code: MULTISERVICES
+    nom: IBIG MULTISERVICES
+    site: https://intermark-business.com/multiservices
+    activite: Logistique, RH, transport, communication, tourisme
+    cibles: Entreprises, particuliers
+    valideur: ""
+    suppleant: ""
+    commercial: ""
+    support: ""

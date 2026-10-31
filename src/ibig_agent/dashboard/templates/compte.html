@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Mon compte{% endblock %}
+{% block heading %}Mon compte{% endblock %}
+{% block lead %}<p class="lead">Votre mot de passe et vos sessions ouvertes. Chaque décision prise au tableau de bord est tracée à votre nom.</p>{% endblock %}
+{% block content %}
+{% set ROLES = {'admin': ('violet', 'Administration'), 'direction': ('blue', 'Direction'), 'valideur': ('amber', 'Valideur')} %}
+<div class="grid g-main">
+  <form class="card" method="post" action="/compte/mot-de-passe" autocomplete="off" id="pwd-form">
+    <div class="card-head"><div><h2>{{ icon('lock') }} Changer mon mot de passe</h2>
+      <div class="sub">Vos autres appareils seront déconnectés ; celui-ci reste connecté.</div></div></div>
+    <label class="field"><span>Mot de passe actuel</span>
+      <span class="pwd"><input type="password" name="actuel" required autocomplete="current-password"><button type="button" class="pwd-eye" aria-label="Afficher">{{ icon('eye') }}</button></span></label>
+    <label class="field"><span>Nouveau mot de passe</span>
+      <span class="pwd"><input type="password" name="nouveau" id="new" required minlength="{{ min_password }}" autocomplete="new-password"><button type="button" class="pwd-eye" aria-label="Afficher">{{ icon('eye') }}</button></span></label>
+    <div class="pwd-meter"><span id="meter"></span></div>
+    <ul class="pwd-rules" id="rules">
+      <li data-r="len">{{ icon('check') }} au moins {{ min_password }} caractères</li>
+      <li data-r="mix">{{ icon('check') }} lettres et chiffres (ou symboles)</li>
+      <li data-r="mail">{{ icon('check') }} ne contient pas votre adresse mail</li>
+    </ul>
+    <label class="field"><span>Confirmer le nouveau mot de passe</span>
+      <span class="pwd"><input type="password" name="confirmation" id="conf" required autocomplete="new-password"><button type="button" class="pwd-eye" aria-label="Afficher">{{ icon('eye') }}</button></span>
+      <small class="muted" id="same"></small></label>
+    <button class="btn primary lg" id="go" style="width:100%;justify-content:center">{{ icon('check') }} Changer le mot de passe</button>
+    <p class="muted small" style="margin:10px 0 0">Astuce : une phrase de 4 ou 5 mots est plus solide et plus facile à retenir qu'un mot compliqué.</p>
+  </form>
+
+  <div class="stack" style="align-self:start">
+    <div class="card">
+      <div class="user-head">
+        <span class="avatar" style="width:52px;height:52px;font-size:18px">{{ user.name | initiales }}</span>
+        <div class="acc-name"><b style="font-size:16px">{{ user.name }}</b><small>{{ user.email }}</small></div>
+      </div>
+      <div class="pills" style="margin-top:12px">
+        <span class="pill {{ ROLES.get(user.role, ('', ''))[0] }}">{{ ROLES.get(user.role, ('', user.role))[1] }}</span>
+        {% for p in user.poles %}<span class="pill">{{ p }}</span>{% endfor %}
+        {% if user.role != 'valideur' and not user.poles %}<span class="muted small">tous les pôles</span>{% endif %}
+      </div>
+      <ul class="mini-list" style="margin-top:12px">
+        <li><span class="mini-txt"><b>WhatsApp pour valider</b><small>{{ '+' ~ me.phone if me and me.phone else 'non renseigné' }}{% if user.role == 'admin' %} · <a href="/utilisateurs">modifier</a>{% endif %}</small></span></li>
+        <li><span class="mini-txt"><b>Compte créé</b><small>{{ me.created_at | quand(false) if me else '—' }}</small></span></li>
+        {% if me and me.sessions_valid_after %}<li><span class="mini-txt"><b>Dernière déconnexion générale</b><small>{{ me.sessions_valid_after | quand }}</small></span></li>{% endif %}
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('shield-check') }} Sessions</h2><div class="sub">Une connexion dure 12 h au plus.</div></div></div>
+      {% if session_end %}<p class="muted small" style="margin-top:0">Cette session se termine vers {{ session_end | heure_ts }}.</p>{% endif %}
+      <form method="post" action="/compte/deconnecter-partout" data-confirm="Déconnecter tous vos autres appareils (téléphone, autre ordinateur) ?">
+        <button class="btn" style="width:100%;justify-content:center">{{ icon('logout') }} Déconnecter mes autres appareils</button>
+      </form>
+      <p class="muted small" style="margin:10px 0 0">À faire si vous avez utilisé un ordinateur partagé, ou perdu votre téléphone.</p>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var email = {{ user.email.split('@')[0] | lower | tojson }};
+  var n = document.getElementById('new'), c = document.getElementById('conf'), meter = document.getElementById('meter');
+  document.querySelectorAll('.pwd-eye').forEach(function (b) {
+    b.addEventListener('click', function () { var i = b.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; });
+  });
+  function check() {
+    var v = n.value, ok = {
+      len: v.length >= {{ min_password }},
+      mix: /[a-zA-Z]/.test(v) && /[^a-zA-Z]/.test(v),
+      mail: !email || email.length < 4 || v.toLowerCase().indexOf(email) === -1
+    };
+    document.querySelectorAll('#rules li').forEach(function (li) { li.classList.toggle('ok', !!ok[li.dataset.r] && v.length > 0); });
+    var score = (v.length >= 10) + (v.length >= 14) + (/[a-z]/.test(v) && /[A-Z]/.test(v)) + /\d/.test(v) + /[^a-zA-Z0-9]/.test(v);
+    if (!ok.len || !ok.mail) score = Math.min(score, 1);
+    meter.style.width = (v ? Math.max(score, 1) * 20 : 0) + '%';
+    meter.className = score >= 4 ? 'strong' : (score >= 3 ? 'mid' : 'weak');
+    var same = document.getElementById('same');
+    same.textContent = c.value ? (c.value === v ? '✓ identiques' : '✗ différents') : '';
+    same.style.color = c.value === v ? 'var(--ok)' : 'var(--bad)';
+  }
+  n.addEventListener('input', check); c.addEventListener('input', check);
+})();
+</script>
+{% endblock %}

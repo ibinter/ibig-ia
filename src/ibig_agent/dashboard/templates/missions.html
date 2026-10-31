@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_mission_form.html" import fields %}
+{% block title %}Missions{% endblock %}
+{% block heading %}Missions{% endblock %}
+{% block lead %}<p class="lead">Une mission confie un objectif à un agent, avec des limites. Cycle : <b>brouillon → simulation → approbation → lancement</b>. La simulation ne contacte personne.</p>{% endblock %}
+{% block content %}
+{% set tone = {'brouillon': '', 'simule': 'blue', 'approuve': 'violet', 'en_cours': 'green', 'en_pause': 'amber', 'termine': 'green', 'arrete': 'red'} %}
+<form class="card" method="post" action="/autopilot" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('sparkles') }} Donner une instruction</h2><div class="sub">L'Autopilot la découpe en tâches avec leurs dépendances. Rien n'est envoyé ni publié : vous suivez chaque tâche et fournissez sa preuve.</div></div></div>
+  <textarea name="instruction" rows="2" required minlength="10" maxlength="2000" placeholder="Ex. : Préparer le lancement de la formation Excel avancé pour les PME d'Abidjan" style="width:100%;margin-bottom:8px"></textarea>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <select name="pole" aria-label="Pôle">{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select>
+    <button class="btn primary">{{ icon('check') }} Créer le plan</button>
+  </div>
+</form>
+{% if 'prospection' not in runners %}
+<div class="alert amber" style="margin-bottom:14px">{{ icon('alert') }}<span><b>Le Prospecteur ne contacte personne.</b> Il lit les fichiers que vous déposez sur la mission (exports Facebook, Google, LinkedIn, annuaires) et les pages publiques que le site autorise, écarte les doublons et note chaque fiche. Il ne parcourt pas Google ni les réseaux sociaux de lui-même : leurs conditions l'interdisent. Les autres types de mission restent « en attente d'un agent ».</span></div>
+{% endif %}
+<div class="grid g-main">
+  <div class="card">
+    <div class="card-head"><div><h2>{{ icon('list') }} Missions</h2></div></div>
+    <div class="chips" style="margin-bottom:10px">
+      <a class="chip {{ 'on' if not statut }}" href="/missions">Toutes</a>
+      {% for k, v in labels.items() %}<a class="chip {{ 'on' if statut == k }}" href="/missions?statut={{ k }}">{{ v }}</a>{% endfor %}
+    </div>
+    {% if not rows %}<div class="empty"><div class="bubble">{{ icon('list') }}</div><b>Aucune mission</b>Créez la première avec le formulaire.</div>{% endif %}
+    <ul class="prio-list">
+      {% for m in rows %}
+      <li><a href="/missions/{{ m.id }}">
+        <span class="todo-txt"><b>{{ m.name }}</b><small>{{ m.pole }}{% if m.product %} · {{ m.product }}{% endif %}{% if m.zone %} · {{ m.zone }}{% endif %} · {{ m.runs }} exécution{{ 's' if m.runs > 1 }}{% if m.budget_usd is not none %} · {{ '%.2f' | format(m.spent_usd) }}/{{ '%.2f' | format(m.budget_usd) }} USD{% endif %}</small></span>
+        <span class="pill {{ tone[m.status] }}">{{ labels[m.status] }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <form class="card" method="post" action="/missions" style="align-self:start">
+    <div class="card-head"><div><h2>{{ icon('sparkles') }} Nouvelle mission</h2><div class="sub">Enregistrée en brouillon : rien ne part</div></div></div>
+    {{ fields(none, poles, kinds, autonomies, channels, agents, agent_labels) }}
+    <button class="btn primary lg" style="width:100%;justify-content:center">{{ icon('check') }} Enregistrer le brouillon</button>
+  </form>
+</div>
+{% endblock %}

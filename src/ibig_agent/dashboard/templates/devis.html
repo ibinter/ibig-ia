@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Devis{% endblock %}
+{% block heading %}Devis{% endblock %}
+{% block lead %}<p class="lead">Un devis se crée depuis la fiche d'un prospect, avec les prix du catalogue. Il est <b>validé</b> par un responsable avant tout envoi ; quand le client répond, la fiche prospect passe à « gagné » ou « perdu ». Le règlement (« payé / livré ») viendra avec le suivi financier.</p>{% endblock %}
+{% block content %}
+{% set tone = {'brouillon': '', 'valide': 'blue', 'envoye': 'amber', 'accepte': 'green', 'refuse': 'red', 'expire': 'red', 'annule': ''} %}
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-amber"><b>{{ pipe.get('envoye', {}).get('n', 0) }}</b><span>en attente du client</span></div>
+  <div class="cal-stat s-green"><b>{{ pipe.get('accepte', {}).get('n', 0) }}</b><span>acceptés ({{ '{:,}'.format(pipe.get('accepte', {}).get('total', 0)).replace(',', ' ') }} FCFA)</span></div>
+  <div class="cal-stat s-red"><b>{{ pipe.get('refuse', {}).get('n', 0) }}</b><span>refusés</span></div>
+  <div class="cal-stat s-blue"><b>{{ pipe['_conversion']['pct'] }} %</b><span>taux d'acceptation</span></div>
+</div>
+<form class="filter-bar" method="get" action="/devis">
+  <select name="statut" aria-label="Statut"><option value="">Tous les statuts</option>{% for k, v in labels.items() %}<option value="{{ k }}" {{ 'selected' if k == statut }}>{{ v }}</option>{% endfor %}</select>
+  <button class="btn sm">{{ icon('search') }} Filtrer</button>
+</form>
+<section class="card">
+  {% if rows %}
+  <table class="tbl"><thead><tr><th>N°</th><th>Prospect</th><th>Pôle</th><th>Total</th><th>Statut</th><th>Mis à jour</th></tr></thead><tbody>
+  {% for q in rows %}<tr><td><a href="/devis/{{ q.id }}">{{ q.number }}</a></td><td><a href="/prospects/{{ q.prospect_id }}">{{ names.get(q.prospect_id, '—') }}</a></td><td>{{ q.pole or '—' }}</td><td>{{ '{:,}'.format(q.total).replace(',', ' ') }} {{ q.currency }}</td><td><span class="pill {{ tone.get(q.status, '') }} dot">{{ labels.get(q.status, q.status) }}</span></td><td>{{ q.updated_at | quand }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted">Aucun devis pour l'instant. Ouvrez une fiche prospect et cliquez sur « Créer un devis ».</p>{% endif %}
+</section>
+{% endblock %}

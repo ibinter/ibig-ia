@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ p.name or p.email }}{% endblock %}
+{% block heading %}{{ p.name or p.email.split('@')[0] }}{% endblock %}
+{% block lead %}<p class="lead"><a href="/prospects">← Tous les prospects</a> · {{ p.email }} · <span class="pill violet">{{ p.pole or 'pôle à préciser' }}</span> <span class="pill {{ 'green' if p.status == 'gagne' else ('red' if p.status in ['perdu', 'sans_suite', 'injoignable', 'invalide', 'exclu'] else 'blue') }}">{{ labels.get(p.status, p.status) }}</span></p>{% endblock %}
+{% block content %}
+<div class="grid g-main">
+  <div>
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('target') }} Fiche</h2></div></div>
+      <dl class="kv">
+        <dt>Besoin</dt><dd>{{ p.need or '—' }}</dd>
+        <dt>Solution visée</dt><dd>{{ p.solution or '—' }}</dd>
+        <dt>Qualification</dt><dd>{% if p.qualified_at %}{{ p.score }}/100 · {{ {'chaud': 'chaud', 'tiede': 'tiède', 'froid': 'froid'}.get(p.temperature, p.temperature) }} <small class="muted">(le {{ p.qualified_at | quand }})</small>{% else %}à qualifier{% endif %}</dd>
+        <dt>Prochaine étape</dt><dd>{{ p.next_step or '—' }}</dd>
+        <dt>Origine</dt><dd>{{ p.source or '—' }}{% if p.source_url %} · <a href="{{ p.source_url }}" rel="noopener noreferrer" target="_blank">{{ p.source_url }}</a>{% endif %}<br><small class="muted">collectée {{ p.collected_at | quand if p.collected_at else 'à une date inconnue' }} · vérification : {{ verification_labels.get(p.verification, p.verification) }}</small></dd>
+        <dt>Affectation</dt><dd>agent : {{ p.assigned_agent or '—' }} · commercial : {{ p.assigned_to or '—' }}</dd>
+        <dt>Suivi</dt><dd>{{ p.followups_sent }} relance{{ 's' if p.followups_sent > 1 }}{% if p.stop_followups %} · <span style="color:var(--bad)">relances arrêtées</span>{% endif %}</dd>
+      </dl>
+      {% if reasons %}<h3 style="margin:14px 0 6px">Pourquoi ce score</h3><ul>{% for r in reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+      {% if missing %}<div class="alert amber" style="margin-top:12px">{{ icon('alert') }}<span><b>Informations manquantes :</b> {{ missing | join(', ') }}.</span></div>{% endif %}
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('list') }} Fil d'activités</h2><div class="sub">Étapes, notes et événements, du plus récent au plus ancien</div></div></div>
+      {% if not activities %}<p class="muted">Aucune activité enregistrée.</p>{% endif %}
+      <ul class="prio-list">
+        {% for a in activities %}
+        <li><span class="todo-txt"><b>{{ {'etape': 'Étape', 'note': 'Note', 'contact': 'Contact', 'systeme': 'Système'}.get(a.kind, a.kind) }}</b> · {{ a.summary }}<br><small class="muted">{{ a.at | quand }}{% if a.by %} · {{ a.by }}{% endif %}</small></span></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div style="align-self:start">
+    {% if user.role != 'valideur' %}<form class="card" method="post" action="/prospects/{{ p.id }}/devis" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>Devis</h2><div class="sub">Prépare un brouillon avec les prix du catalogue</div></div></div>
+      <button class="btn">{{ icon('check') }} Créer un devis</button>
+    </form>{% endif %}
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('mail') }} Préparer un message</h2><div class="sub">Brouillons envoyés à la validation ; rien ne part sans vous.</div></div></div>
+      <form method="post" action="/prospects/{{ p.id }}/rendez-vous" style="margin-bottom:8px"><button class="btn" style="width:100%;justify-content:center">{{ icon('calendar') }} Proposer un rendez-vous</button></form>
+      {% if p.status in ['gagne', 'paye_livre'] %}<form method="post" action="/prospects/{{ p.id }}/apres-vente"><button class="btn" style="width:100%;justify-content:center">{{ icon('check') }} Message d'après-vente</button></form>{% endif %}
+    </div>
+    <form class="card" method="post" action="/prospects/{{ p.id }}/etape">
+      <div class="card-head"><div><h2>{{ icon('arrow-right') }} Changer d'étape</h2><div class="sub">« Payé / livré » vient d'une confirmation financière, jamais d'un changement manuel.</div></div></div>
+      <label class="field"><span>Nouvelle étape</span><select name="etape" style="width:100%">{% for s in stages %}<option value="{{ s }}" {{ 'selected' if s == p.status }}>{{ labels.get(s, s) }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Note (facultative)</span><input type="text" name="note" maxlength="300"></label>
+      <button class="btn primary">{{ icon('check') }} Enregistrer</button>
+    </form>
+
+    <form class="card" method="post" action="/prospects/{{ p.id }}/note" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('message') }} Ajouter une note</h2></div></div>
+      <label class="field"><span>Note</span><textarea name="texte" rows="3" maxlength="500" required></textarea></label>
+      <button class="btn">{{ icon('check') }} Ajouter</button>
+    </form>
+
+    <form class="card" method="post" action="/prospects/{{ p.id }}/origine" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('globe') }} Origine</h2></div></div>
+      <label class="field"><span>Adresse de la source</span><input type="url" name="source_url" value="{{ p.source_url }}" placeholder="https://…"></label>
+      <label class="field"><span>Vérification</span><select name="verification" style="width:100%">{% for v in verifications %}<option value="{{ v }}" {{ 'selected' if v == p.verification }}>{{ verification_labels[v] }}</option>{% endfor %}</select></label>
+      <button class="btn">{{ icon('check') }} Enregistrer</button>
+    </form>
+
+    {% if can_assign %}
+    <form class="card" method="post" action="/prospects/{{ p.id }}/affectation" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('user') }} Affectation</h2></div></div>
+      <label class="field"><span>Agent IA</span><input type="text" name="agent" value="{{ p.assigned_agent }}" placeholder="commercial"></label>
+      <label class="field"><span>Commercial</span><input type="text" name="commercial" value="{{ p.assigned_to }}" placeholder="Nom ou adresse mail"></label>
+      <button class="btn">{{ icon('check') }} Enregistrer</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
