@@ -65,6 +65,11 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         return act(pid, who, lambda: rt.commercial.propose_appointment(pid, who.label),
                    "Proposition de rendez-vous préparée : elle attend votre validation")
 
+    @app.post("/prospects/{pid:int}/sequence")
+    def sequence(pid: int, who: Principal = Depends(user)):
+        return act(pid, who, lambda: rt.commercial.start_sequence(pid, who.label),
+                   "Séquence lancée : le premier message attend votre validation")
+
     @app.post("/prospects/{pid:int}/apres-vente")
     def after_sales(pid: int, who: Principal = Depends(user)):
         return act(pid, who, lambda: rt.commercial.after_sales(pid, who.label),

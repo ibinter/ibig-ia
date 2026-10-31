@@ -64,6 +64,12 @@ def _activity(s: Session, prospect_id: int, kind: str, summary: str, by: str = "
     """Ligne du fil d'activités d'une fiche prospect (étape, note, événement système)."""
     s.add(ProspectActivity(prospect_id=prospect_id, kind=kind, summary=summary[:500], by=by))
 FOLLOWUP_DELAYS = (3, 4, 7)  # jours après notre dernier message : J+3, J+7, J+14
+# Séquence de 4 messages : présentation (J0, lancée à la main), puis ces trois relances.
+SEQUENCE_ANGLES = (
+    "rappelle brièvement le message précédent et mets en avant un bénéfice concret",
+    "donne un exemple concret tiré de la base de connaissances (sans chiffre inventé)",
+    "dernier message : poli et bref, dis que tu ne relanceras plus et laisse la porte ouverte",
+)
 CLOSE_AFTER_DAYS = 7          # sans réponse 7 jours après la 3e relance : sans suite
 HOT_SCORE = 70
 OUTBOUND_ACTIONS = ("mail.reply", "commercial.followup")
@@ -347,7 +353,8 @@ class CommercialAgent:
         if elapsed < timedelta(days=FOLLOWUP_DELAYS[p.followups_sent]):
             return
         step = p.followups_sent + 1
-        if self._draft(p, "relance", f"relance n° {step} sur {len(FOLLOWUP_DELAYS)}"):
+        angle = SEQUENCE_ANGLES[min(step, len(SEQUENCE_ANGLES)) - 1]
+        if self._draft(p, "relance", f"relance n° {step} sur {len(FOLLOWUP_DELAYS)} ; {angle}"):
             self._set(p, followups_sent=step, status="relance")
             pending.add(p.id)
             result.relances += 1
@@ -406,8 +413,9 @@ class CommercialAgent:
         subject = {"relance": "Suite à votre demande",
                    "fin_essai": "Votre période d'essai",
                    "rendez_vous": "Proposition de rendez-vous",
+                   "presentation": f"{pole.nom if pole else 'IBIG'} : présentation",
                    "apres_vente": "Votre avis nous intéresse"}[kind]
-        label = {"relance": "Relance", "fin_essai": "Fin d’essai",
+        label = {"relance": "Relance", "fin_essai": "Fin d’essai", "presentation": "Présentation",
                  "rendez_vous": "Rendez-vous", "apres_vente": "Après-vente"}[kind]
         self.gov.submit(ActionRequest(
             agent=AGENT, action_type="commercial.followup", channel="mail",
@@ -503,6 +511,23 @@ class CommercialAgent:
                                    f"seulement ceux-là : {text}", by, "Proposition de rendez-vous "
                                    f"préparée ({text})")
         return text
+
+    def start_sequence(self, prospect_id: int, by: str) -> None:
+        """Premier message (J0) d'une séquence pour un prospect jamais contacté. Il attend la
+        validation ; une fois envoyé, les relances J+3, J+7 et J+14 suivent d'elles-mêmes (chacune
+        validée aussi) et s'arrêtent dès que le prospect répond."""
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            if p.last_outbound_at or p.followups_sent:
+                raise ValueError("Ce prospect a déjà été contacté : la séquence est en cours")
+            if p.status in CLOSED:
+                raise ValueError("Ce dossier est clos : pas de séquence à lancer")
+        self._prepare_manual_draft(prospect_id, "presentation",
+                                   "premier contact : présente brièvement IBIG et la solution "
+                                   "adaptée au besoin, sans relance ni urgence", by,
+                                   "Séquence lancée : message de présentation préparé")
 
     def after_sales(self, prospect_id: int, by: str) -> None:
         """Prépare un message d'après-vente (accueil, satisfaction) pour un client qui a payé."""

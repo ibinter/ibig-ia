@@ -271,6 +271,26 @@ def test_refusal_reply_stops_followups(rt, llm, connector):
     assert get(rt, pid).stop_followups
 
 
+def test_sequence_starts_then_relances_follow(rt, llm, connector):
+    llm.draft = "Bonjour, voici nos solutions."
+    pid = prospect(rt)
+    rt.commercial.start_sequence(pid, "Awa")
+    (draft,) = followups(rt)
+    assert draft.payload["type"] == "presentation"
+    assert "répondez simplement STOP" in draft.payload["body"]
+    outbound(rt, connector, "dir@ecole.ci", NOW)       # le message de présentation est parti
+    rt.commercial.sync(NOW)
+    with pytest.raises(ValueError):
+        rt.commercial.start_sequence(pid, "Awa")
+
+
+def test_sequence_refused_after_opt_out(rt):
+    pid = prospect(rt)
+    rt.commercial.set_status(pid, "stop", by="x")
+    with pytest.raises(ValueError):
+        rt.commercial.start_sequence(pid, "Awa")
+
+
 def test_opt_out_reply_stops_followups(rt, llm, connector):
     pid = prospect(rt)
     connector.add("Re: Suite à votre demande", "STOP", sender="dir@ecole.ci")

@@ -39,6 +39,7 @@
     </form>{% endif %}
     <div class="card" style="margin-bottom:16px">
       <div class="card-head"><div><h2>{{ icon('mail') }} Préparer un message</h2><div class="sub">Brouillons envoyés à la validation ; rien ne part sans vous.</div></div></div>
+      {% if not p.last_outbound_at and not p.followups_sent and not p.stop_followups %}<form method="post" action="/prospects/{{ p.id }}/sequence" style="margin-bottom:8px"><button class="btn primary" style="width:100%;justify-content:center">{{ icon('arrow-right') }} Lancer la séquence (4 messages)</button></form>{% endif %}
       <form method="post" action="/prospects/{{ p.id }}/rendez-vous" style="margin-bottom:8px"><button class="btn" style="width:100%;justify-content:center">{{ icon('calendar') }} Proposer un rendez-vous</button></form>
       {% if p.status in ['gagne', 'paye_livre'] %}<form method="post" action="/prospects/{{ p.id }}/apres-vente"><button class="btn" style="width:100%;justify-content:center">{{ icon('check') }} Message d'après-vente</button></form>{% endif %}
     </div>
