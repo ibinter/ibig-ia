@@ -56,6 +56,37 @@ HREF = re.compile(r"""href\s*=\s*["']([^"'#][^"']*)["']""", re.IGNORECASE)
 TABLE_ROW = re.compile(r"^\|\s*\d+\s*\|\s*([^|]+?)\s*\|\s*(https?://[^\s|]+)\s*\|", re.MULTILINE)
 
 
+CONTACT_CAP = 5
+HIDDEN = re.compile(r"(?is)<(script|style|svg|noscript)\b.*?</\1>|<!--.*?-->")
+TAGS = re.compile(r"(?s)<[^>]*>")
+MAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(r"(?<![\w.])(?:\+|00)?\d[\d ]{7,17}\d(?![\w.])")
+HREF_CONTACT = re.compile(r"""href\s*=\s*["'](mailto|tel):([^"'?]+)""", re.IGNORECASE)
+
+
+def page_contacts(html: str, host: str) -> tuple[set[str], dict[str, str]]:
+    """Adresses mail et téléphones LISIBLES d'une page : le texte visible et les liens mailto: et
+    tel:, sans scripts, styles, dessins (SVG) ni balises. Évite de prendre des données graphiques
+    pour des numéros et des noms de bibliothèques pour des adresses. Seules les adresses des
+    domaines du groupe (ou du site lui-même) sont retenues."""
+    contact_links = HREF_CONTACT.findall(html)
+    text = TAGS.sub(" ", HIDDEN.sub(" ", html))
+    base = ".".join(host.split(".")[-2:])
+    mails = {m.lower() for m in MAIL_RE.findall(text)}
+    mails |= {v.strip().lower() for kind, v in contact_links if kind.lower() == "mailto"}
+    mails = {m for m in mails if MAIL_RE.fullmatch(m)
+             and (m.endswith(("@" + base, "." + base))
+                  or any(k in m.split("@")[1] for k in ("ibig", "intermark")))}
+    phones: dict[str, str] = {}
+    candidates = PHONE_RE.findall(text)
+    candidates += [v for kind, v in contact_links if kind.lower() == "tel"]
+    for raw in candidates:
+        digits = _digits(raw)
+        if 9 <= len(digits) <= 13:
+            phones.setdefault(digits, raw.strip())
+    return mails, phones
+
+
 @dataclass
 class Target:
     name: str
@@ -265,18 +296,17 @@ class AnomalyService:
                                      f"{t.name} : lien cassé",
                                      f"{link} renvoie {code or 'aucune réponse'}."))
         known_mails, known_phones = self._known_contacts()
-        for mail in sorted({m.lower() for m in _EMAIL.findall(html)}):
-            if mail not in known_mails and not mail.endswith((".png", ".jpg", ".webp", ".svg")):
-                found.append(Finding(f"{t.url}|contacts|{mail}", "contacts", "info", t.url,
-                                     f"{t.name} : adresse absente de la base",
-                                     f"{mail} figure sur le site mais pas dans la base de "
-                                     "connaissances : l'agent ne l'utilisera pas."))
-        for phone in sorted({p.strip() for p in _PHONE.findall(html)}):
-            digits = _digits(phone)
-            if 8 <= len(digits) <= 13 and digits not in known_phones:
+        mails, phones = page_contacts(html, host)
+        for mail in sorted(mails - known_mails)[:CONTACT_CAP]:
+            found.append(Finding(f"{t.url}|contacts|{mail}", "contacts", "info", t.url,
+                                 f"{t.name} : adresse absente de la base",
+                                 f"{mail} figure sur le site mais pas dans la base de "
+                                 "connaissances : l'agent ne l'utilisera pas."))
+        for digits, shown in sorted(phones.items()):
+            if digits not in known_phones and len(found) < 4 * CONTACT_CAP:
                 found.append(Finding(f"{t.url}|contacts|{digits}", "contacts", "info", t.url,
                                      f"{t.name} : téléphone absent de la base",
-                                     f"{phone} figure sur le site mais pas dans la base."))
+                                     f"{shown} figure sur le site mais pas dans la base."))
         return found
 
     def _known_contacts(self) -> tuple[set[str], set[str]]:

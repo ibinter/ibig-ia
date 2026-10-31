@@ -127,3 +127,17 @@ def test_anomalies_page_and_access(rt, monkeypatch):
     v = client("v@ibig.test")
     assert v.get("/anomalies").status_code == 403
     assert v.post("/anomalies/verifier").status_code == 403
+
+
+def test_contact_detection_ignores_graphics_scripts_and_libraries():
+    from ibig_agent.anomalies import page_contacts
+
+    html = ('<svg><path d="M5.5 5.5 0 0 0 0-7.78 7.8 0 0 1-12 0"/></svg>'
+            '<script src="https://cdn/bootstrap@5.3.3/x.js">var t="0 0 360 240 20 52"</script>'
+            '<style>.a{margin:6 6 0 0 1}</style><!-- 0102030405 -->'
+            '<p>Écrire à contact@ibigsoft.com ou jean@masociete.com, appeler +225 07 78 88 25 92 '
+            'ou <a href="tel:+22505659047">ici</a>. Version 1.2.3.4. Prix 5.421 7.403</p>'
+            '<a href="mailto:support@ibigsoft.com?subject=x">m</a>')
+    mails, phones = page_contacts(html, "ibigsoft.com")
+    assert mails == {"contact@ibigsoft.com", "support@ibigsoft.com"}   # ni bootstrap@, ni le gabarit
+    assert set(phones) == {"2250778882592", "22505659047"}              # rien venant du SVG ni des nombres
