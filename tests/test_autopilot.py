@@ -188,6 +188,21 @@ def test_every_procedure_is_a_valid_acyclic_plan():
                 assert step.agent == "", (proc.code, step.title)
 
 
+def test_each_priority_department_has_a_runnable_workflow(rt, llm):
+    from ibig_agent import procedures
+
+    assert len(procedures.PRIORITY_DEPARTMENTS) == 7
+    for dept, code in procedures.PRIORITY_DEPARTMENTS:
+        proc = procedures.get(code)
+        assert proc is not None, dept
+        assert proc.owner and proc.result and proc.quality and proc.exceptions, code
+        assert any(s.proof for s in proc.steps), code
+        mid = rt.autopilot.from_procedure(code, f"Test {dept}", "Awa", "SOFT")
+        tasks = rt.autopilot.tasks(mid)
+        assert len(tasks) == len(proc.steps) and tasks[0].status == "prete", code
+    assert llm.calls == []                                   # aucun appel d'IA : zéro coût
+
+
 def test_a_procedure_creates_a_mission_without_any_ai_call(rt, llm):
     mid = rt.autopilot.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
     assert llm.calls == []                                   # zéro appel d'IA : zéro coût

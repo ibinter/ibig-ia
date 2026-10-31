@@ -128,6 +128,21 @@ PROCEDURES: tuple[Procedure, ...] = (
               "Brouillon relu"),
          Step("Activer le partenaire", "", (2,), "Compte activé"))),
     Procedure(
+        "projet-digital", "Lancement d'un projet digital", "1.0",
+        "Un client valide une offre web ou digitale", "IBIG DIGITAL",
+        "Projet cadré, réalisé, recetté par le client puis livré",
+        "Périmètre et prix conformes au devis validé ; recette signée avant livraison",
+        "Demande hors devis : nouveau devis avant toute réalisation",
+        (Step("Résumer le besoin et le périmètre du devis validé", "commercial",
+              proof="Cahier de cadrage relu"),
+         Step("Valider le cadrage avec le client", "", (1,), "Accord du client noté"),
+         Step("Réaliser et livrer la maquette ou la version de recette", "", (2,),
+              "Lien de recette"),
+         Step("Recueillir la recette du client", "", (3,), "Recette signée"),
+         Step("Préparer le message de livraison et d'après-vente", "communication", (4,),
+              "Brouillon relu"),
+         Step("Livrer et clore le projet", "", (4, 5), "Livraison confirmée"))),
+    Procedure(
         "rapport-quotidien", "Préparation du rapport quotidien", "1.0",
         "Chaque matin", "Direction générale",
         "Rapport lu par la direction", "Chiffres issus des journaux, jamais estimés",
@@ -139,6 +154,17 @@ PROCEDURES: tuple[Procedure, ...] = (
 )
 
 BY_CODE = {p.code: p for p in PROCEDURES}
+
+# Départements prioritaires (cahier des charges v2, phase 4) : un workflow documenté et testé chacun.
+PRIORITY_DEPARTMENTS: tuple[tuple[str, str], ...] = (
+    ("RH & recrutement", "traitement-candidature"),
+    ("IBIG EDUFORM", "preparation-session-formation"),
+    ("IBIG SOFT", "demande-demonstration-logiciel"),
+    ("IBIG DIGITAL", "projet-digital"),
+    ("Marketing & communication", "publication-contenu"),
+    ("Administration & finance", "relance-facture-echue"),
+    ("IBIG PARTNERS", "onboarding-partenaire"),
+)
 
 
 def get(code: str) -> Procedure | None:
