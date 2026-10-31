@@ -534,6 +534,14 @@ def create_app(rt: Runtime) -> FastAPI:
     quotes_routes.register(app, rt, user, page, back)
     finance_routes.register(app, rt, user, page, back)
 
+    @app.get("/departements", response_class=HTMLResponse)
+    def departments_page(request: Request, who: Principal = Depends(user)):
+        from .. import agent_control, departments, procedures
+
+        return page(request, "departements.html", departments=departments.DEPARTMENTS,
+                    levels=departments.LEVELS, agent_labels=agent_control.LABELS,
+                    procs=procedures.BY_CODE)
+
     @app.get("/reglages", response_class=HTMLResponse)
     def settings_hub(request: Request, who: Principal = Depends(user)):
         return page(request, "reglages.html")

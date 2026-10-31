@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Départements{% endblock %}
+{% block heading %}Départements{% endblock %}
+{% block lead %}<p class="lead">Pour chaque département : sa mission, qui y travaille, ce qui est automatisé et ce qui reste humain. Aucun département n'envoie, ne publie, ne paie ni ne signe sans validation.</p>{% endblock %}
+{% block content %}
+<div class="grid g-3">
+{% for d in departments %}
+<section class="card">
+  <div class="card-head"><div><h2>{{ d.name }}</h2><div class="sub">{{ d.mission }}</div></div>
+    <span class="pill {{ {'agent': 'green', 'procedure': 'blue', 'manuel': 'amber'}[d.level] }} dot">{{ levels[d.level] }}</span></div>
+  <dl class="kv">
+    <dt>Agents</dt><dd>{% for a in d.agents %}{{ agent_labels.get(a, a) }}{{ ', ' if not loop.last }}{% endfor %}</dd>
+    <dt>Procédures</dt><dd>{% for c in d.procedures %}<a href="/procedures">{{ procs[c].title if c in procs else c }}</a>{{ ' · ' if not loop.last }}{% endfor %}</dd>
+    <dt>Indicateurs</dt><dd>{{ d.kpis }}</dd>
+    <dt>Limites</dt><dd>{{ d.limits }}</dd>
+    <dt>Si ça se complique</dt><dd>{{ d.escalation }}</dd>
+  </dl>
+</section>
+{% endfor %}
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@
 {% set manager = user.role != 'valideur' %}
 {% set SECTIONS = [
   ('Qui fait quoi ?', 'bot', [
+    ('/departements', 'Les départements', 'Pour chaque département : qui y travaille, ce qui est automatisé, ce qui reste humain.', true),
     ('/agents', 'Les agents', 'Voir chaque agent, son rôle et ce qu\'il a le droit de faire.', true),
     ('/supervision', 'Responsables et plafonds', 'Désigner qui répond de chaque agent et limiter ce qu\'il peut faire par jour.', manager),
     ('/utilisateurs', 'Les personnes et leurs droits', 'Créer un compte, choisir le pôle suivi par chaque valideur.', user.role == 'admin'),

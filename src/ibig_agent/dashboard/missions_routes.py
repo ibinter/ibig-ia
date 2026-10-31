@@ -88,10 +88,17 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                        who: Principal = Depends(user)):
         direction_only(who)
         try:
-            mid = rt.autopilot.plan(instruction, who.label, pole)
+            intent, mid = rt.autopilot.handle(instruction, who.label, pole)
         except AutopilotError as exc:
             return back("/missions", f"Refusé : {exc}")
-        return back(f"/missions/{mid}", "Plan créé : suivez les tâches une à une")
+        if intent == "question":
+            return back("/essai", "C'est une question, pas une mission : posez-la ici")
+        if intent == "decision":
+            return back("/validations", "C'est une décision : prenez-la dans « À valider »")
+        return back(f"/missions/{mid}", {
+            "ponctuelle": "Action ponctuelle enregistrée : une seule tâche à faire",
+            "recurrent": "Travail récurrent : plan créé, à relancer à chaque échéance",
+        }.get(intent, "Plan créé : suivez les tâches une à une"))
 
     @app.get("/procedures", response_class=HTMLResponse)
     def procedures_page(request: Request, who: Principal = Depends(user)):
@@ -108,6 +115,18 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except AutopilotError as exc:
             return back("/procedures", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Procédure lancée : suivez les tâches une à une")
+
+    @app.post("/missions/{mid:int}/executer")
+    def run_agents(mid: int, who: Principal = Depends(user)):
+        direction_only(who)
+        if rt.missions.get(mid) is None:
+            raise HTTPException(404)
+        out = rt.autopilot.execute(mid, who.label)
+        text = (f"{out['prepared']} brouillon{'s' if out['prepared'] > 1 else ''} préparé"
+                f"{'s' if out['prepared'] > 1 else ''}, {out['failed']} en échec")
+        if out["stopped"]:
+            text += f". Arrêt : {out['stopped']}"
+        return back(f"/missions/{mid}", text + " — relisez avant de clore")
 
     @app.post("/missions/{mid:int}/tache/{tid:int}/{action}")
     def task_action(mid: int, tid: int, action: str, preuve: str = Form(""),

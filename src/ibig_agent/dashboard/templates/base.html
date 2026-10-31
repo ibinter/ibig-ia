@@ -62,7 +62,7 @@
         {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{% endif %}
       {% endcall %}
       <div class="nav-group nav-top">
-        {{ nav('/reglages', 'shield-check', 'Réglages', also=('agents', 'supervision', 'utilisateurs', 'catalogue', 'connaissances', 'essai', 'boites', 'services', 'journal', 'sante', 'demarrage', 'compte')) }}
+        {{ nav('/reglages', 'shield-check', 'Réglages', also=('departements', 'agents', 'supervision', 'utilisateurs', 'catalogue', 'connaissances', 'essai', 'boites', 'services', 'journal', 'sante', 'demarrage', 'compte')) }}
       </div>
       <p class="nav-empty" hidden>Aucune page ne correspond.</p>
     </nav>

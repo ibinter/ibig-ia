@@ -13,6 +13,7 @@ Règles :
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -93,6 +94,33 @@ def validate_plan(raw: dict) -> tuple[str, str, list[PlannedTask]]:
     return title, objective, tasks
 
 
+QUESTION_START = re.compile(
+    r"^(combien|comment|pourquoi|quel(le)?s?|quand|où|ou est|qui|est-ce|y a-t-il|peux-tu|"
+    r"pouvez-vous|lequel|laquelle)\b", re.IGNORECASE)
+DECISION_START = re.compile(r"^(j'autorise|j'approuve|je valide|je refuse|j'accepte|"
+                            r"approuve|autorise|refuse)\b", re.IGNORECASE)
+RECURRING = re.compile(r"\b(chaque|tous les|toutes les|hebdomadaire|quotidien(ne)?|mensuel(le)?)\b",
+                       re.IGNORECASE)
+ACTION_VERB = re.compile(r"^(prépare|rédige|envoie|lance|organise|planifie|crée|relance|"
+                         r"contacte|publie|fais|établis|monte|mets)", re.IGNORECASE)
+
+
+def detect_intent(text: str) -> str:
+    """Intention d'une instruction du dirigeant (cahier v2, 5.1) : question, decision, recurrent,
+    ponctuelle ou mission. Règles lisibles, sans appel d'IA ni coût."""
+    t = " ".join(text.split())
+    if DECISION_START.search(t):
+        return "decision"
+    asks = t.endswith("?") or QUESTION_START.search(t)
+    if asks and not ACTION_VERB.search(t):
+        return "question"
+    if RECURRING.search(t):
+        return "recurrent"
+    if len(t.split()) <= 5:
+        return "ponctuelle"
+    return "mission"
+
+
 class Autopilot:
     def __init__(self, sessions: sessionmaker[Session], missions: MissionService, llm,
                  pole_codes: set[str]) -> None:
@@ -102,6 +130,26 @@ class Autopilot:
         self.pole_codes = set(pole_codes)
 
     # ------------------------------------------------------------------ plan
+    def handle(self, instruction: str, by: str, pole: str = "") -> tuple[str, int | None]:
+        """Reçoit une instruction, en détecte l'intention et agit en conséquence : une question ou
+        une décision ne crée pas de mission ; une action ponctuelle devient une tâche unique sans
+        appel d'IA ; une mission ou un travail récurrent passe par le plan."""
+        text = " ".join(instruction.split())
+        if len(text) < 10:
+            raise AutopilotError("Décrivez l'instruction en une ou deux phrases")
+        intent = detect_intent(text)
+        if intent in ("question", "decision"):
+            return intent, None
+        if intent == "ponctuelle":
+            task = PlannedTask(text[:300], "Action ponctuelle demandée par la direction", "", [])
+            return intent, self._create(text[:200], text, [task], pole, by,
+                                        f"Action ponctuelle : {text[:200]}")
+        mid = self.plan(text, by, pole)
+        if intent == "recurrent":
+            self.missions.note(mid, by, "Travail récurrent : à relancer à chaque échéance "
+                                        "(pas encore de lancement automatique)")
+        return intent, mid
+
     def plan(self, instruction: str, by: str, pole: str = "") -> int:
         instruction = " ".join(instruction.split())
         if len(instruction) < 10:
@@ -249,6 +297,56 @@ class Autopilot:
                         "(à relire avant de clore)", by)
             s.commit()
         return draft
+
+    def execute(self, mission_id: int, by: str) -> dict:
+        """Fait préparer par leurs agents tous les brouillons des tâches prêtes d'une mission.
+        Une panne du modèle compte comme un essai raté : la tâche est retentée (3 essais au plus)
+        puis passe en échec et bloque celles qui en dépendent. Crédit ou plafond épuisé : arrêt
+        net, sans compter d'essai. La clôture reste humaine (preuve exigée) ; rien n'est envoyé."""
+        from .llm import BudgetExceeded, LLMCreditExhausted
+
+        out = {"prepared": 0, "failed": 0, "skipped": 0, "stopped": ""}
+        with self._sessions() as s:
+            todo = [(t.id, t.agent) for t in self._tasks(s, mission_id)
+                    if t.status == "prete" and t.agent and not t.result]
+        for task_id, agent in todo:
+            if agent_control.is_suspended(self._sessions, agent):
+                out["skipped"] += 1
+                continue
+            while True:
+                try:
+                    self.prepare(task_id, by)
+                    out["prepared"] += 1
+                    break
+                except AutopilotError as exc:
+                    if isinstance(exc.__cause__, (LLMCreditExhausted, BudgetExceeded)):
+                        out["stopped"] = str(exc)
+                        return out
+                    if not isinstance(exc.__cause__, LLMError):
+                        out["skipped"] += 1
+                        break
+                    if self._count_failed_attempt(task_id, str(exc), by):
+                        out["failed"] += 1
+                        break
+        return out
+
+    def _count_failed_attempt(self, task_id: int, reason: str, by: str) -> bool:
+        """Compte un essai raté ; True quand le plafond d'essais est atteint (échec définitif)."""
+        with self._sessions() as s:
+            t = self._get(s, task_id)
+            t.attempts += 1
+            t.result = ""
+            final = t.attempts >= t.max_attempts
+            if final:
+                t.status, t.finished_at, t.finished_by = "echec", utcnow(), by
+            self._event(s, t.mission_id, "alerte",
+                        f"Tâche {t.position} : essai {t.attempts}/{t.max_attempts} raté ({reason[:150]})"
+                        + (" — échec définitif, les tâches suivantes sont bloquées" if final else ""),
+                        by)
+            if final:
+                self._refresh(s, t.mission_id)
+            s.commit()
+            return final
 
     def complete(self, task_id: int, evidence: str, by: str, cost: float = 0.0) -> None:
         evidence = evidence.strip()

@@ -256,3 +256,92 @@ def test_procedures_page_launches_a_procedure(rt):
                    follow_redirects=False).headers["location"].count("Refus") == 1
     assert client("val@ibig.test").get("/procedures").status_code == 403
 
+
+
+@pytest.mark.parametrize("text,intent", [
+    ("Combien de prospects avons-nous ce mois-ci ?", "question"),
+    ("Quel est le prix de la formation Excel", "question"),
+    ("J'autorise l'envoi du devis au collège", "decision"),
+    ("Envoyer chaque lundi le point des ventes à la direction", "recurrent"),
+    ("Rappeler le collège Palmiers demain", "ponctuelle"),
+    ("Préparer le lancement de la formation Excel avancé", "mission"),
+    ("Comment préparer le lancement de la formation Excel avancé ?", "question"),
+])
+def test_instruction_intent_is_detected(text, intent):
+    from ibig_agent.autopilot import detect_intent
+    assert detect_intent(text) == intent
+
+
+def test_question_and_decision_create_no_mission_and_one_off_costs_nothing(rt, llm):
+    ap = rt.autopilot
+    assert ap.handle("Combien de prospects avons-nous ce mois-ci ?", "Awa") == ("question", None)
+    assert ap.handle("J'autorise l'envoi du devis au collège", "Awa") == ("decision", None)
+    intent, mid = ap.handle("Rappeler le collège Palmiers demain", "Awa", "SOFT")
+    assert intent == "ponctuelle" and len(ap.tasks(mid)) == 1
+    assert llm.calls == []                                   # aucun appel d'IA pour ces trois cas
+
+
+def test_execute_prepares_ready_agent_tasks_but_never_closes_them(rt, llm):
+    ap = rt.autopilot
+    mid = ap.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
+    out = ap.execute(mid, "Awa")
+    assert out["prepared"] == 1 and out["failed"] == 0
+    first = ap.tasks(mid)[0]
+    assert first.status == "en_cours" and first.result and first.evidence == ""
+    assert ap.tasks(mid)[1].status == "a_faire"               # la clôture reste humaine
+
+
+def test_execute_retries_then_fails_the_task_and_blocks_the_next(rt, llm, monkeypatch):
+    from ibig_agent.llm import LLMError
+
+    def boom(*a, **k):
+        raise LLMError("modèle indisponible")
+
+    monkeypatch.setattr(llm, "write", boom)
+    ap = rt.autopilot
+    mid = ap.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
+    out = ap.execute(mid, "Awa")
+    first = ap.tasks(mid)[0]
+    assert out["failed"] == 1 and first.status == "echec" and first.attempts == first.max_attempts
+    assert ap.tasks(mid)[1].status == "bloquee"
+
+
+def test_execute_stops_cleanly_when_credit_is_exhausted(rt, llm, monkeypatch):
+    from ibig_agent.llm import LLMCreditExhausted
+
+    def empty(*a, **k):
+        raise LLMCreditExhausted("crédit épuisé")
+
+    monkeypatch.setattr(llm, "write", empty)
+    ap = rt.autopilot
+    mid = ap.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
+    out = ap.execute(mid, "Awa")
+    assert out["stopped"] and out["prepared"] == 0
+    assert ap.tasks(mid)[0].status == "prete" and ap.tasks(mid)[0].attempts == 0
+
+
+def test_every_department_points_to_real_agents_and_procedures():
+    from ibig_agent import agent_control, departments, procedures
+
+    assert len(departments.DEPARTMENTS) == 13
+    assert len({d.code for d in departments.DEPARTMENTS}) == 13
+    for d in departments.DEPARTMENTS:
+        assert d.level in departments.LEVELS, d.code
+        assert d.agents and all(a in agent_control.AGENTS for a in d.agents), d.code
+        assert d.procedures and all(procedures.get(c) for c in d.procedures), d.code
+        assert d.mission and d.kpis and d.limits and d.escalation, d.code
+
+
+def test_departments_page_lists_every_department(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent import departments
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction",
+                                          "mot-de-passe-solide")
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    text = c.get("/departements").text
+    assert all(d.name in text for d in departments.DEPARTMENTS)
