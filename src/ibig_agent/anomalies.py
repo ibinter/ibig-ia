@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -45,7 +46,7 @@ SEVERITIES = {"info": 0, "warning": 1, "critical": 2}
 SEVERITY_LABELS = {"info": "À savoir", "warning": "À corriger", "critical": "Urgent"}
 CHECK_LABELS = {"dispo": "Disponibilité", "vitesse": "Vitesse", "ssl": "Certificat",
                 "liens": "Liens cassés", "contacts": "Contacts", "bug": "Bug signalé",
-                "donnees": "Données"}
+                "donnees": "Données", "sauvegarde": "Sauvegarde"}
 LIGHT_CHECKS = ("dispo", "vitesse", "ssl")
 DEEP_CHECKS = (*LIGHT_CHECKS, "liens", "contacts")
 BUG_WORDS = re.compile(
@@ -216,6 +217,7 @@ class AnomalyService:
             if f.key != new.key:
                 continue
             reopened = f.status == "resolved"
+            worse = SEVERITIES.get(new.severity, 0) > SEVERITIES.get(f.severity, 0)
             f.title, f.detail = new.title, new.detail
             f.severity = new.severity
             f.last_seen = stamp
@@ -223,7 +225,7 @@ class AnomalyService:
                 f.status, f.count, f.first_seen, f.by = "open", 1, stamp, ""
             else:
                 f.count += 1
-            return reopened
+            return reopened or worse      # aussi quand le problème s'aggrave (à corriger → urgent)
         new.first_seen = new.last_seen = stamp
         items.append(new)
         return True
@@ -396,13 +398,57 @@ class AnomalyService:
         self._notify(new_critical)
         return {"products": len(signals), "signals": sum(len(v) for v in signals.values())}
 
+    # ------------------------------------------------------------------ sauvegardes
+    def scan_platform_backup(self, now: datetime | None = None,
+                             state_dir: Path | None = None) -> dict:
+        """Surveille la sauvegarde nocturne des bases de TOUTES les plateformes
+        (deploy/sauvegarde-plateformes.sh, qui écrit state/sauvegarde-plateformes.json) : absente,
+        en échec, partielle ou trop ancienne, c'est un constat. Aucune sauvegarde n'est lue."""
+        now = now or utcnow()
+        path = Path(state_dir or self.settings.state_dir) / "sauvegarde-plateformes.json"
+        problem: tuple[str, str, str] | None = None        # gravité, titre, détail
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            when = datetime.fromisoformat(str(raw.get("date", "")))
+            when = when if when.tzinfo else when.replace(tzinfo=UTC)
+            age = (now - when).total_seconds() / 3600
+            message = str(raw.get("message", "")).strip()
+            if raw.get("etat") == "echec":
+                problem = ("critical", "dernière sauvegarde des plateformes en échec", message)
+            elif age > 36:
+                detail = (f"Dernière : {when:%d/%m/%Y %H:%M}. Contrôler la tâche planifiée du "
+                          "serveur (cron de 2 h 45).")
+                problem = ("critical", f"aucune sauvegarde des plateformes depuis {age:.0f} h",
+                           detail)
+            elif raw.get("etat") == "partiel":
+                problem = ("warning", "sauvegarde des plateformes incomplète", message)
+        except (OSError, ValueError):
+            problem = ("warning", "aucune sauvegarde des plateformes enregistrée",
+                       "Programmer deploy/sauvegarde-plateformes.sh sur le serveur.")
+        items = self.findings()
+        key = "backup|plateformes"
+        new_critical: list[Finding] = []
+        if problem:
+            f = Finding(key, "sauvegarde", problem[0], "Sauvegardes", f"Sauvegardes : {problem[1]}",
+                        problem[2])
+            if self._upsert(items, f, now) and problem[0] == "critical":
+                new_critical.append(f)
+        else:
+            for f in items:
+                if f.key == key and f.status != "resolved":
+                    f.status = "resolved"
+        self._save(items)
+        self._notify(new_critical)
+        return {"backup_ok": problem is None}
+
     # ------------------------------------------------------------------ passage complet
     def run(self, now: datetime | None = None) -> dict:
         """Contrôle léger toutes les heures ; contrôle complet (liens, contacts) 4 fois par jour."""
         now = now or utcnow()
         sites = self.scan_sites(now, deep=now.hour % 6 == 0)
         bugs = self.scan_bugs(now)
-        return {**sites, **bugs}
+        backup = self.scan_platform_backup(now)
+        return {**sites, **bugs, **backup}
 
     def _notify(self, critical: list[Finding]) -> None:
         if not critical or self.alert is None:

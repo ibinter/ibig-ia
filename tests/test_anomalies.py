@@ -141,3 +141,32 @@ def test_contact_detection_ignores_graphics_scripts_and_libraries():
     mails, phones = page_contacts(html, "ibigsoft.com")
     assert mails == {"contact@ibigsoft.com", "support@ibigsoft.com"}   # ni bootstrap@, ni le gabarit
     assert set(phones) == {"2250778882592", "22505659047"}              # rien venant du SVG ni des nombres
+
+
+def test_platform_backup_is_watched_for_absence_failure_and_age(rt, tmp_path):
+    import json
+
+    alerts = []
+    svc = service(rt, {}, alerts)
+    path = tmp_path / "sauvegarde-plateformes.json"
+
+    def state(etat="ok", at=NOW, message=""):
+        path.write_text(json.dumps({"date": at.isoformat(), "etat": etat, "fichier": "x.gpg",
+                                    "taille": 10, "bases": 11, "message": message}))
+
+    def finding():
+        return next((f for f in svc.findings() if f.key == "backup|plateformes"), None)
+
+    assert svc.scan_platform_backup(NOW, tmp_path) == {"backup_ok": False}     # fichier absent
+    assert finding().severity == "warning" and alerts == []
+    state()
+    assert svc.scan_platform_backup(NOW + timedelta(hours=2), tmp_path) == {"backup_ok": True}
+    assert finding().status == "resolved"                                      # tout va bien : résolu
+    state("partiel", message="docker:s-db-1")
+    svc.scan_platform_backup(NOW + timedelta(hours=1), tmp_path)
+    assert finding().severity == "warning" and "s-db-1" in finding().detail
+    svc.scan_platform_backup(NOW + timedelta(hours=40), tmp_path)             # trop ancienne
+    assert finding().severity == "critical" and "40 h" in finding().title and len(alerts) == 1
+    state("echec", at=NOW + timedelta(hours=40), message="aucune base")
+    svc.scan_platform_backup(NOW + timedelta(hours=41), tmp_path)
+    assert finding().severity == "critical" and "échec" in finding().title
