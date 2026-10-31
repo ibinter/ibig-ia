@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Bases de données{% endblock %}
+{% block heading %}Bases de données{% endblock %}
+{% block lead %}<p class="lead">Branchez une plateforme en <b>lecture seule</b> pour que l'agent détecte des anomalies dans ses données (doublons, paiements sans livraison, comptes bloqués…). Les accès sont chiffrés et ne s'affichent plus jamais. L'agent n'exécute que les contrôles que vous écrivez ici : un seul SELECT qui renvoie un nombre.</p>{% endblock %}
+{% block content %}
+<div class="alert amber" style="margin-bottom:16px">{{ icon('shield-check') }}<span><b>Avant de saisir un accès :</b> créez chez l'hébergeur un utilisateur de base qui n'a que le droit <b>SELECT</b> (jamais l'utilisateur principal), et autorisez l'adresse du serveur de l'agent si l'hébergeur bloque les connexions à distance.</span></div>
+<div class="grid g-main">
+  <div>
+    <section class="card" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('globe') }} Accès enregistrés</h2></div></div>
+      {% if not connections %}<p class="muted">Aucun accès pour l'instant.</p>{% endif %}
+      <ul class="prio-list">
+        {% for name, kind, where, who in connections %}
+        <li><span class="todo-txt"><b>{{ name }}</b> <span class="pill blue">{{ kind }}</span><br><small class="muted">{{ where }} · utilisateur {{ who }} · mot de passe chiffré</small></span>
+          <span style="display:flex;gap:6px">
+            <form method="post" action="/donnees/connexion/{{ name | urlencode }}/tester"><button class="btn sm">{{ icon('play') }} Tester</button></form>
+            <form method="post" action="/donnees/connexion/{{ name | urlencode }}/supprimer" onsubmit="return confirm('Supprimer cet accès et ses contrôles ?')"><button class="btn sm ghost-bad">{{ icon('x') }}</button></form>
+          </span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="card">
+      <div class="card-head"><div><h2>{{ icon('search') }} Contrôles</h2><div class="sub">Anormal = le nombre renvoyé dépasse le seuil. Résultat visible sur la page Anomalies.</div></div>
+        <form method="post" action="/donnees/executer"><button class="btn primary" {{ 'disabled' if checking }}>{{ icon('play') }} {{ 'En cours…' if checking else 'Contrôler maintenant' }}</button></form></div>
+      {% if not checks %}<p class="muted">Aucun contrôle. Ajoutez-en un à droite.</p>{% endif %}
+      <ul class="prio-list">
+        {% for k in checks %}
+        <li><span class="todo-txt"><b>{{ k.label }}</b> <small class="muted">· {{ k.connection }} · seuil {{ '%g' | format(k.threshold) }} · {{ 'urgent' if k.severity == 'critical' else 'à corriger' }}</small><br>
+          <small class="muted"><code>{{ k.sql }}</code></small><br>
+          <small>{% if k.last_error %}<span style="color:var(--bad)">Erreur : {{ k.last_error }}</span>{% elif k.last_run %}Dernier résultat : <b>{{ '%g' | format(k.last_value) }}</b> le {{ k.last_run }}{% else %}Pas encore exécuté{% endif %}</small></span>
+          <form method="post" action="/donnees/controle/{{ k.id }}/supprimer"><button class="btn sm ghost-bad">{{ icon('x') }}</button></form></li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+  <div style="align-self:start">
+    <form class="card" method="post" action="/donnees/connexion" autocomplete="off" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('lock') }} Ajouter un accès</h2><div class="sub">Le mot de passe est chiffré dès l'enregistrement.</div></div></div>
+      <label class="field"><span>Nom de la plateforme</span><input type="text" name="nom" required maxlength="60" placeholder="Scolaby"></label>
+      <label class="field"><span>Type de base</span><select name="type" style="width:100%">{% for k, v in kinds.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <div class="grid g-3" style="gap:8px">
+        <label class="field" style="grid-column:span 2"><span>Hôte</span><input type="text" name="hote" required maxlength="200" placeholder="db.exemple.com"></label>
+        <label class="field"><span>Port</span><input type="number" name="port" min="0" max="65535" placeholder="3306"></label>
+      </div>
+      <label class="field"><span>Nom de la base</span><input type="text" name="base" required maxlength="100"></label>
+      <label class="field"><span>Utilisateur (lecture seule)</span><input type="text" name="utilisateur" required maxlength="100" autocomplete="off"></label>
+      <label class="field"><span>Mot de passe</span><input type="password" name="mot_de_passe" required maxlength="200" autocomplete="new-password"></label>
+      <button class="btn primary">{{ icon('check') }} Enregistrer</button>
+    </form>
+    <form class="card" method="post" action="/donnees/controle">
+      <div class="card-head"><div><h2>{{ icon('edit') }} Ajouter un contrôle</h2></div></div>
+      {% if not connections %}<p class="muted">Ajoutez d'abord un accès.</p>{% else %}
+      <label class="field"><span>Plateforme</span><select name="connexion" style="width:100%">{% for name, kind, where, who in connections %}<option>{{ name }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Nom du contrôle</span><input type="text" name="nom" required maxlength="120" placeholder="Paiements sans livraison"></label>
+      <label class="field"><span>Requête (un seul SELECT qui renvoie un nombre)</span><textarea name="requete" rows="4" required maxlength="1500" placeholder="SELECT COUNT(*) FROM commandes WHERE statut = 'payee' AND livree = 0"></textarea></label>
+      <div class="grid g-3" style="gap:8px">
+        <label class="field"><span>Seuil toléré</span><input type="text" name="seuil" value="0" size="5"></label>
+        <label class="field" style="grid-column:span 2"><span>Gravité</span><select name="gravite"><option value="warning">À corriger</option><option value="critical">Urgent (alerte)</option></select></label>
+      </div>
+      <button class="btn primary">{{ icon('check') }} Ajouter</button>{% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

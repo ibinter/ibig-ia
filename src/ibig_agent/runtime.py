@@ -311,6 +311,12 @@ class Runtime:
                               alert=self.veille.alert_direction)
 
     @property
+    def dbmonitor(self):
+        from .dbmonitor import DbMonitor
+
+        return DbMonitor(self.sessions, self.settings, self.anomalies)
+
+    @property
     def recurring(self):
         from .recurring import RecurringService
 

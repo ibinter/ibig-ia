@@ -60,6 +60,7 @@ from . import (
     catalogue_routes,
     config_routes,
     crm_routes,
+    donnees_routes,
     finance_routes,
     missions_routes,
     quotes_routes,
@@ -543,6 +544,7 @@ def create_app(rt: Runtime) -> FastAPI:
     finance_routes.register(app, rt, user, page, back)
     workflows_routes.register(app, rt, user, page, back)
     anomalies_routes.register(app, rt, user, page, back)
+    donnees_routes.register(app, rt, user, page, back)
 
     @app.get("/departements", response_class=HTMLResponse)
     def departments_page(request: Request, who: Principal = Depends(user)):

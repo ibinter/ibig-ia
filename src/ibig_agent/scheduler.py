@@ -88,6 +88,9 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
                 {"hours": 1, **every,
                  "next_run_time": datetime.now(ZoneInfo(tz)) + timedelta(minutes=2)},
                 alert_after=6),
+        # Contrôles de données en lecture seule sur les plateformes (si des accès sont saisis)
+        JobSpec("db_watch", "Contrôles des bases de données", "toutes les 6 heures",
+                lambda: rt.dbmonitor.run(), "interval", {"hours": 6, **every}, alert_after=4),
         JobSpec("quotes_expire", "Expiration des devis", "chaque jour à 1 h",
                 lambda: rt.quotes.expire_due(), "cron", {"hour": 1, "minute": 0, **every}),
         # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin

@@ -44,7 +44,8 @@ BUG_WINDOW_DAYS = 30
 SEVERITIES = {"info": 0, "warning": 1, "critical": 2}
 SEVERITY_LABELS = {"info": "À savoir", "warning": "À corriger", "critical": "Urgent"}
 CHECK_LABELS = {"dispo": "Disponibilité", "vitesse": "Vitesse", "ssl": "Certificat",
-                "liens": "Liens cassés", "contacts": "Contacts", "bug": "Bug signalé"}
+                "liens": "Liens cassés", "contacts": "Contacts", "bug": "Bug signalé",
+                "donnees": "Données"}
 LIGHT_CHECKS = ("dispo", "vitesse", "ssl")
 DEEP_CHECKS = (*LIGHT_CHECKS, "liens", "contacts")
 BUG_WORDS = re.compile(
