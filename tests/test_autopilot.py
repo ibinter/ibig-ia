@@ -173,3 +173,56 @@ def test_prepare_button_stores_the_draft_on_the_page(rt, llm):
     dg.post(f"/missions/{mid}/tache/{tid}/preparer")
     assert llm.draft[:20] in dg.get(f"/missions/{mid}").text
 
+
+def test_every_procedure_is_a_valid_acyclic_plan():
+    from ibig_agent import agent_control, procedures
+
+    assert len(procedures.PROCEDURES) >= 10
+    assert len({p.code for p in procedures.PROCEDURES}) == len(procedures.PROCEDURES)
+    for proc in procedures.PROCEDURES:
+        for n, step in enumerate(proc.steps, 1):
+            assert all(1 <= a < n for a in step.after), (proc.code, n)
+            assert step.agent == "" or step.agent in agent_control.AGENTS, (proc.code, n)
+        for step in proc.steps:                              # un agent n'envoie, ne publie, n'active rien
+            if step.title.split()[0] in ("Envoyer", "Publier", "Activer", "Informer", "Répondre", "Remettre"):
+                assert step.agent == "", (proc.code, step.title)
+
+
+def test_a_procedure_creates_a_mission_without_any_ai_call(rt, llm):
+    mid = rt.autopilot.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
+    assert llm.calls == []                                   # zéro appel d'IA : zéro coût
+    tasks = rt.autopilot.tasks(mid)
+    assert [t.status for t in tasks] == ["prete", "a_faire", "a_faire", "a_faire"]
+    assert tasks[0].agent == "commercial" and "Preuve attendue" in tasks[0].detail
+    with pytest.raises(AutopilotError, match="inconnue"):
+        rt.autopilot.from_procedure("nulle", "x", "Awa")
+    with pytest.raises(AutopilotError, match="sujet"):
+        rt.autopilot.from_procedure("preparation-devis", " ", "Awa")
+
+
+def test_procedures_page_launches_a_procedure(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    users = UserStore(rt.sessions, rt.org)
+    users.create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    users.create("val@ibig.test", "Valideur", "valideur", "mot-de-passe-solide")
+
+    def client(email):
+        c = TestClient(create_app(rt), base_url="https://testserver")
+        c.post("/login", data={"email": email, "password": "mot-de-passe-solide"})
+        return c
+
+    dg = client("dg@ibig.test")
+    assert "Préparation d" in dg.get("/procedures").text
+    made = dg.post("/procedures/traitement-ticket/lancer", data={"sujet": "Ticket 42",
+                                                                 "pole": "SOFT"},
+                   follow_redirects=False)
+    mid = int(made.headers["location"].split("/missions/")[1].split("?")[0])
+    assert "Ticket 42" in dg.get(f"/missions/{mid}").text
+    assert dg.post("/procedures/nulle/lancer", data={"sujet": "x"},
+                   follow_redirects=False).headers["location"].count("Refus") == 1
+    assert client("val@ibig.test").get("/procedures").status_code == 403
+

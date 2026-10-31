@@ -48,7 +48,7 @@
       </div>
       {% call group('ventes', 'Ventes') %}
         {{ nav('/prospects', 'target', 'Prospects') }}
-        {% if user.role != 'valideur' %}{{ nav('/missions', 'list', 'Missions') }}{{ nav('/devis', 'file', 'Devis') }}{{ nav('/finance', 'chart', 'Finance') }}{% endif %}
+        {% if user.role != 'valideur' %}{{ nav('/missions', 'list', 'Missions') }}{{ nav('/procedures', 'book', 'Procédures') }}{{ nav('/devis', 'file', 'Devis') }}{{ nav('/finance', 'chart', 'Finance') }}{% endif %}
       {% endcall %}
       {% call group('contenu', 'Contenu') %}
         {{ nav('/calendrier', 'calendar', 'Calendrier') }}

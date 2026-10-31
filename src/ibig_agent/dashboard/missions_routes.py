@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select
 
-from .. import agent_control
+from .. import agent_control, procedures
 from ..auth import Principal
 from ..autopilot import TASK_LABELS, AutopilotError
 from ..db import JournalEntry
@@ -90,6 +90,22 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except AutopilotError as exc:
             return back("/missions", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Plan créé : suivez les tâches une à une")
+
+    @app.get("/procedures", response_class=HTMLResponse)
+    def procedures_page(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        return page(request, "procedures.html", procs=procedures.PROCEDURES,
+                    agent_labels=agent_control.LABELS, poles=rt.org.poles)
+
+    @app.post("/procedures/{code}/lancer")
+    def run_procedure(code: str, sujet: str = Form(""), pole: str = Form(""),
+                      who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            mid = rt.autopilot.from_procedure(code, sujet, who.label, pole)
+        except AutopilotError as exc:
+            return back("/procedures", f"Refusé : {exc}")
+        return back(f"/missions/{mid}", "Procédure lancée : suivez les tâches une à une")
 
     @app.post("/missions/{mid:int}/tache/{tid:int}/{action}")
     def task_action(mid: int, tid: int, action: str, preuve: str = Form(""),

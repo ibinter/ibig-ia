@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
-from . import agent_control
+from . import agent_control, procedures
 from .db import Mission, MissionEvent, MissionTask, utcnow
 from .llm import LLMError
 from .missions import MissionService
@@ -117,13 +117,31 @@ class Autopilot:
         except LLMError as exc:
             raise AutopilotError(f"Plan impossible : {exc}") from exc
         title, objective, tasks = validate_plan(raw)
+        return self._create(title, objective, tasks, pole, by, instruction)
+
+    def from_procedure(self, code: str, subject: str, by: str, pole: str = "") -> int:
+        """Lance une procédure de la bibliothèque : plan prêt à l'emploi, sans appel d'IA."""
+        proc = procedures.get(code)
+        if proc is None:
+            raise AutopilotError("Procédure inconnue")
+        subject = " ".join(subject.split())[:200]
+        if not subject:
+            raise AutopilotError("Précisez le sujet (nom du prospect, de la session, du client…)")
+        tasks = [PlannedTask(st.title, f"Preuve attendue : {st.proof}" if st.proof else "",
+                             st.agent if st.agent in agent_control.AGENTS else "",
+                             list(st.after)) for st in proc.steps]
+        return self._create(f"{proc.title} — {subject}", f"{proc.result} ({subject})", tasks,
+                            pole, by, f"Procédure « {proc.title} » v{proc.version} : {subject}")
+
+    def _create(self, title: str, objective: str, tasks: list[PlannedTask], pole: str, by: str,
+                origin: str) -> int:
         if pole not in self.pole_codes:
             pole = "GROUPE" if "GROUPE" in self.pole_codes else min(self.pole_codes)
         mid = self.missions.create({
             "name": title, "kind": "autopilot", "pole": pole, "objective": objective,
             "criteria": "Toutes les tâches terminées, chacune avec sa preuve",
             "agent": "chef", "autonomy": "lecture"}, by)
-        self.missions.activate(mid, by, "Plan Autopilot créé : " + instruction[:300])
+        self.missions.activate(mid, by, "Plan Autopilot créé : " + origin[:300])
         ids: list[int] = []
         with self._sessions() as s:
             for n, t in enumerate(tasks, 1):
