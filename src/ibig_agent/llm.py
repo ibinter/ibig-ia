@@ -36,6 +36,18 @@ EFFORT_MODELS = FALLBACK_MODELS | {"claude-opus-4-8"}
 ModelKind = Literal["triage", "writing"]
 
 
+def effective_budget(sessions: sessionmaker[Session], settings: Settings) -> float:
+    """Plafond mensuel en vigueur : réglage de la page Services, sinon l'environnement.
+    Une seule source pour l'accueil, le diagnostic, les photos et les appels IA."""
+    with sessions() as s:
+        row = s.get(ServiceSetting, "ia_budget")
+    try:
+        value = float((row.value if row else "").replace(",", "."))
+    except ValueError:
+        value = 0.0
+    return value if value > 0 else settings.monthly_ai_budget_usd
+
+
 class LLMError(Exception):
     pass
 

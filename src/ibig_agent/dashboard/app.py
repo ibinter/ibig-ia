@@ -46,6 +46,7 @@ from ..config import Mailbox
 from ..configstore import service_value
 from ..db import JobStatus, JournalEntry, MediaAsset, PendingAction, Prospect, Ticket, User
 from ..governance import ALL_CHANNELS, CHANNELS, POLE_PREFIX, GovernanceError
+from ..llm import effective_budget
 from ..runtime import Runtime
 from ..scheduler import _safe
 from . import (
@@ -402,7 +403,7 @@ def create_app(rt: Runtime) -> FastAPI:
         # Cloisonnement : un valideur ne voit que les chiffres de ses pôles.
         scoped = who.role == "valideur"
         with rt.sessions() as s:
-            stats = home_stats(s, who, rt.settings.monthly_ai_budget_usd)
+            stats = home_stats(s, who, effective_budget(rt.sessions, rt.settings))
         # La synthèse couvre tous les pôles (expéditeurs compris) : réservée à la direction.
         report = None if scoped else rt.chef.build_daily_report().as_text()
         steps = [] if scoped else setup_steps(rt)

@@ -36,7 +36,7 @@ from ..db import (
 )
 from ..governance import as_utc
 from ..knowledge import IMPORT_MARK, PLACEHOLDER, split_front_matter
-from ..llm import PRICES
+from ..llm import PRICES, effective_budget
 from ..runtime import Runtime, emailing_client
 from ..vault import encrypt
 
@@ -383,7 +383,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                     ia_models=MODEL_CHOICES,
                     ia_triage=get("ia_model_triage") or rt.settings.triage_model,
                     ia_writing=get("ia_model_writing") or rt.settings.writing_model,
-                    ia_budget=float(get("ia_budget") or rt.settings.monthly_ai_budget_usd),
+                    ia_budget=effective_budget(rt.sessions, rt.settings),
                     ia_spent=rt.llm.month_spend() if hasattr(rt.llm, "month_spend") else 0.0)
 
     @app.post("/services/ia")

@@ -189,3 +189,18 @@ def test_ai_models_and_budget_can_be_changed_from_the_services_page(rt, web):
     assert client._model("writing") == "claude-sonnet-5-5"       # effectif sans redémarrage
     assert client.budget() == 12.0
     assert web("val@ibig.test").post("/services/ia", data={}).status_code == 403
+
+
+def test_every_screen_reads_the_budget_set_in_services(rt, web):
+    from ibig_agent import diagnostics
+    from ibig_agent.llm import effective_budget
+
+    assert effective_budget(rt.sessions, rt.settings) == rt.settings.monthly_ai_budget_usd
+    dg = web("dg@ibig.test")
+    dg.post("/services/ia", data={"triage": "claude-haiku-4-5", "ecriture": "claude-haiku-4-5",
+                                  "plafond": "7"})
+    assert effective_budget(rt.sessions, rt.settings) == 7.0
+    checks = diagnostics.Diagnostic(rt, online=False).run()
+    plafond = next(c for c in checks if c.name == "plafond IA mensuel")
+    assert "7 USD" in plafond.detail
+    assert "sur 7 $" in dg.get("/services").text

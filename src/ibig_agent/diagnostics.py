@@ -109,8 +109,11 @@ class Diagnostic:
         key = s.sara_api_key
         self.add("Réglages", "API SARA", OK if len(key) >= 32 else WARN,
                  "activée" if len(key) >= 32 else "désactivée (IBIG_SARA_API_KEY < 32 car.)")
-        self.add("Réglages", "plafond IA mensuel", OK if s.monthly_ai_budget_usd > 0 else FAIL,
-                 f"{s.monthly_ai_budget_usd:.0f} USD, alerte à {s.budget_alert_ratio:.0%}")
+        from .llm import effective_budget
+
+        budget = effective_budget(self.rt.sessions, s)
+        self.add("Réglages", "plafond IA mensuel", OK if budget > 0 else FAIL,
+                 f"{budget:.0f} USD, alerte à {s.budget_alert_ratio:.0%}")
 
     def backups(self) -> None:
         from .backups import read_status

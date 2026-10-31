@@ -117,7 +117,9 @@ def generate_photo(sessions: sessionmaker[Session], settings: Settings, pa: Pend
         raise ImageError("Aucune clé OpenAI : menu Services")
     size = size_for(pa.payload.get("reseau", ""))
     cost = PRICES.get(size, 0.063)
-    if month_spend(sessions) + cost > settings.monthly_ai_budget_usd:
+    from .llm import effective_budget
+
+    if month_spend(sessions) + cost > effective_budget(sessions, settings):
         raise ImageError("Plafond mensuel de dépense IA atteint")
     model = service_value(sessions, settings, "openai_image_model") or DEFAULT_MODEL
     prompt = photo_prompt(pa.payload.get("brief_visuel", ""), pa.title.split(" · ")[-1],
