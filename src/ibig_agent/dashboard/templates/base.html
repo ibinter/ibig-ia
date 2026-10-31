@@ -15,8 +15,8 @@
 </head>
 <body>
 {% if user %}
-{% macro nav(href, ic, label, badge=0, cls="") -%}
-  {%- set on = (path == href) or (href != '/' and path.startswith(href)) -%}
+{% macro nav(href, ic, label, badge=0, cls="", also=()) -%}
+  {%- set on = (path == href) or (href != '/' and path.startswith(href)) or (path.split('/')[1] in also) -%}
   <a href="{{ href }}" class="{{ 'on' if on }} {{ cls }}" data-tip="{{ label }}"{% if on %} aria-current="page"{% endif %}>{{ icon(ic) }}<span class="lbl">{{ label }}</span>
     {%- if badge %}<span class="count">{{ badge }}</span>{% endif %}</a>
 {%- endmacro %}
@@ -41,8 +41,7 @@
       <div class="nav-group nav-top">
         {% if user.role != 'valideur' and badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Mise en route', badges.get('demarrage'), cls='setup') }}{% endif %}
         {{ nav('/', 'home', 'Accueil') }}
-        {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
-        {{ nav('/validations', 'check-circle', 'Validations', badges.get('validations', 0)) }}
+        {{ nav('/validations', 'check-circle', 'À valider', badges.get('validations', 0)) }}
         {{ nav('/boite', 'inbox', 'Messages') if user.role != 'valideur' }}
         {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}
       </div>
@@ -56,24 +55,15 @@
         {% if user.role != 'valideur' %}{{ nav('/campagnes', 'mail', 'Campagnes mail') }}{% endif %}
         {{ nav('/publications', 'sparkles', 'Publications réussies') }}
       {% endcall %}
-      {% call group('agents', 'Agents IA') %}
-        {{ nav('/agents', 'bot', 'Agents') }}
-        {% if user.role != 'valideur' %}{{ nav('/supervision', 'shield-check', 'Supervision') }}{% endif %}
-        {{ nav('/essai', 'sparkles', "Essayer l'agent") }}
-        {{ nav('/journal', 'list', 'Journal') }}
-      {% endcall %}
-      {% call group('pilotage', 'Pilotage') %}
+      {% call group('suivi', 'Suivi') %}
+        {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}
         {{ nav('/objectifs', 'target', 'Objectifs') }}
-        {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{{ nav('/sante', 'shield-check', 'Santé des tâches', badges.get('sante', 0)) }}{% endif %}
+        {% if user.role != 'valideur' %}{{ nav('/rapports', 'file', 'Rapports') }}{% endif %}
       {% endcall %}
-      {% call group('reglages', 'Réglages') %}
-        {% if user.role != 'valideur' %}{{ nav('/catalogue', 'book', 'Catalogue') }}{% endif %}
-        {{ nav('/connaissances', 'book', 'Base de connaissances') }}
-        {% if user.role != 'valideur' %}{{ nav('/boites', 'inbox', 'Boîtes mail') }}{{ nav('/services', 'globe', 'Services') }}{% endif %}
-        {% if user.role == 'admin' %}{{ nav('/utilisateurs', 'users', 'Comptes') }}{% endif %}
-        {% if user.role == 'valideur' or not badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Guide') }}{% endif %}
-      {% endcall %}
+      <div class="nav-group nav-top">
+        {{ nav('/reglages', 'shield-check', 'Réglages', also=('agents', 'supervision', 'utilisateurs', 'catalogue', 'connaissances', 'essai', 'boites', 'services', 'journal', 'sante', 'demarrage', 'compte')) }}
+      </div>
       <p class="nav-empty" hidden>Aucune page ne correspond.</p>
     </nav>
     <div class="side-foot">

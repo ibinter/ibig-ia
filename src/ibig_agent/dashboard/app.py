@@ -534,6 +534,10 @@ def create_app(rt: Runtime) -> FastAPI:
     quotes_routes.register(app, rt, user, page, back)
     finance_routes.register(app, rt, user, page, back)
 
+    @app.get("/reglages", response_class=HTMLResponse)
+    def settings_hub(request: Request, who: Principal = Depends(user)):
+        return page(request, "reglages.html")
+
     @app.get("/demarrage", response_class=HTMLResponse)
     def getting_started(request: Request, who: Principal = Depends(user)):
         steps = setup_steps(rt)

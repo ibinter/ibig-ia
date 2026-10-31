@@ -312,5 +312,32 @@ def test_configuration_pages_render_each_form_once(rt, accounts):
 def test_sidebar_is_collapsible_and_marks_current_page(rt, accounts):
     page = client(rt, "dg@ibig.test").get("/journal").text
     assert 'id="side-toggle"' in page and 'id="nav-q"' in page
-    assert '<a href="/journal" class="on ' in page and 'aria-current="page"' in page
+    assert '<a href="/reglages" class="on ' in page and 'aria-current="page"' in page
     assert page.count('aria-current="page"') == 1
+    assert '<a href="/validations" class="on ' in client(rt, "dg@ibig.test").get(
+        "/validations").text
+
+
+def test_settings_hub_groups_every_setting_page(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    users = UserStore(rt.sessions, rt.org)
+    users.create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    users.create("val@ibig.test", "Valideur", "valideur", "mot-de-passe-solide")
+
+    def client(email):
+        c = TestClient(create_app(rt), base_url="https://testserver")
+        c.post("/login", data={"email": email, "password": "mot-de-passe-solide"})
+        return c
+
+    page = client("dg@ibig.test").get("/reglages")
+    assert page.status_code == 200
+    for href in ("/agents", "/supervision", "/catalogue", "/boites", "/services",
+                 "/connaissances", "/journal", "/arret"):
+        assert f'href="{href}"' in page.text
+    text = client("val@ibig.test").get("/reglages").text
+    assert 'href="/catalogue"' not in text and 'href="/boites"' not in text
+    assert 'href="/arret"' in text
