@@ -12,7 +12,18 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from ..db import JournalEntry, PendingAction, ProcessedMessage, User, utcnow
+from ..db import (
+    JournalEntry,
+    Mission,
+    MissionTask,
+    Payment,
+    PendingAction,
+    ProcessedMessage,
+    Prospect,
+    Quote,
+    User,
+    utcnow,
+)
 from ..governance import ActionRequest, Governor
 from ..llm import ClaudeClient
 
@@ -32,6 +43,8 @@ class DailyReport:
     echecs: int = 0
     alertes_veille: int = 0
     depense_ia_mois_usd: float | None = None
+    # Ventes (24 h) : None tant qu'aucune activité commerciale n'existe
+    ventes: dict[str, int] | None = None
 
     def as_text(self) -> str:
         traites = sum(v for k, v in self.mails_par_decision.items() if k != "en_cours")
@@ -52,6 +65,14 @@ class DailyReport:
         ]
         if self.depense_ia_mois_usd is not None:
             lines.append(f"Dépense IA du mois : {self.depense_ia_mois_usd:.2f} USD")
+        if self.ventes:
+            v = self.ventes
+            lines += ["", "Ventes (24 h) :",
+                      f"- Prospects trouvés : {v['prospects']} · devis envoyés : {v['devis']}",
+                      (f"- Argent encaissé (confirmé) : {v['encaisse']} FCFA · "
+                       f"paiements à confirmer : {v['a_confirmer']}"),
+                      (f"- Missions en cours : {v['missions']} · tâches bloquées ou en échec : "
+                       f"{v['bloquees']}")]
         if self.urgences:
             lines += ["", "Urgences :"] + [f"- {u}" for u in self.urgences]
         return "\n".join(lines)
@@ -102,6 +123,21 @@ class ChefAgent:
             rep.alertes_veille = s.scalar(select(func.count()).select_from(JournalEntry).where(
                 JournalEntry.created_at >= since,
                 JournalEntry.action_type == "veille.alert")) or 0
+            sales = {
+                "prospects": s.scalar(select(func.count()).select_from(Prospect).where(
+                    Prospect.collected_at >= since)) or 0,
+                "devis": s.scalar(select(func.count()).select_from(Quote).where(
+                    Quote.sent_at >= since)) or 0,
+                "encaisse": int(s.scalar(select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                    Payment.status == "confirme", Payment.confirmed_at >= since)) or 0),
+                "a_confirmer": s.scalar(select(func.count()).select_from(Payment).where(
+                    Payment.status == "a_confirmer")) or 0,
+                "missions": s.scalar(select(func.count()).select_from(Mission).where(
+                    Mission.status == "en_cours")) or 0,
+                "bloquees": s.scalar(select(func.count()).select_from(MissionTask).where(
+                    MissionTask.status.in_(("bloquee", "echec")))) or 0,
+            }
+            rep.ventes = sales if any(sales.values()) else None
         if self.llm is not None:
             rep.depense_ia_mois_usd = self.llm.month_spend(now)
         return rep

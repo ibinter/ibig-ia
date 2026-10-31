@@ -191,3 +191,12 @@ def test_command_center_shows_departments_funnel_costs_and_is_direction_only(rt,
     page = client("a@ibig.test").get("/commande").text
     assert "Centre de commande" in page and "Relève impossible" in page
     assert client("val@ibig.test").get("/commande").status_code == 403
+
+
+def test_daily_report_includes_the_sales_block(rt, accepted):
+    assert "confirmé) : 0 FCFA" in rt.chef.build_daily_report().as_text()  # devis envoyé, rien encaissé
+    qid, _ = accepted
+    f = rt.finance
+    f.confirm(f.record(qid, 50000, "virement", "RPT1", "relevé", "Awa"), "Awa")
+    text = rt.chef.build_daily_report().as_text()
+    assert "Ventes (24 h)" in text and "50000 FCFA" in text
