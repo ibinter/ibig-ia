@@ -197,3 +197,21 @@ def test_reprocess_puts_manual_mails_back_in_the_queue(rt, llm, connector):
     assert rt.messagerie.reprocess_manual() == 1
     assert [p.status for p in pending(rt, "pending")] == []        # l'ancienne tâche est écartée
     assert rt.messagerie.poll()["nouveaux"] == 1
+
+
+def test_automated_mails_never_cost_an_ai_call(rt, llm, connector):
+    connector.add("Réunion prête", "Notification", sender="noreply@meet.example")
+    connector.add("Note", "Test", sender=connector.mailbox.adresse)
+    connector.add("Alerte système", "Notification", sender="notifications@service.example")
+    stats = rt.messagerie.poll()
+    assert stats["nouveaux"] == 3 and "mail.triage" not in llm.calls
+    with rt.sessions() as s:
+        decisions = {m.decision for m in s.scalars(select(ProcessedMessage)).all()}
+    assert decisions == {"automatique"} and not pending(rt)
+
+
+def test_a_real_client_mail_is_still_triaged_and_long_bodies_are_cut(rt, llm, connector):
+    llm.triages["Question prix"] = {"categorie": "prospect"}
+    connector.add("Question prix", "Bonjour " + "x" * 10000, sender="client@exemple.ci")
+    rt.messagerie.poll()
+    assert "mail.triage" in llm.calls

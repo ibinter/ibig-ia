@@ -14,6 +14,7 @@ action passe par le Governor (niveaux 1/2/3).
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -55,6 +56,18 @@ CATEGORIES = [
 AUTO_NOTICE = (
     "Ceci est une réponse automatique. Un conseiller prendra le relais si nécessaire."
 )
+
+
+AUTOMATED_SENDER = re.compile(
+    r"^(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|mailer-daemon|bounces?|newsletter"
+    r"|postmaster|alerts?)\b", re.IGNORECASE)
+TRIAGE_BODY_CHARS = 3000   # au-delà, le reste n'aide pas le tri et coûte des jetons
+
+
+def is_automated(msg: MailMessage, mailbox: Mailbox) -> bool:
+    """Mail envoyé par une machine ou par la boîte elle-même : inutile de payer l'IA pour le lire."""
+    sender = (msg.sender or "").strip().lower()
+    return bool(AUTOMATED_SENDER.match(sender.split("@")[0]) or sender == mailbox.adresse.lower())
 
 
 def triage_schema(pole_codes: list[str]) -> dict:
@@ -232,7 +245,8 @@ class MessagerieAgent:
             f"Boîte de réception : {mailbox.adresse} (pôle {mailbox.pole})\n"
             f"FAQ validées disponibles :\n{faq_list}\n\n"
             + fence_untrusted(
-                f"De : {msg.sender_name} <{msg.sender}>\nObjet : {msg.subject}\n\n{msg.body}"
+                f"De : {msg.sender_name} <{msg.sender}>\nObjet : {msg.subject}\n\n"
+                f"{msg.body[:TRIAGE_BODY_CHARS]}"
             )
         )
         data = self.llm.structured("mail.triage", "triage", system, user,
@@ -252,6 +266,10 @@ class MessagerieAgent:
     def process(self, msg: MailMessage, mailbox: Mailbox) -> str:
         self._honour_opt_out(msg)
         injection_hits = detect_injection(f"{msg.subject}\n{msg.body}")
+        if is_automated(msg, mailbox) and not injection_hits:
+            self._label(msg, mailbox, mailbox.pole, ["IBIG/AUTOMATIQUE"])
+            self._finish(msg, "automatique")
+            return "automatique"
         try:
             triage = self.triage(msg, mailbox)
         except (LLMCreditExhausted, BudgetExceeded):
