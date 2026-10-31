@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Anomalies{% endblock %}
+{% block heading %}Anomalies{% endblock %}
+{% block lead %}<p class="lead">Ce que l'agent a repéré : sites ou produits qui ne répondent pas, bugs signalés par les clients, liens cassés, contacts incohérents. Il lit et signale, il ne corrige rien tout seul.</p>{% endblock %}
+{% block content %}
+{% set tone = {'critical': 'red', 'warning': 'amber', 'info': 'blue'} %}
+<div class="grid g-main">
+  <div>
+    {% if not findings %}<div class="card"><p class="muted">Rien à signaler pour l'instant. {{ targets | length }} adresse{{ 's' if targets | length > 1 }} surveillée{{ 's' if targets | length > 1 }} : la vérification tourne chaque heure.</p></div>{% endif %}
+    {% for f in findings %}
+    <section class="card" style="margin-bottom:12px">
+      <div class="card-head"><div><h2>{{ f.title }}</h2><div class="sub">{{ check_labels.get(f.check, f.check) }} · vu {{ f.count }} fois · depuis le {{ f.first_seen }} · dernier passage {{ f.last_seen }}</div></div>
+        <span class="pill {{ tone.get(f.severity, '') }} dot">{{ severity_labels.get(f.severity, f.severity) }}</span></div>
+      {% if f.detail %}<pre style="white-space:pre-wrap;font:inherit;margin:4px 0 10px">{{ f.detail }}</pre>{% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        {% if f.status == 'open' %}<form method="post" action="/anomalies/statut"><input type="hidden" name="cle" value="{{ f.key }}"><input type="hidden" name="statut" value="ack"><button class="btn sm">{{ icon('eye') }} Pris en compte</button></form>{% endif %}
+        {% if f.status != 'resolved' %}<form method="post" action="/anomalies/statut"><input type="hidden" name="cle" value="{{ f.key }}"><input type="hidden" name="statut" value="resolved"><button class="btn sm">{{ icon('check') }} Résolu</button></form>
+        {% else %}<form method="post" action="/anomalies/statut"><input type="hidden" name="cle" value="{{ f.key }}"><input type="hidden" name="statut" value="open"><button class="btn sm">Rouvrir</button></form>{% endif %}
+        <small class="muted">{{ {'open': 'ouvert', 'ack': 'pris en compte par ' ~ f.by, 'resolved': 'résolu'}[f.status] }}</small>
+      </div>
+    </section>
+    {% endfor %}
+    <p class="muted small"><a href="/anomalies?tous={{ 0 if show_all else 1 }}">{{ 'Masquer les constats résolus' if show_all else 'Voir aussi les constats résolus (' ~ (all_count - findings | length) ~ ')' }}</a></p>
+  </div>
+  <div style="align-self:start">
+    <form class="card" method="post" action="/anomalies/verifier" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('search') }} Vérifier maintenant</h2><div class="sub">Contrôle complet (réponse, vitesse, certificat, liens, contacts) et relevé des bugs signalés.</div></div></div>
+      <button class="btn primary" {{ 'disabled' if checking }}>{{ icon('play') }} {{ 'Vérification en cours…' if checking else 'Lancer la vérification' }}</button>
+    </form>
+    <form class="card" method="post" action="/anomalies/adresses" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('globe') }} Autres adresses à surveiller</h2><div class="sub">Une adresse par ligne (application, site, espace client). Les sites des pôles et les produits du catalogue sont déjà surveillés ({{ targets | length }} au total).</div></div></div>
+      <textarea name="adresses" rows="5" maxlength="4000" placeholder="https://…" style="width:100%">{{ extra_urls }}</textarea>
+      <button class="btn" style="margin-top:8px">{{ icon('check') }} Enregistrer</button>
+    </form>
+    <div class="card">
+      <div class="card-head"><div><h2>{{ icon('shield-check') }} Ce que l'agent ne fait pas</h2></div></div>
+      <p class="muted small">Il n'a aucun accès aux bases de données ni au code de vos logiciels : il ne corrige rien et ne modifie rien. Il signale, avec la preuve, pour qu'une personne décide.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

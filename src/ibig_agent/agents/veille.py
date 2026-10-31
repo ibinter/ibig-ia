@@ -378,6 +378,10 @@ class VeilleAgent:
         """Mail à la direction et à l'administration (si une boîte d'envoi est réglée)."""
         self._send(self._direction(), subject, body)
 
+    def alert_direction(self, kind: str, subject: str, body: str, pole: str = "") -> None:
+        """Alerte la direction (journal + mail si une boîte d'envoi est raccordée)."""
+        self._alert(kind, [], self._direction(), subject, body, pole)
+
     def _direction(self) -> list[str]:
         with self._sessions() as s:
             return list(s.scalars(select(User.email).where(

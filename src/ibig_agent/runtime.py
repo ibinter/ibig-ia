@@ -304,6 +304,13 @@ class Runtime:
         return WorkflowService(self.sessions, self.autopilot)
 
     @property
+    def anomalies(self):
+        from .anomalies import AnomalyService
+
+        return AnomalyService(self.sessions, self.settings, self.org, self.kb,
+                              alert=self.veille.alert_direction)
+
+    @property
     def recurring(self):
         from .recurring import RecurringService
 

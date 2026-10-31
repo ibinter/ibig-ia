@@ -166,7 +166,13 @@ def nav_counts(s: Session, who: Principal) -> dict[str, int]:
     if who.role != "valideur":
         failing = s.scalar(select(func.count()).select_from(JobStatus)
                            .where(JobStatus.failures > 0)) or 0
-    return {"validations": pending + prepared, "tickets": tickets, "sante": failing}
+    anomalies = 0
+    if who.role != "valideur":
+        from ..anomalies import open_findings
+
+        anomalies = open_findings(s)
+    return {"validations": pending + prepared, "tickets": tickets, "sante": failing,
+            "anomalies": anomalies}
 
 
 def sales_summary(rt) -> dict[str, int]:

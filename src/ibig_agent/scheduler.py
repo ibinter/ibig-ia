@@ -82,6 +82,12 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
         # Travaux récurrents : lance les échéances atteintes (jour, semaine, mois)
         JobSpec("recurring_work", "Travaux récurrents", "toutes les heures",
                 lambda: rt.recurring.run_due(), "interval", {"hours": 1, **every}),
+        # Sites, produits et bugs signalés : contrôle léger chaque heure, complet 4 fois par jour
+        JobSpec("anomaly_watch", "Surveillance des sites et bugs", "toutes les heures",
+                lambda: rt.anomalies.run(), "interval",
+                {"hours": 1, **every,
+                 "next_run_time": datetime.now(ZoneInfo(tz)) + timedelta(minutes=2)},
+                alert_after=6),
         JobSpec("quotes_expire", "Expiration des devis", "chaque jour à 1 h",
                 lambda: rt.quotes.expire_due(), "cron", {"hour": 1, "minute": 0, **every}),
         # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin
