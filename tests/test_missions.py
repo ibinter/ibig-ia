@@ -360,3 +360,33 @@ def test_a_validator_cannot_open_or_change_missions_or_agents(rt, web):
     assert val.post("/missions", data=FORM, follow_redirects=False).status_code == 403
     assert val.post("/supervision/chef/suspendre", follow_redirects=False).status_code == 403
     assert agent_control.control(rt.sessions, "chef") is None
+
+
+def test_every_agent_has_a_job_sheet_consistent_with_governance():
+    from ibig_agent import agent_control, agent_profiles
+    from ibig_agent.governance import ACTION_LEVELS, AGENT_AUTONOMY, Level
+
+    assert set(agent_profiles.PROFILES) == set(agent_control.AGENTS)
+    for agent, prof in agent_profiles.PROFILES.items():
+        assert prof.mission and prof.skills and prof.forbidden and prof.escalation
+        for action in prof.actions:
+            assert action in ACTION_LEVELS, (agent, action)
+        if AGENT_AUTONOMY.get(agent, "aucune") in ("aucune", "lecture"):
+            # un agent « lecture » ne soumet que des actions internes, jamais un envoi
+            assert all(ACTION_LEVELS[a] != Level.VALIDATION for a in prof.actions), agent
+    assert agent_profiles.autonomy_of("messagerie") == ("automatique", "vert")
+    assert agent_profiles.autonomy_of("prospecteur")[1] == "rouge"
+
+
+def test_supervision_shows_job_sheets_and_saves_the_human_owner(rt, web):
+    dg = web("dg@ibig.test")
+    page = dg.get("/supervision").text
+    assert "Fiche de poste" in page and "Responsable humain" in page
+    done = dg.post("/supervision/commercial/responsable", data={"responsable": "Koné Awa"},
+                   follow_redirects=False)
+    assert "Refus" not in done.headers["location"]
+    assert "Koné Awa" in dg.get("/supervision").text
+    assert dg.post("/supervision/pirate/responsable", data={"responsable": "x"},
+                   follow_redirects=False).status_code == 404
+    assert web("val@ibig.test").post("/supervision/commercial/responsable",
+                                     data={"responsable": "x"}).status_code == 403

@@ -12,9 +12,10 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select
 
-from .. import agent_control, procedures
+from .. import agent_control, agent_profiles, procedures
 from ..auth import Principal
 from ..autopilot import TASK_LABELS, AutopilotError
+from ..configstore import service_value, set_service_value
 from ..db import JournalEntry
 from ..governance import AGENT_AUTONOMY, CHANNELS
 from ..missions import AUTONOMIES, KINDS, STATUS_LABELS, MissionError
@@ -198,7 +199,12 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                 "suspended": bool(c and c.suspended), "reason": c.reason if c else "",
                 "runs_cap": c.runs_cap_day if c else None, "cost_cap": c.cost_cap_day if c else None,
                 "runs": use.runs, "cost": use.cost,
-                "blocked": agent_control.blocked_reason(rt.sessions, agent)})
+                "blocked": agent_control.blocked_reason(rt.sessions, agent),
+                "profile": agent_profiles.PROFILES.get(agent),
+                "levels": (agent_profiles.action_levels(agent_profiles.PROFILES[agent])
+                           if agent in agent_profiles.PROFILES else []),
+                "color": agent_profiles.autonomy_of(agent)[1],
+                "owner": service_value(rt.sessions, rt.settings, f"agent_owner_{agent}")})
         return page(request, "supervision.html", rows=data)
 
     def supervise(who: Principal, fn, ok: str):
@@ -218,6 +224,15 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     def resume(agent: str, who: Principal = Depends(user)):
         return supervise(who, lambda: agent_control.set_suspended(
             rt.sessions, agent, False, who.label), f"Agent {agent} repris")
+
+    @app.post("/supervision/{agent}/responsable")
+    def owner(agent: str, responsable: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        if agent not in agent_control.AGENTS:
+            raise HTTPException(404)
+        name = " ".join(responsable.split())[:120]
+        set_service_value(rt.sessions, rt.settings, f"agent_owner_{agent}", name, who.label)
+        return back("/supervision", f"Responsable de {agent} : {name or 'non désigné'}")
 
     @app.post("/supervision/{agent}/quotas")
     def quotas(agent: str, actions: str = Form(""), cout: str = Form(""),

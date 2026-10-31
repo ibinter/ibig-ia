@@ -22,6 +22,18 @@
       <form method="post" action="/supervision/{{ r.agent }}/suspendre" style="display:flex;gap:6px"><input type="text" name="motif" placeholder="Motif (facultatif)" maxlength="300"><button class="btn" style="color:var(--bad)">{{ icon('pause') }} Suspendre</button></form>
       {% endif %}
     </div>
+    {% if r.profile %}
+    <details style="margin-top:10px"><summary>Fiche de poste · autonomie {{ {'vert': 'verte', 'orange': 'orange', 'rouge': 'rouge'}.get(r.color, r.color) }}</summary>
+      <p class="muted"><b>Mission :</b> {{ r.profile.mission }}<br><b>Connaissances :</b> {{ r.profile.knowledge }}<br><b>Qualité :</b> {{ r.profile.quality }}<br><b>Escalade :</b> {{ r.profile.escalation }}</p>
+      <p class="muted"><b>Sait faire :</b> {{ r.profile.skills | join(' · ') }}</p>
+      {% if r.levels %}<p class="muted"><b>Actions :</b> {% for a, lv in r.levels %}{{ a }} ({{ lv }}){{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+      <p class="muted"><b>Interdit :</b> {{ r.profile.forbidden | join(' · ') }}</p>
+    </details>
+    {% endif %}
+    <form method="post" action="/supervision/{{ r.agent }}/responsable" style="display:flex;gap:6px;margin-top:10px;align-items:end;flex-wrap:wrap">
+      <label class="field" style="margin:0"><span>Responsable humain</span><input type="text" name="responsable" value="{{ r.owner }}" placeholder="À désigner" maxlength="120" style="width:200px"></label>
+      <button class="btn sm">{{ icon('check') }} Enregistrer</button>
+    </form>
     <form method="post" action="/supervision/{{ r.agent }}/quotas" style="display:flex;gap:6px;margin-top:10px;align-items:end;flex-wrap:wrap">
       <label class="field" style="margin:0"><span>Actions par jour</span><input type="number" min="1" name="actions" value="{{ r.runs_cap or '' }}" placeholder="sans limite" style="width:120px"></label>
       <label class="field" style="margin:0"><span>Coût par jour (USD)</span><input type="number" min="0.01" step="0.01" name="cout" value="{{ r.cost_cap or '' }}" placeholder="sans limite" style="width:140px"></label>
