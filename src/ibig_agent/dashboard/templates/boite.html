@@ -11,6 +11,7 @@
   <select name="decision" aria-label="Décision"><option value="">Toutes les décisions</option>{% for d in decisions %}<option value="{{ d }}" {{ 'selected' if d == decision }}>{{ d | statut }}</option>{% endfor %}</select>
   <button class="btn sm">{{ icon('search') }} Filtrer</button>
 </form>
+<form method="post" action="/boite/retraiter" onsubmit="return confirm('Remettre à traiter les mails des 3 derniers jours tombés « à traiter à la main » ?')" style="margin-bottom:12px"><button class="btn sm">{{ icon('play') }} Relancer le tri des mails restés à la main</button></form>
 <section class="card">
   {% if rows %}
   <table class="tbl"><thead><tr><th>Reçu</th><th>Boîte</th><th>De</th><th>Objet</th><th>Pôle</th><th>Catégorie</th><th>Décision</th></tr></thead><tbody>

@@ -15,17 +15,25 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..channels.mail import MailConnector, MailMessage
 from ..config import Mailbox, OrgConfig
-from ..db import JournalEntry, ProcessedMessage, Prospect, ProspectActivity, utcnow
+from ..db import (
+    JournalEntry,
+    PendingAction,
+    ProcessedMessage,
+    Prospect,
+    ProspectActivity,
+    utcnow,
+)
 from ..governance import ActionRequest, Governor, Level
 from ..knowledge import KnowledgeBase
-from ..llm import LLM, LLMError
+from ..llm import LLM, BudgetExceeded, LLMCreditExhausted, LLMError
 from ..security import UNTRUSTED_NOTICE, detect_injection, fence_untrusted
 
 log = logging.getLogger(__name__)
@@ -121,11 +129,56 @@ class MessagerieAgent:
                     stats["nouveaux"] += 1
                     try:
                         self.process(msg, mailbox)
+                    except (LLMCreditExhausted, BudgetExceeded) as exc:
+                        self._release(msg)
+                        self._alert_ai_down(str(exc))
+                        stats["ia_indisponible"] = 1
+                        return stats
                     except Exception as exc:  # noqa: BLE001
                         stats["erreurs"] += 1
                         self._finish(msg, decision="erreur")
                         self._prepare_manual(msg, mailbox, f"Erreur de traitement : {exc}")
         return stats
+
+    def _release(self, msg: MailMessage) -> None:
+        """Rend le mail « non traité » : il sera repris à la prochaine relève."""
+        with self._sessions() as s:
+            row = s.scalar(select(ProcessedMessage).where(
+                ProcessedMessage.mailbox == msg.mailbox,
+                ProcessedMessage.message_id == msg.message_id))
+            if row is not None and row.decision == "en_cours":
+                s.delete(row)
+                s.commit()
+
+    def _alert_ai_down(self, reason: str) -> None:
+        """Une seule alerte par jour, au lieu d'une alerte par mail."""
+        start = utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        with self._sessions() as s:
+            seen = s.scalar(select(func.count()).select_from(JournalEntry).where(
+                JournalEntry.action_type == "ia.indisponible",
+                JournalEntry.created_at >= start))
+        if not seen:
+            self._journal("ia.indisponible", "flagged",
+                          f"IA indisponible : les mails restent à traiter ({reason})",
+                          {"raison": reason})
+
+    def reprocess_manual(self, days: int = 3) -> int:
+        """Remet à traiter les mails récents tombés « à traiter à la main » faute d'IA."""
+        since = utcnow() - timedelta(days=days)
+        with self._sessions() as s:
+            rows = s.scalars(select(ProcessedMessage).where(
+                ProcessedMessage.decision.in_(("a_trier_manuel", "erreur")),
+                ProcessedMessage.processed_at >= since)).all()
+            refs = {r.message_id for r in rows}
+            for p in s.scalars(select(PendingAction).where(
+                    PendingAction.action_type == "mail.manual_triage",
+                    PendingAction.status.in_(("pending", "prepared")))).all():
+                if (p.payload or {}).get("message_id") in refs:
+                    p.status, p.decided_by, p.decided_at = "rejected", "retraitement", utcnow()
+            for r in rows:
+                s.delete(r)
+            s.commit()
+            return len(rows)
 
     def _claim(self, msg: MailMessage) -> bool:
         """Réserve le message ; False s'il a déjà été traité (aucun doublon)."""
@@ -201,6 +254,8 @@ class MessagerieAgent:
         injection_hits = detect_injection(f"{msg.subject}\n{msg.body}")
         try:
             triage = self.triage(msg, mailbox)
+        except (LLMCreditExhausted, BudgetExceeded):
+            raise   # panne d'IA : le mail reste à traiter, la relève s'arrête (voir poll)
         except LLMError as exc:
             self._label(msg, mailbox, mailbox.pole, ["IBIG/A_TRIER"])
             self._finish(msg, "a_trier_manuel")

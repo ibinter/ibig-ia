@@ -122,6 +122,13 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back(f"/devis/{qid}", f"Refusé : {exc}")
         return back(f"/devis/{qid}", ok)
 
+    @app.post("/boite/retraiter")
+    def reprocess(who: Principal = Depends(user)):
+        direction_only(who)
+        n = rt.messagerie.reprocess_manual()
+        return back("/boite", f"{n} mail(s) remis à traiter : repris à la prochaine relève "
+                              "(dans 5 minutes), si l'IA est de nouveau disponible")
+
     # ------------------------------------------------------------------ boîte unifiée
     @app.get("/boite", response_class=HTMLResponse)
     def inbox(request: Request, boite: str = "", pole: str = "", decision: str = "",

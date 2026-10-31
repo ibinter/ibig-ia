@@ -156,3 +156,44 @@ def test_daily_report_is_emailed_to_management(rt, connector):
     (mail,) = connector.sent
     assert mail["to"] == "dg@ibig.test" and "Rapport quotidien" in mail["subject"]
     assert "Mails reçus (24 h)" in mail["body"]
+
+
+def test_exhausted_ai_credit_keeps_mails_unprocessed_and_alerts_once(rt, llm, connector):
+    from ibig_agent.llm import LLMCreditExhausted
+
+    def broken(*args, **kwargs):
+        raise LLMCreditExhausted("Crédit Anthropic épuisé")
+
+    llm.triages["Bonjour"] = {}
+    connector.add("Bonjour 1", "Question")
+    connector.add("Bonjour 2", "Autre question")
+    original = llm.structured
+    llm.structured = broken
+    stats = rt.messagerie.poll()
+    stats = rt.messagerie.poll()                                   # une 2e relève ne multiplie rien
+    assert stats.get("ia_indisponible") == 1
+    with rt.sessions() as s:
+        assert s.scalars(select(ProcessedMessage)).all() == []     # rien n'est marqué traité
+        alerts = s.scalars(select(JournalEntry).where(
+            JournalEntry.action_type == "ia.indisponible")).all()
+    assert len(alerts) == 1 and not pending(rt)                    # une alerte, aucune tâche manuelle
+    llm.structured = original                                      # crédit rechargé
+    assert rt.messagerie.poll()["nouveaux"] == 2
+
+
+def test_reprocess_puts_manual_mails_back_in_the_queue(rt, llm, connector):
+    from ibig_agent.llm import LLMError
+
+    def down(*args, **kwargs):
+        raise LLMError("Erreur API 500")
+
+    connector.add("Bonjour 1", "Question")
+    original = llm.structured
+    llm.structured = down
+    rt.messagerie.poll()
+    assert [p.action_type for p in pending(rt)] == ["mail.manual_triage"]
+    llm.structured = original
+    llm.triages["Bonjour"] = {}
+    assert rt.messagerie.reprocess_manual() == 1
+    assert [p.status for p in pending(rt, "pending")] == []        # l'ancienne tâche est écartée
+    assert rt.messagerie.poll()["nouveaux"] == 1

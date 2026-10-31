@@ -48,6 +48,10 @@ class BudgetExceeded(LLMError):
     pass
 
 
+class LLMCreditExhausted(LLMError):
+    """Crédit du compte Anthropic épuisé : rien ne sert de réessayer avant un rechargement."""
+
+
 class LLM(Protocol):
     """Interface utilisée par les agents (permet de les tester sans appel réseau)."""
 
@@ -164,6 +168,8 @@ class ClaudeClient:
         except anthropic.APIConnectionError as exc:
             raise LLMError(f"Connexion à l'API impossible : {exc}") from exc
         except anthropic.APIStatusError as exc:
+            if "credit balance" in str(exc.message).lower():
+                raise LLMCreditExhausted("Crédit Anthropic épuisé : rechargez le compte") from exc
             raise LLMError(f"Erreur API {exc.status_code} : {exc.message}") from exc
 
         self._record(getattr(response, "model", model) or model, purpose, response.usage)
