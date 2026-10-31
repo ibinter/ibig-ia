@@ -110,6 +110,19 @@ def split_front_matter(raw: str) -> tuple[dict, str]:
     return {}, raw
 
 
+def doc_quality(doc: Document) -> list[str]:
+    """Ce qui manque à un document pour être fiable (cahier v2, 8.3) : responsable, version,
+    relecture. Les métadonnées vivent dans l'en-tête du fichier (responsable, version, valide_par)."""
+    issues = []
+    if not str(doc.meta.get("responsable", "")).strip():
+        issues.append("pas de responsable")
+    if not doc.meta.get("version"):
+        issues.append("pas de version")
+    if not str(doc.meta.get("valide_par", "")).strip():
+        issues.append("jamais relu")
+    return issues
+
+
 def parse_text(rel_path: str, raw: str) -> Document:
     meta, body = split_front_matter(raw)
     return Document(

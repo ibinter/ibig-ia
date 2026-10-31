@@ -18,6 +18,11 @@
       {% elif meta.get('type') == 'guide' %}
       <label class="inline" style="margin:14px 0;font-weight:600"><input type="checkbox" name="reponses_auto" value="1" {{ 'checked' if meta.get('reponses_auto') }}> Guide relu : le Support peut répondre seul quand toutes ses citations sont vérifiées</label>
       {% endif %}
+      <div class="grid g-3" style="gap:12px;margin:14px 0;align-items:end">
+        <label class="field"><span>Responsable du document</span><input type="text" name="responsable" value="{{ meta.get('responsable', '') }}" maxlength="120" placeholder="Nom ou fonction"></label>
+        <label class="inline" style="font-weight:600"><input type="checkbox" name="revu" value="1" {{ 'checked' if meta.get('valide_par') }}> Relu et validé{% if meta.get('valide_par') %} <small class="muted">par {{ meta.get('valide_par') }} le {{ meta.get('valide_le') }}</small>{% endif %}</label>
+        <small class="muted">Version {{ meta.get('version') or 'non numérotée' }}{% if meta.get('modifie_par') %} · modifiée par {{ meta.get('modifie_par') }} le {{ meta.get('modifie_le') }}{% endif %}. Elle augmente à chaque changement du texte.</small>
+      </div>
       <div class="actions"><button class="btn primary">{{ icon('check') }} Enregistrer</button></div>
     {% endif %}
   </form>

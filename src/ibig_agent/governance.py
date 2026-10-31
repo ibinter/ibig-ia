@@ -111,6 +111,7 @@ CHANNELS = [
 ]
 ALL_CHANNELS = "*"
 POLE_PREFIX = "pole:"   # clé d'arrêt d'un département dans channel_state
+CONNECTOR_PREFIX = "connecteur:"   # clé d'arrêt d'une boîte mail (connecteur) précise
 
 
 # Champs dont le contenu part vers l'extérieur (mail, publication, article, WhatsApp).
@@ -191,6 +192,10 @@ class Governor:
         """Arrêt d'un département : même mécanisme que le canal, sous la clé « pole:CODE »."""
         return bool(pole) and self.is_stopped(f"{POLE_PREFIX}{pole}")
 
+    def is_connector_stopped(self, account: str) -> bool:
+        """Arrêt d'un connecteur (une boîte mail précise), sous la clé « connecteur:ADRESSE »."""
+        return bool(account) and self.is_stopped(f"{CONNECTOR_PREFIX}{account}")
+
     def set_stopped(self, channel: str, stopped: bool, by: str, reason: str = "") -> None:
         with self._sessions() as s:
             state = s.get(ChannelState, channel) or ChannelState(channel=channel)
@@ -237,6 +242,8 @@ class Governor:
         reason = agent_control.blocked_reason(self._sessions, req.agent)
         if not reason and self.is_pole_stopped(req.pole):
             reason = f"Département {req.pole} suspendu : action non exécutée"
+        if not reason and self.is_connector_stopped(req.account):
+            reason = f"Boîte {req.account} suspendue : action non exécutée"
         if reason:
             self._journal(req, level, "blocked", reason)
             return Outcome("blocked", level, error=reason)
@@ -295,6 +302,8 @@ class Governor:
                 raise ChannelStopped(f"Canal {pa.channel} suspendu")
             if self.is_pole_stopped(pa.pole):
                 raise ChannelStopped(f"Département {pa.pole} suspendu")
+            if self.is_connector_stopped(pa.account):
+                raise ChannelStopped(f"Boîte {pa.account} suspendue")
             suspended = agent_control.is_suspended(self._sessions, pa.agent)
             if suspended:   # reprendre l'agent d'abord : la validation ne contourne pas l'arrêt
                 raise GovernanceError(f"{suspended} : action non exécutée")

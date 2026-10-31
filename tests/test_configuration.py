@@ -186,3 +186,25 @@ def test_bulk_mailboxes_are_added_encrypted(rt):
     assert rows["b@ibig-eduform.com"].pole == "EDUFORM"
     assert "secret-a" not in rows["a@ibigsoft.com"].secret_enc
     assert "a@ibigsoft.com" in rt.connectors
+
+
+def test_document_gets_a_responsible_a_version_and_a_review_stamp(rt, dg):
+    from ibig_agent.knowledge import doc_quality
+
+    path = next(d.path for d in rt.kb.documents if d.type == "fiche_pole" and d.pole == "SOFT")
+    doc = next(d for d in rt.kb.documents if d.path == path)
+    assert doc_quality(doc) == ["pas de responsable", "pas de version", "jamais relu"]
+    assert "à fiabiliser" in dg.get("/connaissances").text
+    body = "## Identité\nIBIG SOFT édite 14 solutions.\n"
+    dg.post("/connaissances/document", data={"chemin": path, "contenu": body, "valide": "1",
+                                              "responsable": "Awa Koné", "revu": "1"})
+    doc = next(d for d in rt.kb.documents if d.path == path)
+    assert doc.meta["responsable"] == "Awa Koné" and doc.meta["version"] == 1
+    assert doc.meta["valide_par"].startswith("Direction") and doc_quality(doc) == []
+    dg.post("/connaissances/document", data={"chemin": path, "contenu": body, "valide": "1",
+                                              "responsable": "Awa Koné", "revu": "1"})
+    assert next(d for d in rt.kb.documents if d.path == path).meta["version"] == 1   # texte inchangé
+    dg.post("/connaissances/document", data={"chemin": path, "contenu": body + "- Nouveau\n",
+                                              "valide": "1", "responsable": "Awa Koné"})
+    doc = next(d for d in rt.kb.documents if d.path == path)
+    assert doc.meta["version"] == 2 and "jamais relu" in doc_quality(doc)   # relecture à refaire

@@ -65,4 +65,25 @@
   </div>
   {% endfor %}
 </div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Par boîte mail</h2><div class="sub">Suspendre une seule adresse (mails envoyés par elle), sans toucher aux autres boîtes</div></div></div>
+  {% for m in mailboxes %}{% set key = 'connecteur:' ~ m.adresse %}{% set st = states.get(key) %}{% set off = st and st.stopped %}
+  <div class="switch-row {{ 'off' if off }}">
+    <div class="name"><span class="ico">{{ icon('mail') }}</span>
+      <div><b>{{ m.adresse }}</b><div class="muted">{% if off %}suspendue · {{ st.reason or 'sans motif' }} · par {{ st.updated_by }}{% else %}{{ m.pole }} · active{% endif %}</div></div></div>
+    {% if off %}<span class="pill red dot">suspendue</span>{% else %}<span class="pill green dot">active</span>{% endif %}
+    <form method="post" action="/arret">
+      <input type="hidden" name="canal" value="{{ key }}">
+      {% if off %}
+        {% if user.role in ('admin', 'direction') %}<input type="hidden" name="action" value="reprise"><button class="btn ok sm">{{ icon('play') }} Réactiver</button>
+        {% else %}<span class="muted">Réactivation : direction</span>{% endif %}
+      {% else %}
+        <input type="hidden" name="action" value="stop"><input type="text" name="motif" placeholder="Motif">
+        <button class="btn ghost-bad sm">{{ icon('pause') }} Suspendre</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}

@@ -15,6 +15,12 @@
 {% set all_poles = namespace(v=[]) %}
 {% for title, ic, why, kind, rows in groups %}{% for d, t, e, r in rows %}{% if d.pole and d.pole not in all_poles.v %}{% set all_poles.v = all_poles.v + [d.pole] %}{% endif %}{% endfor %}{% endfor %}
 
+{% if weak %}<details class="card" style="margin-bottom:16px">
+  <summary><b>{{ weak | length }} document{{ 's' if weak | length > 1 }} sur {{ n_docs }} à fiabiliser</b> <span class="muted">(responsable, version ou relecture manquants)</span></summary>
+  <ul class="prio-list">
+    {% for d, issues in weak %}<li><a class="todo-txt" href="/connaissances/document?chemin={{ d.path | urlencode }}"><b>{{ d.titre }}</b><br><small class="muted">{{ issues | join(' · ') }}</small></a></li>{% endfor %}
+  </ul>
+</details>{% endif %}
 <section class="score-hero">
   <div class="score-ring">
     <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" class="ring-bg"/>

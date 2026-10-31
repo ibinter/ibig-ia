@@ -153,3 +153,46 @@ def test_stop_page_accepts_departments_and_refuses_unknown_ones(rt):
                    follow_redirects=False).status_code == 400
     dg.post("/arret", data={"canal": "pole:SOFT", "action": "reprise"})
     assert not rt.governor.is_pole_stopped("SOFT")
+
+
+def test_a_stopped_mailbox_blocks_only_its_own_actions(rt, connector):
+    from ibig_agent.governance import CONNECTOR_PREFIX, ActionRequest
+
+    box = connector.mailbox.adresse
+
+    def report(account):
+        return rt.governor.submit(ActionRequest(agent="chef", action_type="report.publish",
+                                                channel="rapport", title="Rapport",
+                                                account=account, payload={"text": "bilan"}))
+
+    queued = rt.governor.submit(req("mail.reply", payload={
+        "mailbox": box, "to": "a@b.ci", "subject": "s", "body": "Bonjour"}, account=box))
+    rt.governor.set_stopped(f"{CONNECTOR_PREFIX}{box}", True, "Awa", "essai")
+    blocked = report(box)
+    assert blocked.status == "blocked" and box in blocked.error
+    assert report("autre@ibig.test").status == "executed" and report("").status == "executed"
+    with pytest.raises(GovernanceError, match="suspendue"):      # la validation ne contourne pas l'arrêt
+        rt.governor.approve(queued.pending_id, by="Awa")
+    assert connector.sent == []
+    rt.governor.set_stopped(f"{CONNECTOR_PREFIX}{box}", False, "Awa")
+    assert report(box).status == "executed"
+
+
+def test_stop_page_accepts_known_mailboxes_only(rt, connector, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction",
+                                          "mot-de-passe-solide")
+    dg = TestClient(create_app(rt), base_url="https://testserver")
+    dg.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    monkeypatch.setattr(rt.org, "mailboxes", [connector.mailbox])
+    box = connector.mailbox.adresse
+    assert "Par boîte mail" in dg.get("/arret").text
+    assert dg.post("/arret", data={"canal": f"connecteur:{box}", "action": "stop"},
+                   follow_redirects=False).status_code == 303
+    assert rt.governor.is_connector_stopped(box)
+    assert dg.post("/arret", data={"canal": "connecteur:inconnue@x.ci", "action": "stop"},
+                   follow_redirects=False).status_code == 400

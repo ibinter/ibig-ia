@@ -35,7 +35,7 @@ from ..db import (
     utcnow,
 )
 from ..governance import as_utc
-from ..knowledge import IMPORT_MARK, PLACEHOLDER, split_front_matter
+from ..knowledge import IMPORT_MARK, PLACEHOLDER, doc_quality, split_front_matter
 from ..llm import PRICES, effective_budget
 from ..runtime import Runtime, emailing_client
 from ..vault import encrypt
@@ -204,7 +204,10 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             for st in imports.values():
                 if st.get("etat") == "en_cours":
                     st.update(etat="echec", resume="interrompu : relancez l'import")
+        weak = [(d, doc_quality(d)) for d in rt.kb.documents
+                if d.type != "publication" and doc_quality(d)]
         return page(request, "connaissances.html", groups=groups,
+                    weak=weak, n_docs=len(rt.kb.documents),
                     can_edit=who.role != "valideur", poles=rt.org.poles,
                     faq_ready=len(rt.kb.faq), faq_todo=len(rt.kb.faq_pending),
                     imports=imports, importing=bool(_importing))
@@ -255,10 +258,22 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     @app.post("/connaissances/document")
     def knowledge_save(chemin: str = Form(...), contenu: str = Form(...),
                        valide: str = Form(""), reponses_auto: str = Form(""),
+                       responsable: str = Form(""), revu: str = Form(""),
                        who: Principal = Depends(user)):
         direction_only(who)
-        meta, _ = split_front_matter(_doc_or_404(chemin))
+        meta, old_body = split_front_matter(_doc_or_404(chemin))
         contenu = contenu.replace("\r\n", "\n").strip() + "\n"
+        today = utcnow().date().isoformat()
+        if contenu.strip() != old_body.strip():     # nouvelle version à chaque changement de texte
+            meta["version"] = int(meta.get("version") or 0) + 1
+            meta["modifie_par"], meta["modifie_le"] = who.label, today
+        if responsable.strip():
+            meta["responsable"] = responsable.strip()[:120]
+        if revu:
+            meta["valide_par"], meta["valide_le"] = who.label, today
+        else:
+            meta.pop("valide_par", None)
+            meta.pop("valide_le", None)
         todo = _todo_lines(contenu)
         if meta.get("type") == "fiche_pole":
             # Fiche utilisable par les agents seulement si validée ET sans « À COMPLÉTER »
