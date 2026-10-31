@@ -265,6 +265,7 @@ class MessagerieAgent:
     # ------------------------------------------------------------ traitement
     def process(self, msg: MailMessage, mailbox: Mailbox) -> str:
         self._honour_opt_out(msg)
+        self._note_reply_intent(msg)
         injection_hits = detect_injection(f"{msg.subject}\n{msg.body}")
         if is_automated(msg, mailbox) and not injection_hits:
             self._label(msg, mailbox, mailbox.pole, ["IBIG/AUTOMATIQUE"])
@@ -546,6 +547,28 @@ class MessagerieAgent:
                                channel="mail", pole=p.pole, status="executed",
                                summary=f"Désinscription : plus de relance pour {p.email}",
                                details={"ref": msg.message_id, "prospect_id": p.id}))
+            s.commit()
+
+    def _note_reply_intent(self, msg: MailMessage) -> None:
+        """Réponse d'un prospect connu : son intention (rendez-vous, devis, refus) est notée sur
+        la fiche avec l'action suggérée. Un refus arrête les relances ; rien ne part seul."""
+        from .commercial import REPLY_KINDS, classify_reply
+
+        kind = classify_reply(msg.body)
+        if not kind:
+            return
+        label, suggestion = REPLY_KINDS[kind]
+        with self._sessions() as s:
+            p = s.scalar(select(Prospect).where(Prospect.email == msg.sender))
+            if p is None:
+                return
+            if kind == "refus":
+                p.stop_followups = True
+            p.next_step = suggestion
+            p.updated_at = utcnow()
+            s.add(ProspectActivity(prospect_id=p.id, kind="systeme", by=AGENT,
+                                   summary=f"Réponse reçue : {label}. Suite proposée : "
+                                           f"{suggestion}."))
             s.commit()
 
     def _upsert_prospect(self, msg: MailMessage, mailbox: Mailbox, triage: Triage) -> None:

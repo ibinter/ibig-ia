@@ -83,6 +83,31 @@ def is_opt_out(text: str) -> bool:
     return bool(OPT_OUT.search(head))
 
 
+REPLY_KINDS = {
+    "rendez_vous": ("Demande de rendez-vous", "Proposer un rendez-vous"),
+    "devis": ("Demande de prix ou de devis", "Préparer un devis"),
+    "refus": ("Refus ou désintérêt", "Arrêter les relances"),
+}
+REPLY_PATTERNS = (
+    ("refus", re.compile(r"pas int[ée]ress|aucun int[ée]r[êe]t|sans int[ée]r[êe]t|"
+                         r"non merci|ne nous int[ée]resse pas|plus besoin", re.IGNORECASE)),
+    ("rendez_vous", re.compile(r"rendez[- ]vous|\brdv\b|appelez[- ]moi|me rappeler|"
+                               r"d[ée]mo(nstration)?|visio", re.IGNORECASE)),
+    ("devis", re.compile(r"\bdevis\b|\btarifs?\b|\bprix\b|combien (co[uû]te|ca co)|"
+                         r"proposition (commerciale|financi[èe]re)", re.IGNORECASE)),
+)
+
+
+def classify_reply(text: str) -> str:
+    """Intention d'une réponse de prospect, par mots-clés (aucun appel IA, aucun coût). Seules
+    les premières lignes comptent, sans les citations. Vide si rien de net."""
+    head = "\n".join(line for line in text.splitlines()[:12] if not line.startswith(">"))
+    for kind, pattern in REPLY_PATTERNS:
+        if pattern.search(head):
+            return kind
+    return ""
+
+
 def qualification_schema() -> dict:
     return {
         "type": "object",

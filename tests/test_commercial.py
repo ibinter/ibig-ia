@@ -236,6 +236,41 @@ def test_opt_out_detection(body, expected):
     assert is_opt_out(body) is expected
 
 
+@pytest.mark.parametrize("body,expected", [
+    ("Pouvez-vous m'envoyer un devis ?", "devis"),
+    ("Quel est votre prix pour 40 postes ?", "devis"),
+    ("Planifions un rendez-vous jeudi.", "rendez_vous"),
+    ("Nous ne sommes pas intéressés, merci.", "refus"),
+    ("Un rendez-vous ? Non merci, pas intéressés.", "refus"),
+    ("Bien reçu, merci.", ""),
+    ("Merci.\n\n> Demandez un devis ou un rendez-vous", ""),
+])
+def test_reply_classification(body, expected):
+    from ibig_agent.agents.commercial import classify_reply
+    assert classify_reply(body) == expected
+
+
+def test_reply_intent_is_noted_on_the_file(rt, llm, connector):
+    pid = prospect(rt)
+    connector.add("Re: Suite à votre demande", "Pouvez-vous m'envoyer un devis ?",
+                  sender="dir@ecole.ci")
+    llm.triages["Re: Suite"] = {"categorie": "prospect"}
+    rt.messagerie.poll()
+    p = get(rt, pid)
+    assert p.next_step == "Préparer un devis"
+    assert not p.stop_followups
+    assert any("Demande de prix" in a.summary for a in rt.commercial.activities(pid))
+
+
+def test_refusal_reply_stops_followups(rt, llm, connector):
+    pid = prospect(rt)
+    connector.add("Re: Suite à votre demande", "Non merci, nous ne sommes pas intéressés.",
+                  sender="dir@ecole.ci")
+    llm.triages["Re: Suite"] = {"categorie": "prospect"}
+    rt.messagerie.poll()
+    assert get(rt, pid).stop_followups
+
+
 def test_opt_out_reply_stops_followups(rt, llm, connector):
     pid = prospect(rt)
     connector.add("Re: Suite à votre demande", "STOP", sender="dir@ecole.ci")
