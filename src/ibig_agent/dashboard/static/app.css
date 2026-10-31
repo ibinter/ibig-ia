@@ -1436,3 +1436,12 @@ a.card:hover, a.cal-stat:hover, a.kpi:hover { transform: translateY(-2px); box-s
 /* Pastille qui bouge quand un chiffre change */
 .count.pulse { animation: pulse .9s ease; }
 @keyframes pulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+
+/* ---------------------------------------------------------------- v25 : téléphone */
+@media (max-width: 760px) {
+  /* Un tableau trop large défile dans sa carte au lieu de déborder de la page */
+  table.tbl { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.tbl th, table.tbl td { white-space: nowrap; }
+  select, input, textarea { max-width: 100%; }
+  .grid.g-3 { grid-template-columns: 1fr; }
+}
