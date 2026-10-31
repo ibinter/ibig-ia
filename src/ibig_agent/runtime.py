@@ -298,6 +298,12 @@ class Runtime:
         return Autopilot(self.sessions, self.missions, self.llm, self.org.pole_codes)
 
     @property
+    def workflows(self):
+        from .workflows import WorkflowService
+
+        return WorkflowService(self.sessions, self.autopilot)
+
+    @property
     def finance(self):
         from .finance import FinanceService
 

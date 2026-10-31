@@ -57,6 +57,7 @@ from . import (
     missions_routes,
     quotes_routes,
     social_routes,
+    workflows_routes,
 )
 from .agents_view import agent_cards, runners
 from .setup import progress, setup_steps
@@ -533,6 +534,7 @@ def create_app(rt: Runtime) -> FastAPI:
     missions_routes.register(app, rt, user, page, back)
     quotes_routes.register(app, rt, user, page, back)
     finance_routes.register(app, rt, user, page, back)
+    workflows_routes.register(app, rt, user, page, back)
 
     @app.get("/departements", response_class=HTMLResponse)
     def departments_page(request: Request, who: Principal = Depends(user)):

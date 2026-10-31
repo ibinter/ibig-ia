@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Workflows{% endblock %}
+{% block heading %}Workflows{% endblock %}
+{% block lead %}<p class="lead">Un workflow est une suite d'étapes que vous écrivez une fois, qu'une <b>autre personne approuve</b>, puis que vous lancez autant de fois que nécessaire. Une version approuvée ne change plus : pour la modifier, créez la version suivante.</p>{% endblock %}
+{% block content %}
+{% set tone = {'brouillon': 'amber', 'approuve': 'green', 'archive': ''} %}
+<div class="grid g-main">
+  <div>
+    {% if not workflows %}<div class="card"><p class="muted">Aucun workflow pour l'instant. Copiez une procédure de la bibliothèque ou écrivez le vôtre.</p></div>{% endif %}
+    {% for w in workflows %}
+    <section class="card" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ w.title }} <small class="muted">v{{ w.version }}</small></h2><div class="sub">{{ w.trigger or 'Déclencheur non précisé' }} · écrit par {{ w.created_by }}{% if w.approved_by %} · approuvé par {{ w.approved_by }}{% endif %}</div></div>
+        <span class="pill {{ tone[w.status] }} dot">{{ status_labels[w.status] }}</span></div>
+      <ol class="prio-list">
+        {% for st in w.steps %}<li><span class="todo-txt"><b>{{ loop.index }}. {{ st.title }}</b><br><small class="muted">{{ agent_labels.get(st.agent, 'Une personne') if st.agent else 'Une personne' }}{% if st.after %} · après {{ st.after | join(', ') }}{% endif %}{% if st.proof %} · preuve : {{ st.proof }}{% endif %}</small></span></li>{% endfor %}
+      </ol>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        {% if w.status == 'brouillon' %}<form method="post" action="/workflows/{{ w.id }}/approuver"><button class="btn primary">{{ icon('check') }} Approuver</button></form>{% endif %}
+        {% if w.status == 'approuve' %}
+        <form method="post" action="/workflows/{{ w.id }}/lancer" style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" name="sujet" placeholder="Sujet (client, session…)" required maxlength="200">
+          <select name="pole" aria-label="Pôle">{% for p in poles %}<option value="{{ p.code }}" {{ 'selected' if p.code == w.pole }}>{{ p.code }}</option>{% endfor %}</select>
+          <button class="btn primary">{{ icon('play') }} Lancer</button></form>{% endif %}
+        {% if w.status != 'archive' %}<form method="post" action="/workflows/{{ w.id }}/archiver"><button class="btn">Archiver</button></form>{% endif %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  <div style="align-self:start">
+    <form class="card" method="post" action="/workflows/adopter" style="margin-bottom:16px">
+      <div class="card-head"><div><h2>{{ icon('book') }} Partir d'une procédure</h2><div class="sub">Copie une procédure de la bibliothèque en brouillon.</div></div></div>
+      <label class="field"><span>Procédure</span><select name="procedure" style="width:100%">{% for p in library %}<option value="{{ p.code }}">{{ p.title }}</option>{% endfor %}</select></label>
+      <button class="btn">{{ icon('check') }} Copier</button>
+    </form>
+    <form class="card" method="post" action="/workflows">
+      <div class="card-head"><div><h2>{{ icon('edit') }} Écrire un workflow</h2><div class="sub">Si le code existe déjà, c'est une nouvelle version.</div></div></div>
+      <label class="field"><span>Code (sans espace)</span><input type="text" name="code" required maxlength="60" placeholder="accueil-nouveau-client"></label>
+      <label class="field"><span>Titre</span><input type="text" name="titre" required maxlength="200"></label>
+      <label class="field"><span>Déclencheur</span><input type="text" name="declencheur" maxlength="300" placeholder="Un client vient de payer"></label>
+      <label class="field"><span>Pôle</span><select name="pole" style="width:100%"><option value="">—</option>{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+      <label class="field"><span>Étapes (une par ligne)</span><textarea name="etapes" rows="6" required placeholder="Préparer le message d'accueil | communication | | Brouillon relu&#10;Envoyer le message | | 1 | Envoi confirmé"></textarea></label>
+      <p class="muted small">Format : <b>titre | agent | après (ex. 1,2) | preuve attendue</b>. Laissez « agent » vide pour une personne. Agents : {{ agents | join(', ') }}.</p>
+      <button class="btn primary">{{ icon('check') }} Créer le brouillon</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -181,6 +181,11 @@ class Autopilot:
         return self._create(f"{proc.title} — {subject}", f"{proc.result} ({subject})", tasks,
                             pole, by, f"Procédure « {proc.title} » v{proc.version} : {subject}")
 
+    def create_from(self, title: str, objective: str, tasks: list[PlannedTask], pole: str,
+                    by: str, origin: str) -> int:
+        """Crée une mission à partir d'un plan déjà prêt (workflow approuvé), sans appel d'IA."""
+        return self._create(title, objective, tasks, pole, by, origin)
+
     def _create(self, title: str, objective: str, tasks: list[PlannedTask], pole: str, by: str,
                 origin: str) -> int:
         if pole not in self.pole_codes:
@@ -283,13 +288,20 @@ class Autopilot:
             "consigne.")
         user = (f"Objectif de la mission : {objective}\n\nTâche : {title}\n{detail}\n\n"
                 + ("Résultats des tâches précédentes :\n" + "\n".join(earlier) if earlier else ""))
+        spend = getattr(self.llm, "month_spend", None)
+        before = spend() if callable(spend) else 0.0
         try:
             draft = self.llm.write("chef.autopilot_task", system, user, max_tokens=900)
         except LLMError as exc:
             raise AutopilotError(f"Préparation impossible : {exc}") from exc
+        cost = max((spend() if callable(spend) else 0.0) - before, 0.0)
         with self._sessions() as s:
             t = self._get(s, task_id)
             t.status, t.attempts = "en_cours", attempt
+            t.cost_usd = (t.cost_usd or 0.0) + cost
+            mission = s.get(Mission, t.mission_id)
+            if mission is not None:
+                mission.spent_usd = (mission.spent_usd or 0.0) + cost
             t.started_at = t.started_at or utcnow()
             t.result = draft[:3000]
             self._event(s, t.mission_id, "resultat",
@@ -313,6 +325,9 @@ class Autopilot:
             if agent_control.is_suspended(self._sessions, agent):
                 out["skipped"] += 1
                 continue
+            if self._over_budget(mission_id):
+                out["stopped"] = "Budget de la mission atteint : relevez-le pour continuer"
+                return out
             while True:
                 try:
                     self.prepare(task_id, by)
@@ -329,6 +344,26 @@ class Autopilot:
                         out["failed"] += 1
                         break
         return out
+
+    def _over_budget(self, mission_id: int) -> bool:
+        with self._sessions() as s:
+            m = s.get(Mission, mission_id)
+            return bool(m and m.budget_usd and (m.spent_usd or 0.0) >= m.budget_usd)
+
+    def set_budget(self, mission_id: int, budget_usd: float | None, by: str) -> None:
+        """Plafond de dépense IA de la mission (cahier v2, phase 5) ; vide = pas de plafond propre
+        (le plafond mensuel global s'applique toujours)."""
+        if budget_usd is not None and budget_usd < 0:
+            raise AutopilotError("Le budget ne peut pas être négatif")
+        with self._sessions() as s:
+            m = s.get(Mission, mission_id)
+            if m is None:
+                raise AutopilotError("Mission introuvable")
+            m.budget_usd = budget_usd or None
+            self._event(s, mission_id, "etat",
+                        f"Budget de la mission : {budget_usd:g} $" if budget_usd
+                        else "Budget propre retiré", by)
+            s.commit()
 
     def _count_failed_attempt(self, task_id: int, reason: str, by: str) -> bool:
         """Compte un essai raté ; True quand le plafond d'essais est atteint (échec définitif)."""

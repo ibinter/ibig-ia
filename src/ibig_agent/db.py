@@ -647,6 +647,29 @@ class MissionTask(Base):
     finished_by: Mapped[str] = mapped_column(String(300), default="")
 
 
+class WorkflowDef(Base):
+    """Définition de workflow (cahier v2, 7.2) : étapes versionnées, approuvées avant lancement.
+    Une version approuvée n'est plus modifiable : on en crée une nouvelle."""
+
+    __tablename__ = "workflow_defs"
+    __table_args__ = (UniqueConstraint("code", "version", name="uq_workflow_code_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(60), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    title: Mapped[str] = mapped_column(String(200))
+    trigger: Mapped[str] = mapped_column(String(300), default="")
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    # [{"title", "agent", "after": [numéros base 1], "proof"}]
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+    # brouillon | approuve | archive
+    status: Mapped[str] = mapped_column(String(20), default="brouillon", index=True)
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    approved_by: Mapped[str] = mapped_column(String(300), default="")
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

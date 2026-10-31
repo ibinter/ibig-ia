@@ -345,3 +345,95 @@ def test_departments_page_lists_every_department(rt):
     c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
     text = c.get("/departements").text
     assert all(d.name in text for d in departments.DEPARTMENTS)
+
+
+def test_mission_budget_stops_the_executor(rt, llm):
+    ap = rt.autopilot
+    mid = ap.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
+    with pytest.raises(AutopilotError, match="négatif"):
+        ap.set_budget(mid, -1, "Awa")
+    ap.set_budget(mid, 0.01, "Awa")
+    from ibig_agent.db import Mission
+    with rt.sessions() as s:
+        s.get(Mission, mid).spent_usd = 0.02                  # budget déjà dépassé
+        s.commit()
+    out = ap.execute(mid, "Awa")
+    assert "Budget" in out["stopped"] and out["prepared"] == 0 and llm.calls == []
+    ap.set_budget(mid, None, "Awa")                           # budget retiré : l'exécution reprend
+    assert ap.execute(mid, "Awa")["prepared"] == 1
+
+
+def _workflow_users(rt):
+    from ibig_agent.auth import UserStore
+
+    users = UserStore(rt.sessions, rt.org)
+    users.create("a@ibig.test", "Awa", "direction", "mot-de-passe-solide")
+    users.create("b@ibig.test", "Bakary", "direction", "mot-de-passe-solide")
+
+
+def test_workflow_needs_another_approver_then_launches_a_mission(rt):
+    from ibig_agent.workflows import WorkflowError
+
+    _workflow_users(rt)
+    wf = rt.workflows
+    wid = wf.create("accueil-client", "Accueil d'un nouveau client", "Un client a payé", "SOFT",
+                    [{"title": "Rédiger le message d'accueil", "agent": "communication",
+                      "proof": "Brouillon relu"},
+                     {"title": "Envoyer le message", "agent": "", "after": [1],
+                      "proof": "Envoi confirmé"}], "Awa")
+    with pytest.raises(WorkflowError, match="approuvé"):
+        wf.launch(wid, "Collège Palmiers", "Awa")             # pas lançable avant approbation
+    with pytest.raises(WorkflowError, match="autre personne"):
+        wf.approve(wid, "Awa")                                # l'auteur n'approuve pas
+    wf.approve(wid, "Bakary")
+    mid = wf.launch(wid, "Collège Palmiers", "Awa")
+    tasks = rt.autopilot.tasks(mid)
+    assert [t.status for t in tasks] == ["prete", "a_faire"] and tasks[0].agent == "communication"
+    v2 = wf.create("accueil-client", "Accueil d'un nouveau client", "", "SOFT",
+                   [{"title": "Une seule étape", "agent": ""}], "Awa")
+    assert wf.get(v2).version == 2
+    wf.approve(v2, "Bakary")
+    assert wf.get(wid).status == "archive" and wf.get(v2).status == "approuve"
+
+
+def test_workflow_steps_are_validated_and_library_can_be_adopted(rt):
+    from ibig_agent.workflows import WorkflowError, parse_text
+
+    wf = rt.workflows
+    with pytest.raises(WorkflowError, match="inexistante"):
+        wf.create("x", "X", "", "", [{"title": "A", "after": [2]}, {"title": "B"}], "Awa")
+    with pytest.raises(WorkflowError, match="agent inconnu"):
+        wf.create("x", "X", "", "", [{"title": "A", "agent": "robot"}], "Awa")
+    assert parse_text("Écrire | communication | | Brouillon\nEnvoyer | | 1 | Envoi")[1]["after"] == [1]
+    wid = wf.adopt("traitement-ticket", "Awa")
+    assert len(wf.get(wid).steps) == 3 and wf.get(wid).status == "brouillon"
+
+
+def test_workflows_page_flow_and_access(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    users = UserStore(rt.sessions, rt.org)
+    for email, role in (("a@ibig.test", "direction"), ("b@ibig.test", "direction"),
+                        ("v@ibig.test", "valideur")):
+        users.create(email, email[0], role, "mot-de-passe-solide")
+
+    def client(email):
+        c = TestClient(create_app(rt), base_url="https://testserver")
+        c.post("/login", data={"email": email, "password": "mot-de-passe-solide"})
+        return c
+
+    a, b = client("a@ibig.test"), client("b@ibig.test")
+    a.post("/workflows", data={"code": "mon-flux", "titre": "Mon flux", "pole": "SOFT",
+                               "etapes": "Préparer | communication | | Brouillon\nEnvoyer | | 1 | Envoi"})
+    assert "Mon flux" in a.get("/workflows").text
+    wid = rt.workflows.all()[0].id
+    refused = a.post(f"/workflows/{wid}/approuver", follow_redirects=False)
+    assert "Refus" in refused.headers["location"] or "Refus" in a.get("/workflows").text
+    b.post(f"/workflows/{wid}/approuver")
+    made = b.post(f"/workflows/{wid}/lancer", data={"sujet": "Client X", "pole": "SOFT"},
+                  follow_redirects=False)
+    assert "/missions/" in made.headers["location"]
+    assert client("v@ibig.test").get("/workflows").status_code == 403

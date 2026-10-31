@@ -116,6 +116,16 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back("/procedures", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Procédure lancée : suivez les tâches une à une")
 
+    @app.post("/missions/{mid:int}/budget")
+    def mission_budget(mid: int, budget: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            value = float(budget.replace(",", ".")) if budget.strip() else None
+            rt.autopilot.set_budget(mid, value, who.label)
+        except (ValueError, AutopilotError) as exc:
+            return back(f"/missions/{mid}", f"Refusé : {exc}")
+        return back(f"/missions/{mid}", "Budget enregistré")
+
     @app.post("/missions/{mid:int}/executer")
     def run_agents(mid: int, who: Principal = Depends(user)):
         direction_only(who)
