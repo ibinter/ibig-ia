@@ -26,7 +26,7 @@ from ..config import Mailbox, OrgConfig
 from ..db import JournalEntry, WhatsAppContact, utcnow
 from ..governance import ActionRequest, Governor, Level, as_utc
 from ..knowledge import KnowledgeBase
-from ..llm import LLM, LLMError
+from ..llm import LLM, BudgetExceeded, LLMCreditExhausted, LLMError
 from ..security import UNTRUSTED_NOTICE, detect_injection, fence_untrusted
 from .commercial import is_opt_out
 from .messagerie import MessagerieAgent, Triage
@@ -100,6 +100,10 @@ class WhatsAppAgent:
             triage = self.messagerie.triage(msg, mailbox)
         except LLMError as exc:
             self._ack(msg, pole, contact)
+            if isinstance(exc, (LLMCreditExhausted, BudgetExceeded)):
+                # Meta ne renvoie pas le message : il reste pour un humain, avec un seul signal.
+                self.messagerie._alert_ai_down(str(exc))
+                exc = "IA indisponible (crédit ou plafond atteint)"
             self._prepare(msg, pole, "whatsapp.manual", f"Tri automatique impossible : {exc}")
             self.messagerie._finish(msg, "a_trier_manuel")
             return "a_trier_manuel"

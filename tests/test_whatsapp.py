@@ -269,3 +269,23 @@ def test_diagnostic_flags_missing_reply_template(rt, wa):
     d2 = Diagnostic(rt, online=False)
     d2.whatsapp()
     assert next(c for c in d2.checks if c.name == "modèle de réponse après 24 h").status == "OK"
+
+
+def test_whatsapp_with_exhausted_ai_credit_keeps_a_clear_task_and_one_alert(rt, llm, wa):
+    from ibig_agent.db import JournalEntry
+    from ibig_agent.llm import LLMCreditExhausted
+
+    def broken(*args, **kwargs):
+        raise LLMCreditExhausted("Crédit Anthropic épuisé")
+
+    llm.structured = broken
+    assert post(rt, payload("Bonjour, prix ?", mid="wamid.a")).status_code == 200
+    assert post(rt, payload("Et la durée ?", mid="wamid.b")).status_code == 200
+    manual = pending(rt, "whatsapp.manual")
+    assert len(manual) == 2
+    assert all("IA indisponible" in p.payload["raison"] for p in manual)
+    assert all("Error" not in p.payload["raison"] for p in manual)   # pas le message brut
+    with rt.sessions() as s:
+        alerts = s.scalars(select(JournalEntry).where(
+            JournalEntry.action_type == "ia.indisponible")).all()
+    assert len(alerts) == 1                                      # une alerte, pas une par message
