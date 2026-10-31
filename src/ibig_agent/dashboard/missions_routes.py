@@ -96,11 +96,14 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                     who: Principal = Depends(user)):
         direction_only(who)
         ap = rt.autopilot
-        if action not in ("demarrer", "terminer", "echec", "annuler"):
+        if action not in ("demarrer", "preparer", "terminer", "echec", "annuler"):
             raise HTTPException(404)
         if not any(t.id == tid for t in ap.tasks(mid)):
             raise HTTPException(404)
         try:
+            if action == "preparer":
+                ap.prepare(tid, who.label)
+                return back(f"/missions/{mid}", "Brouillon préparé : relisez-le avant de clore")
             if action == "demarrer":
                 ap.start(tid, who.label)
             elif action == "terminer":

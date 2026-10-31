@@ -128,3 +128,48 @@ def test_autopilot_pages(rt, llm):
     assert other.status_code == 404
     refused = client("val@ibig.test").post("/autopilot", data={"instruction": "x" * 20})
     assert refused.status_code == 403
+
+
+def test_agent_prepares_a_draft_but_a_human_closes_the_task(ap, rt, llm):
+    mid = ap.plan(INSTRUCTION, "Awa")
+    first, second = ap.tasks(mid)[0], ap.tasks(mid)[1]
+    with pytest.raises(AutopilotError, match="prête ou en cours"):
+        ap.prepare(second.id, "Awa")                       # dépend d'une tâche non terminée
+    draft = ap.prepare(first.id, "Awa")
+    assert draft == llm.draft and "chef.autopilot_task" in llm.calls
+    task = ap.tasks(mid)[0]
+    assert task.status == "en_cours" and task.result == llm.draft and task.attempts == 1
+    ap.complete(first.id, "relu et validé par Awa", "Awa")
+    assert ap.tasks(mid)[1].status == "prete"
+    with pytest.raises(AutopilotError, match="personne"):
+        ap.prepare(ap.tasks(mid)[1].id, "Awa")             # la tâche 2 est confiée à un humain
+
+
+def test_a_suspended_agent_cannot_prepare_drafts(ap, rt):
+    from ibig_agent import agent_control
+
+    mid = ap.plan(INSTRUCTION, "Awa")
+    agent_control.set_suspended(rt.sessions, "communication", True, "Awa", "essai")
+    with pytest.raises(AutopilotError, match="suspendu"):
+        ap.prepare(ap.tasks(mid)[0].id, "Awa")
+
+
+def test_prepare_button_stores_the_draft_on_the_page(rt, llm):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+
+    llm.autopilot_plan = PLAN
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction",
+                                          "mot-de-passe-solide")
+    dg = TestClient(create_app(rt), base_url="https://testserver")
+    dg.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    made = dg.post("/autopilot", data={"instruction": INSTRUCTION, "pole": "SOFT"},
+                   follow_redirects=False)
+    mid = int(made.headers["location"].split("/missions/")[1].split("?")[0])
+    tid = rt.autopilot.tasks(mid)[0].id
+    assert "Faire préparer un brouillon" in dg.get(f"/missions/{mid}").text
+    dg.post(f"/missions/{mid}/tache/{tid}/preparer")
+    assert llm.draft[:20] in dg.get(f"/missions/{mid}").text
+
