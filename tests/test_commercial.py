@@ -244,3 +244,40 @@ def test_opt_out_reply_stops_followups(rt, llm, connector):
     assert get(rt, pid).stop_followups
     outbound(rt, connector, "dir@ecole.ci", NOW)
     assert rt.commercial.run(NOW + timedelta(days=30)).relances == 0
+
+
+# ------------------------------------------------------------------ rendez-vous et après-vente
+def test_appointment_proposal_offers_two_business_day_slots_and_waits_for_validation(rt,
+                                                                                    connector):
+    pid = prospect(rt)
+    friday = datetime(2026, 11, 6, 9, 0, tzinfo=UTC)                 # un vendredi
+    slots = rt.commercial.next_slots(friday)
+    assert [(s.weekday(), s.hour) for s in slots] == [(0, 10), (1, 15)]   # lundi 10 h, mardi 15 h
+    text = rt.commercial.propose_appointment(pid, "Awa", friday)
+    assert "lundi 09/11 à 10 h" in text and "mardi 10/11 à 15 h" in text
+    (draft,) = followups(rt)
+    assert draft.level == 2 and draft.payload["type"] == "rendez_vous"
+    assert draft.payload["subject"] == "Proposition de rendez-vous"
+    assert "STOP" in draft.payload["body"] and not connector.sent         # rien n'est parti
+    assert any("rendez-vous" in a.summary.lower() for a in rt.commercial.activities(pid))
+
+
+def test_appointment_is_refused_for_opted_out_closed_or_unknown_prospects(rt):
+    stopped = prospect(rt, email="stop@ecole.ci")
+    rt.commercial.set_stage(stopped, "exclu", "Awa")
+    won = prospect(rt, email="gagne@ecole.ci", status="perdu")
+    for pid, msg in ((stopped, "plus être sollicité"), (won, "clos"), (9999, "introuvable")):
+        with pytest.raises(ValueError, match=msg):
+            rt.commercial.propose_appointment(pid, "Awa")
+    assert followups(rt) == []
+
+
+def test_after_sales_only_for_won_or_paid_customers(rt):
+    open_deal = prospect(rt, email="ouvert@ecole.ci")
+    with pytest.raises(ValueError, match="gagné ou payé"):
+        rt.commercial.after_sales(open_deal, "Awa")
+    client = prospect(rt, email="client@ecole.ci", status="gagne")
+    rt.commercial.after_sales(client, "Awa")
+    (draft,) = followups(rt)
+    assert draft.payload["type"] == "apres_vente"
+    assert draft.payload["subject"] == "Votre avis nous intéresse"

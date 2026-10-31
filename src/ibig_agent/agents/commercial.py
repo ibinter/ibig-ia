@@ -379,12 +379,15 @@ class CommercialAgent:
         alerts = [str(i) for i in self.kb.verify_facts(body)]
         signature = mailbox.signature.strip()
         subject = {"relance": "Suite à votre demande",
-                   "fin_essai": "Votre période d'essai"}[kind]
+                   "fin_essai": "Votre période d'essai",
+                   "rendez_vous": "Proposition de rendez-vous",
+                   "apres_vente": "Votre avis nous intéresse"}[kind]
+        label = {"relance": "Relance", "fin_essai": "Fin d’essai",
+                 "rendez_vous": "Rendez-vous", "apres_vente": "Après-vente"}[kind]
         self.gov.submit(ActionRequest(
             agent=AGENT, action_type="commercial.followup", channel="mail",
             account=mailbox_addr, pole=p.pole, ref=f"prospect:{p.id}",
-            title=f"{'Relance' if kind == 'relance' else 'Fin d’essai'} : "
-                  f"{p.name or p.email} ({context})",
+            title=f"{label} : {p.name or p.email} ({context})",
             payload={"mailbox": mailbox_addr, "to": p.email, "subject": subject,
                      "body": f"{body}\n\n{signature}" if signature else body,
                      "prospect_id": p.id, "type": kind, "alertes": alerts,
@@ -450,6 +453,60 @@ class CommercialAgent:
                                channel="interne", pole=p.pole, status="executed",
                                summary=f"Prospect {p.email} : {text}",
                                details={"prospect_id": p.id, "etape": stage}, decided_by=by))
+            s.commit()
+
+    @staticmethod
+    def next_slots(now: datetime | None = None, count: int = 2) -> list[datetime]:
+        """Prochains créneaux proposés : jours ouvrés, 10 h puis 15 h (heure d'Abidjan = UTC),
+        à partir de demain. Le prospect choisit ; rien n'est réservé avant sa confirmation."""
+        day = (now or datetime.now(UTC)).replace(hour=0, minute=0, second=0, microsecond=0)
+        slots: list[datetime] = []
+        while len(slots) < count:
+            day += timedelta(days=1)
+            if day.weekday() < 5:
+                slots.append(day.replace(hour=10 if len(slots) % 2 == 0 else 15))
+        return slots
+
+    def propose_appointment(self, prospect_id: int, by: str, now: datetime | None = None) -> str:
+        """Prépare un mail de proposition de rendez-vous (deux créneaux). Il attend la validation
+        d'un humain comme toute relance ; le rendez-vous n'est créé qu'après la réponse."""
+        slots = self.next_slots(now)
+        names = ("lundi", "mardi", "mercredi", "jeudi", "vendredi")
+        text = " ou ".join(f"{names[s.weekday()]} {s:%d/%m} à {s:%H} h" for s in slots)
+        self._prepare_manual_draft(prospect_id, "rendez_vous",
+                                   f"proposer un rendez-vous ; créneaux à proposer, et "
+                                   f"seulement ceux-là : {text}", by, "Proposition de rendez-vous "
+                                   f"préparée ({text})")
+        return text
+
+    def after_sales(self, prospect_id: int, by: str) -> None:
+        """Prépare un message d'après-vente (accueil, satisfaction) pour un client qui a payé."""
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            if p.status not in ("gagne", "paye_livre"):
+                raise ValueError("L'après-vente concerne un client gagné ou payé")
+        self._prepare_manual_draft(prospect_id, "apres_vente",
+                                   "remercier le client, vérifier qu'il est satisfait et "
+                                   "demander ce qui pourrait être amélioré", by,
+                                   "Message d'après-vente préparé")
+
+    def _prepare_manual_draft(self, prospect_id: int, kind: str, context: str, by: str,
+                              note: str) -> None:
+        with self._sessions() as s:
+            p = s.get(Prospect, prospect_id)
+            if p is None:
+                raise ValueError(f"Prospect {prospect_id} introuvable")
+            if p.stop_followups or p.status == "exclu":
+                raise ValueError("Ce contact a demandé à ne plus être sollicité")
+            if kind == "rendez_vous" and p.status in CLOSED:
+                raise ValueError("Ce dossier est clos : pas de rendez-vous à proposer")
+            s.expunge(p)
+        if not self._draft(p, kind, context):
+            raise ValueError("Aucune boîte raccordée pour ce pôle : à faire à la main")
+        with self._sessions() as s:
+            _activity(s, prospect_id, "contact", f"{note} — en attente de validation", by)
             s.commit()
 
     def add_note(self, prospect_id: int, text: str, by: str) -> None:

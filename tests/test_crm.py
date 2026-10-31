@@ -140,3 +140,20 @@ def test_a_validator_only_sees_the_prospects_of_their_poles(rt, prospect, web):
                     follow_redirects=False).status_code in (403, 404)
     with rt.sessions() as s:
         assert s.get(Prospect, prospect).status == "qualifie"
+
+
+def test_prospect_page_buttons_prepare_drafts_for_validation(rt, prospect):
+    from ibig_agent.db import PendingAction
+
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction", PASSWORD)
+    dg = TestClient(create_app(rt), base_url="https://testserver")
+    dg.post("/login", data={"email": "dg@ibig.test", "password": PASSWORD})
+    assert "Proposer un rendez-vous" in dg.get(f"/prospects/{prospect}").text
+    assert "Message d&#39;après-vente" not in dg.get(f"/prospects/{prospect}").text
+    done = dg.post(f"/prospects/{prospect}/rendez-vous", follow_redirects=False)
+    assert done.status_code == 303
+    with rt.sessions() as s:
+        drafts = s.scalars(select(PendingAction).where(
+            PendingAction.action_type == "commercial.followup")).all()
+    assert len(drafts) == 1 and drafts[0].payload["type"] == "rendez_vous"
+    assert "Refus" not in done.headers["location"]

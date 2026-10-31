@@ -60,6 +60,16 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         return act(pid, who, lambda: rt.commercial.set_stage(pid, etape, who.label, note),
                    "Étape enregistrée")
 
+    @app.post("/prospects/{pid:int}/rendez-vous")
+    def appointment(pid: int, who: Principal = Depends(user)):
+        return act(pid, who, lambda: rt.commercial.propose_appointment(pid, who.label),
+                   "Proposition de rendez-vous préparée : elle attend votre validation")
+
+    @app.post("/prospects/{pid:int}/apres-vente")
+    def after_sales(pid: int, who: Principal = Depends(user)):
+        return act(pid, who, lambda: rt.commercial.after_sales(pid, who.label),
+                   "Message d'après-vente préparé : il attend votre validation")
+
     @app.post("/prospects/{pid:int}/note")
     def note_(pid: int, texte: str = Form(...), who: Principal = Depends(user)):
         return act(pid, who, lambda: rt.commercial.add_note(pid, texte, who.label),
