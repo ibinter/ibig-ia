@@ -307,6 +307,26 @@ class Autopilot:
         with self._sessions() as s:
             return self._tasks(s, mission_id)
 
+    def report(self, mission_id: int) -> dict:
+        """Rapport d'une mission (cahier des charges v2, phase 5) : avancement, durée, coût, essais
+        et preuves, calculés sur les tâches enregistrées. Lecture seule."""
+        from .governance import as_utc
+
+        rows = self.tasks(mission_id)
+        done = [r for r in rows if r.status == "terminee"]
+        ends = [as_utc(r.finished_at) for r in rows if r.finished_at]
+        starts = [as_utc(r.created_at) for r in rows if r.created_at]
+        closed = bool(rows) and all(r.status in ("terminee", "annulee") for r in rows)
+        seconds = int((max(ends) - min(starts)).total_seconds()) if ends and starts else 0
+        return {
+            "total": len(rows), "done": len(done), "closed": closed,
+            "failed": sum(r.status in ("echec", "bloquee") for r in rows),
+            "retries": sum(max(r.attempts - 1, 0) for r in rows),
+            "cost_usd": round(sum(r.cost_usd for r in rows), 4),
+            "duration_s": seconds if closed else 0,
+            "proofs": [(r.position, r.title, r.evidence) for r in done if r.evidence],
+        }
+
     def progress(self, mission_id: int) -> tuple[int, int]:
         rows = self.tasks(mission_id)
         return sum(r.status == "terminee" for r in rows), len(rows)

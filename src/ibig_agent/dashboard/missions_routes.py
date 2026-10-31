@@ -70,6 +70,7 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                     channels=CHANNELS, agents=agent_control.AGENTS,
                     agent_labels=agent_control.LABELS,
                     tasks=rt.autopilot.tasks(mid) if m.kind == "autopilot" else [],
+                    report=rt.autopilot.report(mid) if m.kind == "autopilot" else None,
                     task_labels=TASK_LABELS)
 
     @app.post("/missions/{mid:int}/modifier")

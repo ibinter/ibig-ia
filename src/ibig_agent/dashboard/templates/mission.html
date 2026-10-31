@@ -33,6 +33,15 @@
     </div>
 
     {% if m.kind == 'autopilot' %}
+    {% if report %}<div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('chart') }} Rapport de mission</h2><div class="sub">{{ 'Mission terminée' if report.closed else 'Mission en cours' }}</div></div></div>
+      <dl class="kv">
+        <dt>Avancement</dt><dd>{{ report.done }} tâche{{ 's' if report.done > 1 }} sur {{ report.total }}</dd>
+        <dt>Problèmes</dt><dd>{{ report.failed }} bloquée{{ 's' if report.failed > 1 }} ou en échec · {{ report.retries }} nouvel{{ 'les' if report.retries > 1 else '' }} essai{{ 's' if report.retries > 1 }}</dd>
+        <dt>Coût IA</dt><dd>{{ '%.2f' | format(report.cost_usd) }} $</dd>
+        {% if report.closed %}<dt>Durée</dt><dd>{{ report.duration_s // 3600 }} h {{ (report.duration_s % 3600) // 60 }} min</dd>{% endif %}
+      </dl>
+    </div>{% endif %}
     <div class="card" style="margin-top:16px">
       <div class="card-head"><div><h2>{{ icon('check-circle') }} Tâches</h2><div class="sub">Une tâche est prête quand ses dépendances sont terminées ; elle se clôt avec une preuve.</div></div></div>
       <ol class="prio-list">

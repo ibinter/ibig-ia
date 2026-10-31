@@ -188,6 +188,21 @@ def test_every_procedure_is_a_valid_acyclic_plan():
                 assert step.agent == "", (proc.code, step.title)
 
 
+def test_mission_report_gives_progress_cost_and_proofs(rt):
+    ap = rt.autopilot
+    mid = ap.from_procedure("traitement-ticket", "Ticket 7", "Awa", "SOFT")
+    assert ap.report(mid)["closed"] is False and ap.report(mid)["done"] == 0
+    for t in ap.tasks(mid):
+        ap.start(t.id, "Awa")
+        ap.complete(t.id, f"preuve {t.position}", "Awa", cost=0.01)
+        t = ap.tasks(mid)
+    rep = ap.report(mid)
+    assert rep["closed"] and rep["done"] == rep["total"] == 3
+    assert rep["cost_usd"] == pytest.approx(0.03) and rep["failed"] == 0
+    assert [p[2] for p in rep["proofs"]] == ["preuve 1", "preuve 2", "preuve 3"]
+    assert rep["duration_s"] >= 0
+
+
 def test_each_priority_department_has_a_runnable_workflow(rt, llm):
     from ibig_agent import procedures
 
