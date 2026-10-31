@@ -621,6 +621,32 @@ class Commission(Base):
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MissionTask(Base):
+    """Tâche d'une mission Autopilot : agent, dépendances, tentatives, clé d'idempotence, preuve."""
+
+    __tablename__ = "mission_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mission_id: Mapped[int] = mapped_column(Integer, index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(300))
+    detail: Mapped[str] = mapped_column(Text, default="")
+    agent: Mapped[str] = mapped_column(String(60), default="")   # vide = une personne
+    depends_on: Mapped[list] = mapped_column(JSON, default=list)  # identifiants de tâches
+    # a_faire | prete | en_cours | terminee | echec | bloquee | annulee
+    status: Mapped[str] = mapped_column(String(20), default="a_faire", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=3)
+    idempotency_key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    evidence: Mapped[str] = mapped_column(Text, default="")
+    result: Mapped[str] = mapped_column(Text, default="")
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_by: Mapped[str] = mapped_column(String(300), default="")
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

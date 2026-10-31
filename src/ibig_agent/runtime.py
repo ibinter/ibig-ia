@@ -292,6 +292,12 @@ class Runtime:
                                month_spend=getattr(self.llm, "month_spend", None))
 
     @property
+    def autopilot(self):
+        from .autopilot import Autopilot
+
+        return Autopilot(self.sessions, self.missions, self.llm, self.org.pole_codes)
+
+    @property
     def finance(self):
         from .finance import FinanceService
 

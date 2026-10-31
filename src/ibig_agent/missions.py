@@ -29,7 +29,8 @@ from . import agent_control
 from .db import JournalEntry, Mission, MissionEvent, utcnow
 from .governance import ALL_CHANNELS, CHANNELS, Governor
 
-KINDS = {"prospection": "Prospection B2B"}
+KINDS = {"prospection": "Prospection B2B",
+         "autopilot": "Instruction découpée en tâches (Autopilot)"}
 AUTONOMIES = {
     "validation": "Recherche autonome ; tout contact soumis à validation",
     "lecture": "Recherche seule, aucun contact",
@@ -243,6 +244,17 @@ class MissionService:
             self._pause(s, m, reason.strip() or "pause demandée", by)
             s.commit()
 
+    def activate(self, mission_id: int, by: str, why: str) -> None:
+        """Met en cours une mission dont le plan vient d'être validé par la direction (Autopilot :
+        ses tâches sont suivies une à une, sans exécutant automatique)."""
+        with self._sessions() as s:
+            m = self._mission(s, mission_id)
+            now = utcnow()
+            m.status, m.approved_by, m.approved_at, m.launched_at = "en_cours", by, now, now
+            m.updated_at = now
+            self._event(s, m.id, "etat", why, by)
+            s.commit()
+
     def note(self, mission_id: int, summary: str, by: str) -> None:
         """Inscrit une remarque (ex. dépôt d'un fichier) à l'historique de la mission."""
         with self._sessions() as s:
@@ -348,6 +360,8 @@ class MissionService:
                     self._pause(s, m, reason, "système")
                     s.commit()
                     stats["mises_en_pause"] += 1
+                    continue
+                if m.kind == "autopilot":   # ses tâches sont suivies à la main, pas par un passage
                     continue
                 runner = self.runners.get(m.kind)
                 if runner is None:

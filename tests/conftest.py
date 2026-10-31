@@ -35,12 +35,15 @@ class FakeLLM:
         self.draft = "Bonjour,\n\nMerci pour votre intérêt pour nos solutions."
         self.calls: list[str] = []
         self.calendar: dict | None = None
+        self.autopilot_plan: dict | None = None
         self.support_answer: dict = {"repondable": False, "reponse": "", "citations": []}
         self.qualification = {"score": 40, "temperature": "tiede", "solution": "",
                               "prochaine_etape": "Appeler", "raisons": "r"}
 
     def structured(self, purpose, kind, system, user, schema, max_tokens=2000):
         self.calls.append(purpose)
+        if purpose == "chef.autopilot_plan":
+            return self.autopilot_plan
         if purpose == "social.calendar":
             return self.calendar
         if purpose == "campaign.mail":

@@ -32,6 +32,25 @@
       </dl>
     </div>
 
+    {% if m.kind == 'autopilot' %}
+    <div class="card" style="margin-top:16px">
+      <div class="card-head"><div><h2>{{ icon('check-circle') }} Tâches</h2><div class="sub">Une tâche est prête quand ses dépendances sont terminées ; elle se clôt avec une preuve.</div></div></div>
+      <ol class="prio-list">
+      {% for t in tasks %}<li><span class="todo-txt"><b>{{ t.position }}. {{ t.title }}</b> <span class="pill {{ {'terminee': 'green', 'prete': 'blue', 'en_cours': 'amber', 'echec': 'red', 'bloquee': 'red'}.get(t.status, '') }}">{{ task_labels.get(t.status, t.status) }}</span>
+        <br><small class="muted">{{ agent_labels.get(t.agent, 'Une personne') if t.agent else 'Une personne' }}{% if t.depends_on %} · après {% for d in t.depends_on %}{% for u in tasks if u.id == d %}{{ u.position }}{{ ', ' if not loop.last }}{% endfor %}{% endfor %}{% endif %}{% if t.attempts %} · essai {{ t.attempts }}/{{ t.max_attempts }}{% endif %}</small>
+        {% if t.detail %}<br><small>{{ t.detail }}</small>{% endif %}
+        {% if t.evidence %}<br><small class="muted">Preuve : {{ t.evidence }} · {{ t.finished_by }}</small>{% endif %}
+        {% if t.status in ['prete', 'en_cours'] %}
+        <form method="post" action="/missions/{{ m.id }}/tache/{{ t.id }}/terminer" style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <input type="text" name="preuve" placeholder="Preuve ou raison" required maxlength="1000" style="flex:1;min-width:180px">
+          <button class="btn sm primary">Terminer</button>
+          <button class="btn sm" formaction="/missions/{{ m.id }}/tache/{{ t.id }}/echec">Échec</button>
+          {% if t.status == 'prete' %}<button class="btn sm" formaction="/missions/{{ m.id }}/tache/{{ t.id }}/demarrer" formnovalidate>Démarrer</button>{% endif %}
+        </form>{% endif %}
+        </span></li>{% endfor %}
+      </ol>
+    </div>
+    {% endif %}
     <div class="card" style="margin-top:16px">
       <div class="card-head"><div><h2>{{ icon('list') }} Journal de la mission</h2></div></div>
       <ul class="prio-list">

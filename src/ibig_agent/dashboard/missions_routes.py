@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from .. import agent_control
 from ..auth import Principal
+from ..autopilot import TASK_LABELS, AutopilotError
 from ..db import JournalEntry
 from ..governance import AGENT_AUTONOMY, CHANNELS
 from ..missions import AUTONOMIES, KINDS, STATUS_LABELS, MissionError
@@ -27,6 +28,9 @@ AUTONOMY_TEXT = {"aucune": "N'agit jamais seul", "lecture": "Lecture seule",
                  "automatique": "Agit seul sur les cas simples"}
 
 
+MANUAL_KINDS = {k: v for k, v in KINDS.items() if k != "autopilot"}
+
+
 def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     def direction_only(who: Principal) -> None:
         if who.role == "valideur":
@@ -38,9 +42,9 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         direction_only(who)
         rows = rt.missions.all_missions(statut if statut in STATUS_LABELS else "")
         return page(request, "missions.html", rows=rows, statut=statut, labels=STATUS_LABELS,
-                    poles=rt.org.poles, kinds=KINDS, autonomies=AUTONOMIES, channels=CHANNELS,
-                    agents=agent_control.AGENTS, agent_labels=agent_control.LABELS,
-                    runners=set(rt.missions.runners))
+                    poles=rt.org.poles, kinds=MANUAL_KINDS, autonomies=AUTONOMIES,
+                    channels=CHANNELS, agents=agent_control.AGENTS,
+                    agent_labels=agent_control.LABELS, runners=set(rt.missions.runners))
 
     @app.post("/missions")
     async def create_mission(request: Request, who: Principal = Depends(user)):
@@ -61,8 +65,11 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         checks = rt.missions.checks(m)
         return page(request, "mission.html", m=m, events=rt.missions.events(mid), checks=checks,
                     failures=rt.missions.blocking_failures(checks), labels=STATUS_LABELS,
-                    poles=rt.org.poles, kinds=KINDS, autonomies=AUTONOMIES, channels=CHANNELS,
-                    agents=agent_control.AGENTS, agent_labels=agent_control.LABELS)
+                    poles=rt.org.poles, kinds=MANUAL_KINDS, autonomies=AUTONOMIES,
+                    channels=CHANNELS, agents=agent_control.AGENTS,
+                    agent_labels=agent_control.LABELS,
+                    tasks=rt.autopilot.tasks(mid) if m.kind == "autopilot" else [],
+                    task_labels=TASK_LABELS)
 
     @app.post("/missions/{mid:int}/modifier")
     async def edit_mission(request: Request, mid: int, who: Principal = Depends(user)):
@@ -73,6 +80,38 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except MissionError as exc:
             return back(f"/missions/{mid}", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Mission modifiée : relancez la simulation")
+
+    @app.post("/autopilot")
+    def autopilot_plan(instruction: str = Form(""), pole: str = Form(""),
+                       who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            mid = rt.autopilot.plan(instruction, who.label, pole)
+        except AutopilotError as exc:
+            return back("/missions", f"Refusé : {exc}")
+        return back(f"/missions/{mid}", "Plan créé : suivez les tâches une à une")
+
+    @app.post("/missions/{mid:int}/tache/{tid:int}/{action}")
+    def task_action(mid: int, tid: int, action: str, preuve: str = Form(""),
+                    who: Principal = Depends(user)):
+        direction_only(who)
+        ap = rt.autopilot
+        if action not in ("demarrer", "terminer", "echec", "annuler"):
+            raise HTTPException(404)
+        if not any(t.id == tid for t in ap.tasks(mid)):
+            raise HTTPException(404)
+        try:
+            if action == "demarrer":
+                ap.start(tid, who.label)
+            elif action == "terminer":
+                ap.complete(tid, preuve, who.label)
+            elif action == "echec":
+                return back(f"/missions/{mid}", "Tâche en échec : " + ap.fail(tid, preuve, who.label))
+            else:
+                ap.cancel(tid, who.label)
+        except AutopilotError as exc:
+            return back(f"/missions/{mid}", f"Refusé : {exc}")
+        return back(f"/missions/{mid}", "Tâche mise à jour")
 
     @app.post("/missions/{mid:int}/fichier")
     async def mission_file(mid: int, fichier: Annotated[UploadFile, File()],
