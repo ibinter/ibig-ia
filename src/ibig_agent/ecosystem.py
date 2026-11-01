@@ -470,7 +470,8 @@ class EcosystemService:
             "containers": [len([c for c in d.get("containers", []) if c.get("state") == "running"]),
                            len(d.get("containers", []))],
             "pm2": [len([a for a in d.get("pm2", []) if a.get("status") == "online"]), len(d.get("pm2", []))],
-            "backups": d.get("backups", []), "failed_units": d.get("failed_units", []),
+            "backups": d.get("backups", []), "failed_units": [u for u in d.get("failed_units", [])
+                             if not any(p in u for p in serveur.IGNORED_UNITS)],
             "updates": d.get("updates", {}), "errors_15m": d.get("nginx", {}).get("errors_15m_total", 0),
         }
 
