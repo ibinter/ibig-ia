@@ -64,6 +64,7 @@ from . import (
     donnees_routes,
     ecosysteme_routes,
     finance_routes,
+    journee,
     missions_routes,
     quotes_routes,
     social_routes,
@@ -389,7 +390,8 @@ def create_app(rt: Runtime) -> FastAPI:
                     failed_logins.pop(k, None)
             return back("/login", "Identifiants invalides")
         failed_logins.pop(key, None)
-        return with_session(RedirectResponse("/", status_code=303), principal.id)
+        home = "/" if principal.role == "valideur" else "/journee"
+        return with_session(RedirectResponse(home, status_code=303), principal.id)
 
     def with_session(resp, user_id: int):
         resp.set_cookie(SESSION_COOKIE, make_session(secret, user_id), httponly=True,
@@ -423,6 +425,12 @@ def create_app(rt: Runtime) -> FastAPI:
                     states=rt.governor.channel_states(),
                     channels=CHANNELS, report=report, steps=steps,
                     setup=progress(steps) if steps else (0, 0))
+
+    @app.get("/journee", response_class=HTMLResponse)
+    def journee_page(request: Request, who: Principal = Depends(user)):
+        if who.role == "valideur":
+            return RedirectResponse("/", status_code=303)
+        return page(request, "journee.html", j=journee.build(rt, who))
 
     trials: dict[int, deque[float]] = defaultdict(deque)
     running: set[str] = set()

@@ -40,7 +40,8 @@
     <nav class="nav" id="nav">
       <div class="nav-group nav-top">
         {% if user.role != 'valideur' and badges.get('demarrage') %}{{ nav('/demarrage', 'sparkles', 'Mise en route', badges.get('demarrage'), cls='setup') }}{% endif %}
-        {{ nav('/', 'home', 'Accueil') }}
+        {{ nav('/journee', 'home', 'Ma journée') if user.role != 'valideur' }}
+        {{ nav('/', 'list', 'Accueil détaillé') if user.role != 'valideur' else nav('/', 'home', 'Accueil') }}
         {{ nav('/validations', 'check-circle', 'À valider', badges.get('validations', 0)) }}
         {{ nav('/boite', 'inbox', 'Messages') if user.role != 'valideur' }}
         {{ nav('/tickets', 'life', 'Support', badges.get('tickets', 0)) }}

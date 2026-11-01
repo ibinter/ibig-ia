@@ -23,7 +23,7 @@ def client(rt, email=None):
     if email:
         r = c.post("/login", data={"email": email, "password": PASSWORD},
                    follow_redirects=False)
-        assert r.status_code == 303 and r.headers["location"] == "/"
+        assert r.status_code == 303 and r.headers["location"] in ("/", "/journee")
     return c
 
 

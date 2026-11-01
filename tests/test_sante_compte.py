@@ -26,7 +26,7 @@ def store(rt):
 def login(rt, email, password=PASSWORD):
     c = TestClient(create_app(rt), base_url="https://testserver")
     r = c.post("/login", data={"email": email, "password": password}, follow_redirects=False)
-    assert r.headers["location"] == "/", r.headers["location"]
+    assert r.headers["location"] in ("/", "/journee"), r.headers["location"]
     return c
 
 

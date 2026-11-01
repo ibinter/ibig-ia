@@ -123,3 +123,29 @@ def test_a_question_is_answered_from_known_facts_and_unknown_sources_are_named(m
     svc, _ = make()                       # sans IA : message clair, pas de plantage
     e = svc.submit("Combien de clients avons-nous ?", "dg", background=False)
     assert e.status == "repondue" and "Aucun modèle d'IA" in e.answer
+
+
+def test_ma_journee_gathers_everything_for_direction_and_is_the_landing_page(rt, make, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+    svc, _ = make()
+    monkeypatch.setattr(type(rt), "consigne", property(lambda self: svc))
+    users = UserStore(rt.sessions, rt.org)
+    users.create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    users.create("v@ibig.test", "Valideur", "valideur", "mot-de-passe-solide")
+
+    def client(email):
+        c = TestClient(create_app(rt), base_url="https://testserver")
+        r = c.post("/login", data={"email": email, "password": "mot-de-passe-solide"}, follow_redirects=False)
+        return c, r
+
+    dg, login = client("dg@ibig.test")
+    assert login.status_code == 303 and login.headers["location"] == "/journee"
+    page = dg.get("/journee")
+    assert page.status_code == 200 and "À faire d'abord" in page.text and "Reste à encaisser" in page.text
+    assert "Donner une consigne" in page.text and 'href="/journee"' in page.text
+    v, login = client("v@ibig.test")
+    assert login.headers["location"] == "/"
+    assert v.get("/journee", follow_redirects=False).status_code == 303
