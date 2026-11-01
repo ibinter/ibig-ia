@@ -21,6 +21,7 @@ from ..ecosystem import (
     SEVERITY_LABELS,
     EcosystemError,
 )
+from ..vault import VaultError
 from ..runtime import Runtime
 
 STATE_TONE = {"ok": "green", "attention": "amber", "critique": "red", "inconnu": "blue", "inactif": ""}
@@ -60,9 +61,9 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         data["tone"] = LEVEL_TONE[data["level"]]
         return {"eco": data, "server": rt.ecosystem.server_state(), "incidents": incidents,
                 "heartbeat": rt.ecosystem.heartbeat_status(), "diags": diags, "fixes": fixes,
-                "state_tone": STATE_TONE,
-                "state_label": STATE_LABEL, "severity_labels": SEVERITY_LABELS,
-                "kind_labels": KIND_LABELS}
+                "state_tone": STATE_TONE, "state_label": STATE_LABEL,
+                "severity_labels": SEVERITY_LABELS, "kind_labels": KIND_LABELS,
+                "ftp_summary": rt.ecosystem.ftp_summary()}
 
     @app.get("/ecosysteme", response_class=HTMLResponse)
     def ecosysteme_page(request: Request, who: Principal = Depends(user)):
@@ -169,3 +170,42 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back("/ecosysteme", f"Refusé : {exc}")
         return back("/ecosysteme", {"ack": "Pris en compte", "resolved": "Marqué résolu",
                                     "open": "Rouvert"}[status])
+
+    @app.post("/ecosysteme/ftp")
+    def ftp_save(label: str = Form(""), host: str = Form(""), port: str = Form("21"),
+                 mode: str = Form("ftps"), login: str = Form(""), password: str = Form(""),
+                 root_path: str = Form("/"), who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            rt.ecosystem.set_ftp_cred(label, host, int(port) if port.isdigit() else 21,
+                                      mode, login, password, root_path, who.label)
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back("/ecosysteme", f"Identifiants FTP « {label} » enregistrés")
+
+    @app.post("/ecosysteme/ftp/{cid:int}/verifier")
+    def ftp_check(cid: int, who: Principal = Depends(user)):
+        direction_only(who)
+        if running:
+            return back("/ecosysteme", "Une mesure est déjà en cours : patientez")
+        running.add("ftp")
+
+        def work() -> None:
+            try:
+                rt.ecosystem.run_ftp_check(cid)
+            except EcosystemError:
+                pass
+            finally:
+                running.discard("ftp")
+
+        threading.Thread(target=work, daemon=True).start()
+        return back("/ecosysteme", "Vérification FTP lancée : résultat visible dans quelques secondes")
+
+    @app.post("/ecosysteme/ftp/{cid:int}/supprimer")
+    def ftp_delete(cid: int, who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            rt.ecosystem.delete_ftp_cred(cid)
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back("/ecosysteme", "Identifiants FTP supprimés")

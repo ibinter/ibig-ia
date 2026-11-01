@@ -726,6 +726,43 @@ class EcoIncident(Base):
     ack_by: Mapped[str] = mapped_column(String(300), default="")
 
 
+class EcoFtpCred(Base):
+    """Identifiants FTP chiffrés pour les contrôles de contenu (deux hébergements mutualisés)."""
+
+    __tablename__ = "eco_ftp_creds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    label: Mapped[str] = mapped_column(String(100), unique=True)
+    host: Mapped[str] = mapped_column(String(200))
+    port: Mapped[int] = mapped_column(Integer, default=21)
+    mode: Mapped[str] = mapped_column(String(10), default="ftps")   # ftps | ftp
+    login: Mapped[str] = mapped_column(String(200))
+    password_enc: Mapped[str] = mapped_column(Text, default="")
+    root_path: Mapped[str] = mapped_column(String(300), default="/")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_by: Mapped[str] = mapped_column(String(300), default="")
+
+
+class EcoFtpResult(Base):
+    """Résultat d'un contrôle FTP (connexion, liste des dossiers, occupation)."""
+
+    __tablename__ = "eco_ftp_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cred_id: Mapped[int] = mapped_column(Integer, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(String(300), default="")
+    folders: Mapped[int] = mapped_column(Integer, default=0)
+    files: Mapped[int] = mapped_column(Integer, default=0)
+    quota_used_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quota_total_mb: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[str] = mapped_column(Text, default="")
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

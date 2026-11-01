@@ -77,6 +77,53 @@
   {% endif %}
 </section>
 
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('server') }} Contrôles FTP</h2><div class="sub">Contenu des hébergements mutualisés (dossiers, fichiers, index, quota)</div></div></div>
+  {% if not ftp_summary %}
+  <p class="muted">Aucun compte FTP enregistré. Utilisez le formulaire ci-dessous pour en ajouter un.</p>
+  {% else %}
+  {% for f in ftp_summary %}
+  <details style="border-top:1px solid var(--line);padding:10px 0" {% if loop.first %}open{% endif %}>
+    <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      {% if f.last_ok is none %}
+        <span class="pill dot">Jamais vérifié</span>
+      {% elif f.last_ok %}
+        <span class="pill green dot">OK</span>
+      {% else %}
+        <span class="pill red dot">Échec</span>
+      {% endif %}
+      <b>{{ f.label }}</b>
+      <small class="muted">{{ f.host }} · {{ f.mode | upper }} · {{ f.login }}</small>
+      {% if f.last_at %}<small class="muted">· dernière vérif. {{ f.last_at[11:16] }} UTC</small>{% endif %}
+    </summary>
+    {% if f.last_ok is not none %}
+    <div class="grid g-3" style="margin:10px 0">
+      <div><div class="muted small">Dossiers trouvés</div><b>{{ f.last_folders }}</b></div>
+      <div><div class="muted small">Fichiers totaux</div><b>{{ f.last_files }}</b></div>
+      <div><div class="muted small">Temps de réponse</div><b>{{ f.last_ms }} ms</b></div>
+      {% if f.quota_used_mb is not none %}
+      <div><div class="muted small">Espace utilisé</div><b>{{ f.quota_used_mb }} Mo / {{ f.quota_total_mb }} Mo</b></div>
+      {% endif %}
+    </div>
+    {% if f.last_error %}<p class="muted small" style="color:var(--bad)">{{ f.last_error }}</p>{% endif %}
+    {% if f.last_detail %}
+    <pre style="white-space:pre-wrap;font:inherit;font-size:12px;background:var(--bg2);padding:8px;border-radius:6px;margin:6px 0">{{ f.last_detail }}</pre>
+    {% endif %}
+    {% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <form method="post" action="/ecosysteme/ftp/{{ f.id }}/verifier">
+        <button class="btn sm primary">{{ icon('play') }} Vérifier maintenant</button>
+      </form>
+      <form method="post" action="/ecosysteme/ftp/{{ f.id }}/supprimer"
+            onsubmit="return confirm('Supprimer les identifiants FTP ?')">
+        <button class="btn sm ghost-bad">{{ icon('trash') }} Supprimer</button>
+      </form>
+    </div>
+  </details>
+  {% endfor %}
+  {% endif %}
+</section>
+
 <section class="card">
   <div class="card-head"><div><h2>{{ icon('globe') }} Tous les sites et logiciels</h2><div class="sub">{{ eco.assets | length }} dans l'inventaire, dont {{ t.a_confirmer }} à confirmer</div></div></div>
   <div style="overflow-x:auto">

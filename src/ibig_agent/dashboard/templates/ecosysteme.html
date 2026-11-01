@@ -38,6 +38,20 @@
   <p class="muted small">Laisser vide puis enregistrer retire la surveillance externe. L'adresse est stockée chiffrée.</p>
 </form>
 
+<form class="card" method="post" action="/ecosysteme/ftp" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('server') }} Ajouter / mettre à jour un compte FTP</h2><div class="sub">Les identifiants sont chiffrés avant d'être enregistrés. Ressaisir le mot de passe pour mettre à jour un compte existant (même label).</div></div></div>
+  <div class="grid g-3" style="gap:12px">
+    <label class="field"><span>Label (nom du compte)</span><input type="text" name="label" required maxlength="100" placeholder="ibigsoft.com" autocomplete="off"></label>
+    <label class="field"><span>Hôte FTP</span><input type="text" name="host" required maxlength="200" placeholder="ftp.ibigsoft.com" autocomplete="off"></label>
+    <label class="field"><span>Port</span><input type="number" name="port" value="21" min="1" max="65535" style="width:100%"></label>
+    <label class="field"><span>Mode</span><select name="mode" style="width:100%"><option value="ftps" selected>FTPS (TLS explicite)</option><option value="ftp">FTP simple</option></select></label>
+    <label class="field"><span>Login</span><input type="text" name="login" required maxlength="200" autocomplete="off"></label>
+    <label class="field"><span>Mot de passe</span><input type="password" name="password" required maxlength="300" autocomplete="off"></label>
+    <label class="field"><span>Dossier racine</span><input type="text" name="root_path" value="/" maxlength="300" placeholder="/"></label>
+  </div>
+  <button class="btn primary" style="margin-top:8px">{{ icon('check') }} Enregistrer</button>
+</form>
+
 <form class="card" method="post" action="/ecosysteme/actif" style="margin-top:16px">
   <div class="card-head"><div><h2>{{ icon('edit') }} Ajouter un site ou un logiciel</h2><div class="sub">Il sera mesuré dans les 5 minutes qui suivent.</div></div></div>
   <div class="grid g-3" style="gap:12px">

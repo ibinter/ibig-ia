@@ -34,7 +34,8 @@ from . import core_checks, serveur
 from .anomalies import cert_days
 from .config import Settings
 from .configstore import service_value, set_service_value
-from .db import EcoAsset, EcoCheck, EcoIncident, utcnow
+from .vault import VaultError, decrypt, encrypt
+from .db import EcoAsset, EcoCheck, EcoFtpCred, EcoFtpResult, EcoIncident, utcnow
 from .governance import as_utc
 
 FAIL_BEFORE_INCIDENT = 2          # échecs de suite avant d'ouvrir un incident de disponibilité
@@ -708,6 +709,203 @@ class EcosystemService:
                        "disponibilite": round(sum(ups) / len(ups), 2) if ups else None,
                        "ameliorations": len(improvements)},
         }
+
+    # ------------------------------------------------------------------ FTP --
+
+    def ftp_creds(self) -> list[EcoFtpCred]:
+        with self._sessions() as s:
+            return list(s.execute(select(EcoFtpCred).order_by(EcoFtpCred.label)).scalars())
+
+    def set_ftp_cred(self, label: str, host: str, port: int, mode: str,
+                     login: str, password: str, root_path: str, by: str) -> EcoFtpCred:
+        label = label.strip()
+        host = host.strip()
+        login = login.strip()
+        if not label or not host or not login or not password:
+            raise EcosystemError("Label, hôte, login et mot de passe sont obligatoires")
+        if mode not in ("ftps", "ftp"):
+            raise EcosystemError("Mode invalide (ftps ou ftp)")
+        try:
+            enc = encrypt(self._settings.secret_key, password)
+        except VaultError as exc:
+            raise EcosystemError(f"Chiffrement impossible : {exc}") from exc
+        now = utcnow()
+        with self._sessions() as s:
+            row = s.execute(select(EcoFtpCred).where(EcoFtpCred.label == label)).scalar_one_or_none()
+            if row is None:
+                row = EcoFtpCred(label=label, host=host, port=port, mode=mode,
+                                 login=login, password_enc=enc, root_path=root_path or "/",
+                                 created_at=now, updated_at=now, updated_by=by)
+                s.add(row)
+            else:
+                row.host = host
+                row.port = port
+                row.mode = mode
+                row.login = login
+                row.password_enc = enc
+                row.root_path = root_path or "/"
+                row.updated_at = now
+                row.updated_by = by
+            s.commit()
+            s.refresh(row)
+            return row
+
+    def delete_ftp_cred(self, cred_id: int) -> None:
+        with self._sessions() as s:
+            row = s.get(EcoFtpCred, cred_id)
+            if row is None:
+                raise EcosystemError("Identifiants introuvables")
+            s.delete(row)
+            s.commit()
+
+    def run_ftp_check(self, cred_id: int) -> dict:
+        """Connexion FTP et relevé du contenu : dossiers, fichiers, quota."""
+        import ftplib
+        import ssl
+
+        with self._sessions() as s:
+            cred = s.get(EcoFtpCred, cred_id)
+            if cred is None:
+                raise EcosystemError("Identifiants introuvables")
+            try:
+                password = decrypt(self._settings.secret_key, cred.password_enc)
+            except VaultError as exc:
+                raise EcosystemError(f"Impossible de lire le mot de passe : {exc}") from exc
+            host, port, mode, login, root = cred.host, cred.port, cred.mode, cred.login, cred.root_path
+
+        t0 = time.monotonic()
+        error = ""
+        folders: list[dict] = []
+        quota_used: int | None = None
+        quota_total: int | None = None
+        detail_lines: list[str] = []
+        ok = False
+
+        try:
+            if mode == "ftps":
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ftp: ftplib.FTP = ftplib.FTP_TLS(context=ctx)
+                ftp.connect(host, port, timeout=20)
+                ftp.login(login, password)
+                ftp.prot_p()
+            else:
+                ftp = ftplib.FTP()
+                ftp.connect(host, port, timeout=20)
+                ftp.login(login, password)
+
+            # Quota (commande non standard, peut échouer silencieusement)
+            try:
+                resp = ftp.sendcmd("SITE QUOTA")
+                # format typique : "200 Quota: used=X max=Y"
+                m = re.search(r"used=(\d+).*?max=(\d+)", resp, re.I)
+                if m:
+                    quota_used = int(m.group(1)) // (1024 * 1024)
+                    quota_total = int(m.group(2)) // (1024 * 1024)
+            except ftplib.Error:
+                pass
+
+            # Contenu du dossier racine
+            try:
+                ftp.cwd(root)
+            except ftplib.Error:
+                pass
+            entries: list[str] = []
+            ftp.retrlines("LIST", entries.append)
+
+            for line in entries:
+                parts = line.split(None, 8)
+                if not parts:
+                    continue
+                is_dir = line.startswith("d")
+                name = parts[-1] if len(parts) >= 9 else ""
+                if name in (".", ".."):
+                    continue
+                if is_dir:
+                    # liste rapide des fichiers dans ce dossier
+                    sub: list[str] = []
+                    try:
+                        ftp.retrlines(f"LIST {name}", sub.append)
+                    except ftplib.Error:
+                        pass
+                    file_count = sum(1 for l in sub if not l.startswith("d"))
+                    # date du dernier fichier modifié (champ 6-8 de la ligne)
+                    has_index = any(
+                        l.split(None, 8)[-1] in ("index.php", "index.html")
+                        for l in sub if len(l.split(None, 8)) >= 9
+                    )
+                    folders.append({"nom": name, "fichiers": file_count, "index": has_index})
+                    detail_lines.append(
+                        f"{name}/ — {file_count} fichier(s){'  [index ✓]' if has_index else '  [index manquant]'}"
+                    )
+
+            ftp.quit()
+            ok = True
+
+        except ftplib.all_errors as exc:
+            error = str(exc)[:280]
+        except OSError as exc:
+            error = str(exc)[:280]
+
+        ms = int((time.monotonic() - t0) * 1000)
+
+        result = EcoFtpResult(
+            cred_id=cred_id,
+            at=utcnow(),
+            ok=ok,
+            ms=ms,
+            error=error,
+            folders=len(folders),
+            files=sum(f["fichiers"] for f in folders),
+            quota_used_mb=quota_used,
+            quota_total_mb=quota_total,
+            detail="\n".join(detail_lines),
+        )
+        with self._sessions() as s:
+            s.add(result)
+            s.commit()
+
+        return {
+            "ok": ok, "ms": ms, "error": error,
+            "folders": folders,
+            "quota_used_mb": quota_used, "quota_total_mb": quota_total,
+        }
+
+    def ftp_last_results(self, cred_id: int, n: int = 5) -> list[EcoFtpResult]:
+        with self._sessions() as s:
+            return list(s.execute(
+                select(EcoFtpResult)
+                .where(EcoFtpResult.cred_id == cred_id)
+                .order_by(EcoFtpResult.at.desc())
+                .limit(n)
+            ).scalars())
+
+    def ftp_summary(self) -> list[dict]:
+        """Pour chaque compte FTP : label, host, dernier résultat."""
+        with self._sessions() as s:
+            creds = list(s.execute(select(EcoFtpCred).where(EcoFtpCred.active == True)
+                                   .order_by(EcoFtpCred.label)).scalars())
+        out = []
+        for c in creds:
+            results = self.ftp_last_results(c.id, 1)
+            last = results[0] if results else None
+            out.append({
+                "id": c.id, "label": c.label, "host": c.host, "mode": c.mode,
+                "login": c.login,
+                "last_ok": last.ok if last else None,
+                "last_ms": last.ms if last else None,
+                "last_at": last.at.isoformat() if last else None,
+                "last_error": last.error if last else "",
+                "last_folders": last.folders if last else 0,
+                "last_files": last.files if last else 0,
+                "last_detail": last.detail if last else "",
+                "quota_used_mb": last.quota_used_mb if last else None,
+                "quota_total_mb": last.quota_total_mb if last else None,
+            })
+        return out
+
+    # ------------------------------------------------------------------ /FTP -
 
     def briefing(self, now: datetime | None = None) -> str:
         """Texte du « bonjour » quotidien : tout est normal, ou la liste des points à traiter."""
