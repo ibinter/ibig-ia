@@ -171,6 +171,17 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         return back("/ecosysteme", {"ack": "Pris en compte", "resolved": "Marqué résolu",
                                     "open": "Rouvert"}[status])
 
+    @app.post("/ecosysteme/mission-globale")
+    def global_mission(who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            title, goal, tasks = rt.ecosystem.global_fix_plan()
+            mid = rt.autopilot.create_from(title, goal, tasks, "", who.label,
+                                           "Plan de remise en état — écosystème IBIG")
+        except (EcosystemError, AutopilotError) as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back(f"/missions/{mid}", "Mission globale créée : validez puis suivez les étapes")
+
     @app.post("/ecosysteme/diagnostiquer")
     def global_diagnose(who: Principal = Depends(user)):
         direction_only(who)

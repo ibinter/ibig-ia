@@ -467,6 +467,52 @@ class EcosystemService:
         at, _, text = raw.partition("|")
         return {"at": at, "text": text}
 
+    def global_fix_plan(self) -> tuple[str, str, list]:
+        """Plan de correction global : une tâche par incident ouvert (critique d'abord), précédées
+        d'une tâche de confirmation du diagnostic. Retourne (titre, objectif, liste de PlannedTask)."""
+        from .autopilot import PlannedTask
+
+        incidents = [i for i in self.incidents() if i.status == "open" and i.severity != "info"]
+        if not incidents:
+            raise EcosystemError("Aucun incident ouvert à corriger")
+
+        diag = self.global_diagnose_result()
+        diag_text = diag["text"] or "Voir les incidents listés ci-dessous."
+
+        tasks = [
+            PlannedTask(
+                "Confirmer le diagnostic de l'IA",
+                f"Lire le diagnostic global et valider que les incidents listés correspondent bien à "
+                f"la réalité avant d'appliquer les corrections.\n\nDiagnostic IA :\n{diag_text[:1200]}",
+                "", [],
+            )
+        ]
+
+        critiques = [i for i in incidents if i.severity == "critical"]
+        warnings = [i for i in incidents if i.severity == "warning"]
+
+        for n, inc in enumerate(critiques + warnings, 2):
+            lines = {k.strip(): v.strip()
+                     for k, _, v in (ln.partition(":") for ln in inc.suggestion.splitlines())}
+            correction = lines.get("CORRECTION", "Voir l'incident.")
+            risque = lines.get("RISQUE", "")
+            ai_diag = service_value(self._sessions, self.settings, f"eco_diag_{inc.id}")
+            detail = f"Incident : {inc.title}\nCause probable : {lines.get('CAUSE PROBABLE', inc.detail)}\n\nCorrection : {correction}"
+            if risque:
+                detail += f"\nRisque : {risque}"
+            if ai_diag:
+                detail += f"\n\nAnalyse IA :\n{ai_diag[:600]}"
+            tasks.append(PlannedTask(
+                f"Corriger : {inc.title}"[:200],
+                detail[:1000],
+                "", [1],
+            ))
+
+        title = f"Remise en état : {len(critiques)} critique(s), {len(warnings)} avertissement(s)"
+        objective = (f"Corriger les {len(incidents)} incident(s) ouverts dans l'écosystème IBIG, "
+                     f"en commençant par les {len(critiques)} critique(s).")
+        return title, objective, tasks
+
     def fix_plan(self, incident_id: int) -> tuple[str, str, list[tuple[str, str]]]:
         """Plan de correction d'un incident (titre, objectif, étapes) à confier à l'Autopilot, qui le
         suit avec preuves. Rien n'est exécuté sur les systèmes : ce sont des tâches à valider."""

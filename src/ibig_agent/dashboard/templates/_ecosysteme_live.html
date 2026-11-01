@@ -30,7 +30,15 @@
   </div>
   {% if global_diag.at %}
   <p class="muted small" style="margin-bottom:8px">Dernier diagnostic : {{ global_diag.at[11:16] }} UTC</p>
-  <pre style="white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.6;margin:0">{{ global_diag.text }}</pre>
+  <pre style="white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.6;margin:0 0 12px">{{ global_diag.text }}</pre>
+  {% set open_count = incidents | selectattr('status', 'equalto', 'open') | selectattr('severity', 'ne', 'info') | list | length %}
+  {% if open_count > 0 %}
+  <form method="post" action="/ecosysteme/mission-globale">
+    <button class="btn primary">{{ icon('target') }} Créer la mission de remise en état ({{ open_count }} incident{{ 's' if open_count > 1 }})</button>
+  </form>
+  {% else %}
+  <p class="muted small">Aucun incident ouvert : aucune mission nécessaire.</p>
+  {% endif %}
   {% else %}
   <p class="muted">Aucun diagnostic effectué. Cliquez sur « Lancer le diagnostic » pour obtenir une synthèse de l'IA.</p>
   {% endif %}
