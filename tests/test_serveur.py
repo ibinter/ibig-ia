@@ -23,6 +23,7 @@ def healthy(at: datetime = NOW) -> dict:
         "security": {"ssh_failed_24h": 100, "banned_now": 3}, "updates": {"pending": 0, "security": 0},
         "certs": [], "backups": [{"name": "Agent IA", "count": 14, "age_h": 5.0}],
         "services": {"nginx": "active", "docker": "active"},
+        "offsite": {"etat": "ok", "age_h": 3.0, "libre_octets": 9_000_000_000, "jeux": []},
     }
 
 
@@ -218,3 +219,19 @@ def test_autopilot_missions_get_a_default_budget_so_they_are_not_blocked(rt):
     m = rt.missions.get(mid)
     assert m.budget_usd == DEFAULT_BUDGET_USD
     assert rt.missions.blocking_failures(rt.missions.checks(m)) == []
+
+
+def test_offsite_copy_to_google_is_monitored(rt):
+    d = healthy()
+    assert serveur.evaluate(d, NOW) == []
+    d["offsite"] = None
+    assert ("srv_offsite", "warning") in kinds(d)
+    d["offsite"] = {"etat": "partiel", "age_h": 2, "libre_octets": 5_000_000_000,
+                    "jeux": [{"jeu": "lokativo", "erreur": "envoi-x"}]}
+    assert ("srv_offsite", "critical") in kinds(d)
+    d["offsite"] = {"etat": "ok", "age_h": 80, "libre_octets": 5_000_000_000, "jeux": []}
+    assert ("srv_offsite", "critical") in kinds(d)
+    d["offsite"] = {"etat": "ok", "age_h": 2, "libre_octets": 200_000_000, "jeux": []}
+    assert ("srv_offsite", "warning") in kinds(d)
+    del d["offsite"]
+    assert serveur.evaluate(d, NOW) == []

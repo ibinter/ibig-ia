@@ -161,6 +161,20 @@ def backups(now: float) -> list[dict]:
     return out
 
 
+def offsite() -> dict | None:
+    """État de la copie chiffrée vers Google Drive (écrit par deploy/copie-google.sh), None si absent."""
+    try:
+        data = json.loads((STATE / "copie-google.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    try:
+        when = datetime.fromisoformat(data["date"])
+        data["age_h"] = round((time.time() - when.timestamp()) / 3600, 1)
+    except (KeyError, ValueError):
+        data["age_h"] = None
+    return data
+
+
 def main() -> None:
     now_ts = time.time()
     now = datetime.now()
@@ -172,7 +186,7 @@ def main() -> None:
         "hostname": os.uname().nodename, **system(),
         "containers": containers(), "pm2": pm2(),
         "failed_units": [ln.split()[0] for ln in failed if ln.strip()],
-        "nginx": nginx_errors(now), "security": security(), **slow, "backups": backups(now_ts),
+        "nginx": nginx_errors(now), "security": security(), **slow, "backups": backups(now_ts), "offsite": offsite(),
         "services": {s: run(f"systemctl is-active {s}").strip() or "inconnu" for s in SERVICES},
     }
     STATE.mkdir(parents=True, exist_ok=True)

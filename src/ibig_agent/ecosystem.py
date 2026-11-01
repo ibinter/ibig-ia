@@ -55,7 +55,7 @@ KIND_LABELS = {"dispo": "Disponibilité", "vitesse": "Vitesse", "cert": "Certifi
                "srv_charge": "Serveur", "srv_conteneur": "Serveur", "srv_pm2": "Serveur",
                "srv_unites": "Serveur", "srv_nginx": "Serveur", "srv_securite": "Serveur",
                "srv_maj": "Serveur", "srv_reboot": "Serveur", "srv_sauvegarde": "Sauvegarde",
-               "srv_service": "Serveur", "anom_donnees": "Base de données", "anom_bug": "Bug",
+               "srv_service": "Serveur", "srv_offsite": "Sauvegarde", "anom_donnees": "Base de données", "anom_bug": "Bug",
                "anom_contacts": "Contenu du site", "anom_liens": "Liens", "anom_sauvegarde": "Sauvegarde"}
 KINDS = ("site", "logiciel", "api", "autre")
 HOSTINGS = ("vps", "ftp", "externe")

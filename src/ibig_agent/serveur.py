@@ -177,6 +177,30 @@ def evaluate(d: dict | None, now: datetime) -> list[Issue]:
                 _s("la sauvegarde nocturne ne se fait plus (script cassé, dossier changé, plus d'espace).",
                    "lancer le script à la main, lire son journal, puis corriger la tâche planifiée.",
                    "élevé : en cas de panne, les données récentes seraient perdues."))
+    if "offsite" in d:
+        off = d["offsite"]
+        if off is None:
+            add("offsite", "srv_offsite", "warning", "Sauvegardes : aucune copie hors du serveur (Google Drive)", "",
+                _s("la copie chiffrée vers Google n'est pas installée ou n'a jamais tourné.",
+                   "installer deploy/copie-google.sh (tâche de 3 h 30) puis le lancer une fois à la main.",
+                   "élevé : si le serveur est perdu, les sauvegardes le sont aussi."))
+        else:
+            errors = [f"{j.get('jeu')} ({j.get('erreur')})" for j in off.get("jeux", []) if j.get("erreur")]
+            if off.get("etat") != "ok" or errors:
+                add("offsite", "srv_offsite", "critical", "Sauvegardes : la copie vers Google a échoué",
+                    ", ".join(errors) or str(off.get("etat")),
+                    _s("Google Drive injoignable, autorisation expirée, ou espace plein.",
+                       "lire /var/log/ibig-copie-google.log, vérifier `rclone about gdrive:` puis relancer le script.",
+                       "élevé : plus de copie récente hors du serveur."))
+            elif off.get("age_h") is None or off["age_h"] > BACKUP_MAX_H:
+                add("offsite", "srv_offsite", "critical", "Sauvegardes : copie Google trop ancienne", "",
+                    _s("la tâche de nuit ne tourne plus.", "vérifier /etc/cron.d/ibig-copie-google et le journal.",
+                       "élevé."))
+            free = off.get("libre_octets")
+            if isinstance(free, int) and free < 1_000_000_000:
+                add("offsite_espace", "srv_offsite", "warning", "Google Drive : moins de 1 Go libre", "",
+                    _s("l'espace Google se remplit.", "réduire la durée de conservation ou passer à un forfait plus grand.",
+                       "moyen : les prochaines copies échoueront."))
     for name, state in (d.get("services") or {}).items():
         if state != "active" and name in CRITICAL_SERVICES:
             add(f"service|{name}", "srv_service", "critical", f"Serveur : service {name} inactif ({state})", "",
