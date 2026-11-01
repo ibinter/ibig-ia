@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from ..auth import Principal
+from ..autopilot import AutopilotError, PlannedTask
 from ..ecosystem import (
     CRITICALITIES,
     HOSTINGS,
@@ -51,11 +52,14 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
 
     def context() -> dict:
         data = rt.ecosystem.summary()
+        incidents = rt.ecosystem.incidents()
+        diags = rt.ecosystem.diagnoses([i.id for i in incidents])
+        fixes = rt.ecosystem.missions_for([i.id for i in incidents])
         for a in data["assets"]:
             a["path"], a["fails"] = spark_path(a["spark"])
         data["tone"] = LEVEL_TONE[data["level"]]
-        return {"eco": data, "server": rt.ecosystem.server_state(), "incidents": rt.ecosystem.incidents(),
-                "heartbeat": rt.ecosystem.heartbeat_status(),
+        return {"eco": data, "server": rt.ecosystem.server_state(), "incidents": incidents,
+                "heartbeat": rt.ecosystem.heartbeat_status(), "diags": diags, "fixes": fixes,
                 "state_tone": STATE_TONE,
                 "state_label": STATE_LABEL, "severity_labels": SEVERITY_LABELS,
                 "kind_labels": KIND_LABELS}
@@ -140,6 +144,22 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
     @app.post("/ecosysteme/incident/{iid:int}/{action}")
     def incident_action(iid: int, action: str, who: Principal = Depends(user)):
         direction_only(who)
+        if action == "mission":
+            try:
+                title, goal, steps = rt.ecosystem.fix_plan(iid)
+                mid = rt.autopilot.create_from(
+                    title, goal, [PlannedTask(t, d, "", [n] if n else []) for n, (t, d) in enumerate(steps)],
+                    "", who.label, f"Incident de l'écosystème n°{iid}")
+            except (EcosystemError, AutopilotError) as exc:
+                return back("/ecosysteme", f"Refusé : {exc}")
+            rt.ecosystem.link_mission(iid, mid, who.label)
+            return back(f"/missions/{mid}", "Mission de correction créée : validez puis suivez les étapes")
+        if action == "analyser":
+            try:
+                rt.ecosystem.diagnose(iid, who.label)
+            except EcosystemError as exc:
+                return back("/ecosysteme", f"Refusé : {exc}")
+            return back("/ecosysteme", "Analyse de l'IA ajoutée à l'incident")
         status = {"pris": "ack", "resolu": "resolved", "rouvrir": "open"}.get(action)
         if status is None:
             raise HTTPException(404)

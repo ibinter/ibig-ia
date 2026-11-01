@@ -320,7 +320,8 @@ class Runtime:
     def ecosystem(self):
         from .ecosystem import EcosystemService
 
-        return EcosystemService(self.sessions, self.settings, alert=self.veille.alert_direction)
+        return EcosystemService(self.sessions, self.settings, alert=self.veille.alert_direction,
+                                findings=self.anomalies.findings, llm=self.llm)
 
     @property
     def recurring(self):

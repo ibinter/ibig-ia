@@ -57,7 +57,10 @@
       <small class="muted">{{ kind_labels.get(i.kind, i.kind) }} · vu {{ i.count }} fois{% if i.status == 'ack' %} · pris en compte par {{ i.ack_by }}{% endif %}</small>
     </summary>
     <pre style="white-space:pre-wrap;font:inherit;margin:10px 0">{{ i.suggestion }}</pre>
+    {% if diags.get(i.id) %}<div class="card" style="background:var(--brand-soft);margin:8px 0"><b>{{ icon('eye') }} Analyse de l'IA</b><pre style="white-space:pre-wrap;font:inherit;margin:6px 0 0">{{ diags[i.id] }}</pre></div>{% endif %}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if fixes.get(i.id) %}<a class="btn sm" href="/missions/{{ fixes[i.id] }}">{{ icon('target') }} Voir la mission de correction</a>{% else %}<form method="post" action="/ecosysteme/incident/{{ i.id }}/mission"><button class="btn sm primary">{{ icon('target') }} Créer la mission de correction</button></form>{% endif %}
+      <form method="post" action="/ecosysteme/incident/{{ i.id }}/analyser"><button class="btn sm">{{ icon('eye') }} {{ 'Réanalyser' if diags.get(i.id) else "Analyser avec l'IA" }}</button></form>
       {% if i.status == 'open' %}<form method="post" action="/ecosysteme/incident/{{ i.id }}/pris"><button class="btn sm">{{ icon('eye') }} Pris en compte</button></form>{% endif %}
       <form method="post" action="/ecosysteme/incident/{{ i.id }}/resolu"><button class="btn sm">{{ icon('check') }} Résolu</button></form>
     </div>

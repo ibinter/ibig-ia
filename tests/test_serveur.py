@@ -150,3 +150,63 @@ def test_external_heartbeat_is_optional_stored_encrypted_and_reports_failures(rt
     assert s.heartbeat(NOW) is False and s.heartbeat_status()["detail"] == "refusé par le service"
     s.set_heartbeat_url("", "dg")
     assert s.heartbeat(NOW) is None and s.heartbeat_status()["configured"] is False
+
+
+def test_open_findings_of_other_modules_are_mirrored_and_closed_when_fixed(rt):
+    from ibig_agent.anomalies import Finding
+    items = [Finding("db|crm|1", "donnees", "critical", "Base crm", "crm : doublons (12)", "12 doublons"),
+             Finding("x", "bug", "warning", "Site", "Bug vu", "", status="resolved")]
+    s = EcosystemService(rt.sessions, rt.settings, findings=lambda: items)
+    assert len(s.run_findings(NOW)) == 1
+    (inc,) = s.incidents()
+    assert inc.key == "anom|db|crm|1" and inc.kind == "anom_donnees" and inc.severity == "critical"
+    items[0].status = "resolved"
+    s.run_findings(NOW + timedelta(minutes=5))
+    assert s.incidents() == []
+
+
+def test_ai_diagnosis_is_on_demand_stored_and_errors_are_simple(rt):
+    class FakeLLM:
+        def __init__(self):
+            self.seen = []
+
+        def write(self, purpose, system, user, max_tokens=4000):
+            self.seen.append(user)
+            return "Cause : conteneur arrêté. Vérifier docker logs."
+
+    llm = FakeLLM()
+    from ibig_agent.ecosystem import EcosystemError
+    s = EcosystemService(rt.sessions, rt.settings, findings=list, llm=None)
+    with pytest.raises(EcosystemError, match="IA"):
+        s.diagnose(1, "dg")
+    s = EcosystemService(rt.sessions, rt.settings, findings=list, llm=llm)
+    with rt.sessions() as db:
+        from ibig_agent.db import EcoIncident
+        row = EcoIncident(key="srv|x", kind="srv_conteneur", severity="critical", title="Conteneur db arrêté")
+        db.add(row)
+        db.commit()
+        iid = row.id
+    assert "docker logs" in s.diagnose(iid, "dg")
+    assert "Conteneur db arrêté" in llm.seen[0] and s.diagnoses([iid, 999]) == {iid: "Cause : conteneur arrêté. Vérifier docker logs."}
+    with pytest.raises(EcosystemError, match="introuvable"):
+        s.diagnose(999, "dg")
+
+
+def test_fix_mission_is_created_from_an_incident_through_the_autopilot(rt):
+    from ibig_agent.autopilot import PlannedTask
+    from ibig_agent.db import EcoIncident
+    s = EcosystemService(rt.sessions, rt.settings, findings=list)
+    with rt.sessions() as db:
+        row = EcoIncident(key="srv|y", kind="srv_conteneur", severity="critical", title="Conteneur db arrêté",
+                          suggestion="CAUSE PROBABLE : mémoire\nCORRECTION : docker start db\nRISQUE : élevé")
+        db.add(row)
+        db.commit()
+        iid = row.id
+    title, goal, steps = s.fix_plan(iid)
+    assert title.startswith("Corriger : Conteneur db") and steps[1][0] == "Appliquer la correction"
+    assert "docker start db" in steps[1][1] and "mémoire" in steps[0][1]
+    mid = rt.autopilot.create_from(title, goal, [PlannedTask(t, d, "", [n] if n else [])
+                                                  for n, (t, d) in enumerate(steps)], "", "dg", "test")
+    s.link_mission(iid, mid, "dg")
+    assert s.missions_for([iid, 5]) == {iid: mid}
+    assert len(rt.autopilot.tasks(mid)) == 3

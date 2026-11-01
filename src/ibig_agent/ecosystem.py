@@ -55,7 +55,8 @@ KIND_LABELS = {"dispo": "Disponibilité", "vitesse": "Vitesse", "cert": "Certifi
                "srv_charge": "Serveur", "srv_conteneur": "Serveur", "srv_pm2": "Serveur",
                "srv_unites": "Serveur", "srv_nginx": "Serveur", "srv_securite": "Serveur",
                "srv_maj": "Serveur", "srv_reboot": "Serveur", "srv_sauvegarde": "Sauvegarde",
-               "srv_service": "Serveur"}
+               "srv_service": "Serveur", "anom_donnees": "Base de données", "anom_bug": "Bug",
+               "anom_contacts": "Contenu du site", "anom_liens": "Liens", "anom_sauvegarde": "Sauvegarde"}
 KINDS = ("site", "logiciel", "api", "autre")
 HOSTINGS = ("vps", "ftp", "externe")
 CRITICALITIES = ("haute", "moyenne", "basse")
@@ -154,12 +155,15 @@ class EcosystemService:
     def __init__(self, sessions: sessionmaker[Session], settings: Settings,
                  alert: Callable[[str, str, str], None] | None = None,
                  client: httpx.Client | None = None,
-                 cert_check: Callable[[str], int | None] = cert_days) -> None:
+                 cert_check: Callable[[str], int | None] = cert_days,
+                 findings: Callable[[], list] | None = None, llm=None) -> None:
         self._sessions = sessions
         self.settings = settings
         self.alert = alert
         self._client = client
         self.cert_check = cert_check
+        self.findings = findings
+        self.llm = llm
 
     # ------------------------------------------------------------------ inventaire
     def sync_config(self, path: Path | None = None) -> dict:
@@ -298,7 +302,7 @@ class EcosystemService:
                 opened += self._evaluate(s, a, r, now)
             s.commit()
             opened = [i for i in opened if i.id is not None]
-        server_opened = self.run_server(now)
+        server_opened = self.run_server(now) + self.run_findings(now)
         self._notify(opened + server_opened)
         self.heartbeat(now)
         return {"checked": len(assets), "ok": sum(r.ok for _, r in results),
@@ -322,6 +326,96 @@ class EcosystemService:
                     row.status = "resolved"
             s.commit()
         return opened
+
+    def run_findings(self, now: datetime | None = None) -> list[EcoIncident]:
+        """Reprend dans le centre de contrôle les constats ouverts des bases de données, des bugs et des
+        sites (module anomalies), pour que tout soit lu au même endroit."""
+        if self.findings is None:
+            return []
+        now = now or utcnow()
+        wanted = {f"anom|{f.key}": f for f in self.findings() if f.status == "open"}
+        opened: list[EcoIncident] = []
+        with self._sessions() as s:
+            for key, f in wanted.items():
+                sev = f.severity if f.severity in SEVERITY_RANK else "warning"
+                text = (f"CAUSE PROBABLE : {f.detail or f.title}\nCORRECTION : ouvrir la page Anomalies pour "
+                        f"le détail et la procédure.\nRISQUE : selon le constat ({SEVERITY_LABELS[sev].lower()}).")
+                row = self._upsert_raw(s, None, key, f"anom_{f.check}", sev, f.title, f.detail, text, now)
+                if row is not None and row.id is not None:
+                    opened.append(row)
+            for row in s.scalars(select(EcoIncident).where(EcoIncident.key.like("anom|%"),
+                                                           EcoIncident.status != "resolved")).all():
+                if row.key not in wanted:
+                    row.status = "resolved"
+            s.commit()
+        return opened
+
+    # ------------------------------------------------------------------ diagnostic par l'IA (à la demande)
+    def diagnose(self, incident_id: int, by: str) -> str:
+        """Demande à l'IA une analyse plus précise d'un incident. À la demande seulement (coût maîtrisé).
+        L'IA ne reçoit que le titre, le détail, les dernières mesures et les chiffres du serveur."""
+        if self.llm is None:
+            raise EcosystemError("L'IA n'est pas configurée")
+        with self._sessions() as s:
+            inc = s.get(EcoIncident, incident_id)
+            if inc is None:
+                raise EcosystemError("Incident introuvable")
+            history = []
+            if inc.asset_id:
+                a = s.get(EcoAsset, inc.asset_id)
+                history = [f"{c.at:%H:%M} {'ok' if c.ok else 'ÉCHEC'} {c.status} {c.ms} ms {c.detail}"
+                           for c in self._last(s, a, 8)] if a else []
+            facts = f"Incident : {inc.title}\nDétail : {inc.detail}\nVu {inc.count} fois depuis {inc.first_seen:%d/%m %H:%M}"
+        srv = self.server_state()
+        if srv:
+            facts += (f"\nServeur : charge {srv['load']} sur {srv['cores']} cœurs, mémoire libre "
+                      f"{srv['mem_free_pct']} %, disque {srv['disk_pct']} %, conteneurs {srv['containers'][0]}/"
+                      f"{srv['containers'][1]}, erreurs web 15 min {srv['errors_15m']}, services en échec "
+                      f"{', '.join(srv['failed_units']) or 'aucun'}")
+        if history:
+            facts += "\nDernières mesures :\n" + "\n".join(history)
+        try:
+            text = self.llm.write(
+                "ecosysteme.diagnostic",
+                "Tu es l'ingénieur d'exploitation d'IBIG SARL (Abidjan). À partir des seuls faits fournis, "
+                "donne en français simple : 1) la cause la plus probable et pourquoi, 2) les 2 à 4 commandes ou "
+                "gestes de vérification, dans l'ordre, 3) la correction, 4) comment confirmer que c'est réglé. "
+                "N'invente aucun fait ; si les données ne suffisent pas, dis quoi relever. Moins de 180 mots.",
+                facts, 700).strip()
+        except Exception as exc:
+            raise EcosystemError(f"Analyse impossible pour le moment ({exc.__class__.__name__})") from exc
+        set_service_value(self._sessions, self.settings, f"eco_diag_{incident_id}", text[:3000], by)
+        return text
+
+    def fix_plan(self, incident_id: int) -> tuple[str, str, list[tuple[str, str]]]:
+        """Plan de correction d'un incident (titre, objectif, étapes) à confier à l'Autopilot, qui le
+        suit avec preuves. Rien n'est exécuté sur les systèmes : ce sont des tâches à valider."""
+        with self._sessions() as s:
+            inc = s.get(EcoIncident, incident_id)
+        if inc is None:
+            raise EcosystemError("Incident introuvable")
+        lines = {k.strip(): v.strip() for k, _, v in (ln.partition(":") for ln in inc.suggestion.splitlines())}
+        ai = service_value(self._sessions, self.settings, f"eco_diag_{incident_id}")
+        steps = [
+            ("Confirmer le constat et la cause", lines.get("CAUSE PROBABLE", "") + (f"\n\nAnalyse IA :\n{ai}" if ai else "")),
+            ("Appliquer la correction", lines.get("CORRECTION", "Voir l'incident.") + "\nRisque : " + lines.get("RISQUE", "")),
+            ("Vérifier le retour à la normale", "L'incident disparaît du centre de contrôle et la mesure suivante est verte."),
+        ]
+        return f"Corriger : {inc.title}"[:200], f"Rétablir un fonctionnement normal : {inc.title}", steps
+
+    def link_mission(self, incident_id: int, mission_id: int, by: str) -> None:
+        set_service_value(self._sessions, self.settings, f"eco_mission_{incident_id}", str(mission_id), by)
+
+    def missions_for(self, ids: list[int]) -> dict[int, int]:
+        out = {}
+        for i in ids:
+            v = service_value(self._sessions, self.settings, f"eco_mission_{i}")
+            if v.isdigit():
+                out[i] = int(v)
+        return out
+
+    def diagnoses(self, ids: list[int]) -> dict[int, str]:
+        return {i: v for i in ids if (v := service_value(self._sessions, self.settings, f"eco_diag_{i}"))}
 
     # ------------------------------------------------------------------ sonde externe (battement)
     def set_heartbeat_url(self, url: str, by: str) -> None:
