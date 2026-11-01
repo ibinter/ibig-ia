@@ -34,7 +34,7 @@ REPORT=""
 add() { REPORT="${REPORT}${REPORT:+,}{\"jeu\":\"$1\",\"envoyes\":$2,\"octets\":$3,\"erreur\":\"$4\"}"; }
 status() {
   mkdir -p "$STATE_DIR"
-  FREE="$(rclone about "${REMOTE%%:*}:" --json 2>/dev/null | sed -n 's/.*"free":\([0-9]*\).*/\1/p')"
+  FREE="$(rclone about "${REMOTE%%:*}:" --json 2>/dev/null | sed -n 's/.*"free": *\([0-9]*\).*/\1/p')"
   cat > "$STATE_DIR/copie-google.json" <<EOF
 {"date": "$(date -Iseconds)", "etat": "$1", "libre_octets": ${FREE:-null}, "jeux": [$REPORT]}
 EOF
