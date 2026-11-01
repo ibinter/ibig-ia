@@ -222,3 +222,35 @@ def test_core_monitor_turns_numbers_into_findings_and_resolves_them(rt):
     mon.configure("https://core.exemple.ci/admin/agent_ibig", "x" * 40, "dg")       # mauvais jeton
     assert mon.run()["errors"] == len(core_checks.CATALOG)
     assert any(f.key == "core|injoignable" and f.status == "open" for f in anomalies.findings())
+
+
+def test_core_details_are_ids_only_and_feed_a_precise_correction_plan(rt):
+    import httpx
+
+    from ibig_agent import core_checks
+    from ibig_agent.db import EcoIncident
+    from ibig_agent.ecosystem import EcosystemService
+    shipped = core_checks.render_php()
+    for forbidden in ("email,", "telephone", "salaire", "password_hash", "nom,", "prenoms"):
+        assert not any(forbidden in sql for sql in core_checks.DETAILS.values()), forbidden
+    assert "action === 'details'" in shipped and shipped.count("LIMIT") >= len(core_checks.DETAILS)
+    assert set(core_checks.DETAILS) <= set(core_checks.FIXES) <= set(range(1, len(core_checks.CATALOG) + 1))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["action"] == "details" and request.url.params["id"] == "6"
+        return httpx.Response(200, json={"lignes": [{"id": 17, "matricule": "E-17", "montant_total": 100,
+                                                     "montant_paye": 120, "reste_a_payer": 5}]})
+
+    anomalies = AnomalyService(rt.sessions, rt.settings, rt.org, rt.kb, pause=0)
+    mon = core_checks.CoreMonitor(rt.sessions, rt.settings, anomalies,
+                                  client=httpx.Client(transport=httpx.MockTransport(handler)))
+    mon.configure("https://core.exemple.ci/admin/agent_ibig", "t" * 40, "dg")
+    eco = EcosystemService(rt.sessions, rt.settings, findings=list, core_details=mon.details)
+    with rt.sessions() as db:
+        row = EcoIncident(key="anom|core|6", kind="anom_donnees", severity="critical",
+                          title="IBIG CORE — EDUFORM : Inscriptions dont les montants ne concordent pas (1)")
+        db.add(row)
+        db.commit()
+        iid = row.id
+    _title, _goal, steps = eco.fix_plan(iid)
+    assert "id=17 | matricule=E-17" in steps[0][1] and "reste_a_payer = montant_total - montant_paye" in steps[1][1]

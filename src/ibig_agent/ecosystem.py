@@ -30,7 +30,7 @@ import yaml
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from . import serveur
+from . import core_checks, serveur
 from .anomalies import cert_days
 from .config import Settings
 from .configstore import service_value, set_service_value
@@ -156,7 +156,9 @@ class EcosystemService:
                  alert: Callable[[str, str, str], None] | None = None,
                  client: httpx.Client | None = None,
                  cert_check: Callable[[str], int | None] = cert_days,
-                 findings: Callable[[], list] | None = None, llm=None) -> None:
+                 findings: Callable[[], list] | None = None, llm=None,
+                 core_details: Callable[[int], list] | None = None) -> None:
+        self.core_details = core_details
         self._sessions = sessions
         self.settings = settings
         self.alert = alert
@@ -396,9 +398,20 @@ class EcosystemService:
             raise EcosystemError("Incident introuvable")
         lines = {k.strip(): v.strip() for k, _, v in (ln.partition(":") for ln in inc.suggestion.splitlines())}
         ai = service_value(self._sessions, self.settings, f"eco_diag_{incident_id}")
+        confirm = lines.get("CAUSE PROBABLE", "") + (f"\n\nAnalyse IA :\n{ai}" if ai else "")
+        apply = lines.get("CORRECTION", "Voir l'incident.") + "\nRisque : " + lines.get("RISQUE", "")
+        core = re.match(r"anom[|]core[|](\d+)$", inc.key)
+        if core and int(core.group(1)) in core_checks.FIXES:
+            n = int(core.group(1))
+            what, how = core_checks.FIXES[n]
+            rows = self.core_details(n) if self.core_details else []
+            listing = "\n".join(" | ".join(f"{k}={v}" for k, v in r.items()) for r in rows[:25])
+            confirm = (f"{len(rows)} ligne(s) concernée(s) (identifiants et chiffres seulement) :\n{listing}"[:1800]
+                       if rows else "Détail indisponible : rouvrir le contrôle dans IBIG CORE.")
+            apply = f"{what}\n\n{how}"
         steps = [
-            ("Confirmer le constat et la cause", lines.get("CAUSE PROBABLE", "") + (f"\n\nAnalyse IA :\n{ai}" if ai else "")),
-            ("Appliquer la correction", lines.get("CORRECTION", "Voir l'incident.") + "\nRisque : " + lines.get("RISQUE", "")),
+            ("Confirmer le constat et la cause", confirm),
+            ("Appliquer la correction", apply),
             ("Vérifier le retour à la normale", "L'incident disparaît du centre de contrôle et la mesure suivante est verte."),
         ]
         return f"Corriger : {inc.title}"[:200], f"Rétablir un fonctionnement normal : {inc.title}", steps

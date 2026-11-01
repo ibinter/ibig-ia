@@ -68,6 +68,42 @@ def install(monitor, connection: str, by: str) -> dict:
     return {"added": added, "skipped": skipped}
 
 
+# Détails demandés pour préparer une correction : identifiants et chiffres SEULEMENT (aucun nom, e-mail,
+# téléphone ni salaire). 50 lignes au plus. Clé = numéro du contrôle dans CATALOG (à partir de 1).
+DETAILS: dict[int, str] = {
+    3: "SELECT id, statut FROM crm_prospects WHERE actif = 1 AND commercial_id IS NULL AND statut NOT IN ('GAGNE','PERDU') LIMIT 50",
+    4: ("SELECT MIN(id) AS garde, GROUP_CONCAT(id) AS ids, COUNT(*) AS n FROM crm_prospects WHERE email <> '' "
+        "GROUP BY email HAVING COUNT(*) > 1 LIMIT 50"),
+    5: ("SELECT id, echeancier_id, numero_tranche, date_limite, montant_restant FROM edu_echeancier_tranches "
+        "WHERE statut = 'EN_RETARD' ORDER BY date_limite LIMIT 50"),
+    6: ("SELECT id, matricule, montant_total, montant_paye, reste_a_payer FROM edu_inscriptions WHERE statut = 'ACTIVE' "
+        "AND (reste_a_payer < 0 OR montant_paye > montant_total OR montant_total - montant_paye <> reste_a_payer) LIMIT 50"),
+    10: ("SELECT id, employe_id, type_contrat, date_fin FROM rh_contrats WHERE statut = 'EN_COURS' "
+         "AND date_fin IS NOT NULL AND date_fin < CURDATE() LIMIT 50"),
+    12: ("SELECT id, role, last_login_at, created_at FROM admin_users WHERE is_active = 1 "
+         "AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 90 DAY)) ORDER BY id LIMIT 100"),
+}
+
+# Correction proposée (à faire valider) pour chaque contrôle qui en a une : (quoi faire, comment).
+FIXES: dict[int, tuple[str, str]] = {
+    3: ("Affecter un commercial responsable à chaque prospect de la liste.",
+        "Dans le CRM, ouvrir chaque prospect et choisir son commercial (ou répartir en lot)."),
+    4: ("Fusionner les doublons en gardant la fiche « garde » et en rattachant les autres à elle.",
+        "Dans le CRM, fusionner ou supprimer les fiches en double après vérification des interactions."),
+    5: ("Relancer les participants dont la tranche est en retard (montant restant indiqué).",
+        "Utiliser les relances d'encaissement d'EDUFORM, ou appeler le participant."),
+    6: (("Recalculer le reste à payer = montant total − montant payé. Si le payé dépasse le total, vérifier le "
+         "paiement en trop (remboursement ou erreur de saisie) AVANT toute correction."),
+        ("UPDATE edu_inscriptions SET reste_a_payer = montant_total - montant_paye WHERE id IN (<identifiants>) "
+         "AND montant_paye <= montant_total;  -- à valider par la comptabilité, après sauvegarde de la table")),
+    10: ("Pour chaque contrat arrivé à terme : le renouveler (nouvelle date de fin) ou le clôturer.",
+         "UPDATE rh_contrats SET statut = 'EXPIRE' WHERE id IN (<identifiants à clôturer>);  -- décision RH par contrat"),
+    12: (("Désactiver les comptes qui ne servent plus ; garder ceux dont la personne est connue et revient. "
+          "Aucun compte n'est désactivé sans confirmation de son titulaire ou de la direction."),
+         "UPDATE admin_users SET is_active = 0 WHERE id IN (<identifiants confirmés>);  -- après vérification des rôles"),
+}
+
+
 # ---------------------------------------------------------------------------------------------------
 # Point d'entrée posé sur IBIG CORE : il exécute CES requêtes côté serveur (avec l'accès à la base que le
 # CORE possède déjà) et ne renvoie que des nombres. Aucun mot de passe de base n'est échangé.
@@ -86,6 +122,7 @@ def _php_str(text: str) -> str:
 def render_php() -> str:
     """Fichier PHP du point d'entrée, généré depuis le catalogue (une seule source de vérité)."""
     rows = "\n".join(f"    {n} => {_php_str(sql)}," for n, (_, _, sql, _, _) in enumerate(CATALOG, 1))
+    drows = chr(10).join(f"    {n} => {_php_str(sql)}," for n, sql in DETAILS.items())
     return f"""<?php
 declare(strict_types=1);
 
@@ -101,6 +138,7 @@ declare(strict_types=1);
  *   - la session de base est ouverte en lecture seule.
  *
  * GET ?action=ping       → {{"ok":true}}
+ * GET ?action=details&id=N → identifiants et chiffres seulement (50 lignes au plus)
  * GET ?action=controles  → {{"controles":{{"1":{{"v":3}},"2":{{"e":"..."}}}},"at":"..."}}
  */
 
@@ -157,6 +195,28 @@ if ($action === 'controles' && $_SERVER['REQUEST_METHOD'] === 'GET') {{
     agent_out(200, ['controles' => $out, 'at' => date('c')]);
 }}
 
+if ($action === 'details' && $_SERVER['REQUEST_METHOD'] === 'GET') {{
+    $details = [
+{drows}
+    ];
+    $id = (int)($_GET['id'] ?? 0);
+    if (!isset($details[$id])) {{
+        agent_out(404, ['error' => 'Détail inconnu']);
+    }}
+    $cfg = require dirname(__DIR__) . '/inc/config.php';
+    try {{
+        $pdo = new PDO(
+            "mysql:host={{$cfg['host']}};dbname={{$cfg['dbname']}};charset={{$cfg['charset']}}",
+            $cfg['user'], $cfg['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+        try {{ $pdo->exec('SET SESSION TRANSACTION READ ONLY'); }} catch (Throwable $e) {{}}
+        agent_out(200, ['id' => $id, 'lignes' => $pdo->query($details[$id])->fetchAll(PDO::FETCH_ASSOC)]);
+    }} catch (Throwable $e) {{
+        agent_out(503, ['error' => 'Requête impossible']);
+    }}
+}}
+
 agent_out(404, ['error' => 'Action inconnue']);
 """
 
@@ -207,6 +267,20 @@ class CoreMonitor:
         if resp.status_code != 200 or not isinstance(data, dict):
             raise ValueError(f"IBIG CORE {resp.status_code} : {str(data.get('error', ''))[:120] or 'réponse illisible'}")
         return {int(k): v for k, v in (data.get("controles") or {}).items()}
+
+    def details(self, n: int) -> list[dict]:
+        """Lignes (identifiants et chiffres seulement) derrière le contrôle n ; vide si indisponible."""
+        base = service_value(self._sessions, self.settings, SETTING_URL)
+        token = service_value(self._sessions, self.settings, SETTING_TOKEN)
+        if not (base and token) or n not in DETAILS:
+            return []
+        client = self._client or httpx.Client(timeout=30)
+        try:
+            resp = client.get(f"{base}/{ENDPOINT}", params={"action": "details", "id": n},
+                              headers={"X-Agent-Token": token, "accept": "application/json"})
+            return list(resp.json().get("lignes", [])) if resp.status_code == 200 else []
+        except (ValueError, httpx.HTTPError):
+            return []
 
     def run(self, now: datetime | None = None) -> dict:
         from .anomalies import Finding

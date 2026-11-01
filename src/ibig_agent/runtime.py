@@ -327,7 +327,8 @@ class Runtime:
         from .ecosystem import EcosystemService
 
         return EcosystemService(self.sessions, self.settings, alert=self.veille.alert_direction,
-                                findings=self.anomalies.findings, llm=self.llm)
+                                findings=self.anomalies.findings, llm=self.llm,
+                                core_details=lambda n: self.core_monitor.details(n))
 
     @property
     def consigne(self):

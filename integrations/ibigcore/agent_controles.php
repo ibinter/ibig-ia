@@ -13,6 +13,7 @@ declare(strict_types=1);
  *   - la session de base est ouverte en lecture seule.
  *
  * GET ?action=ping       → {"ok":true}
+ * GET ?action=details&id=N → identifiants et chiffres seulement (50 lignes au plus)
  * GET ?action=controles  → {"controles":{"1":{"v":3},"2":{"e":"..."}},"at":"..."}
  */
 
@@ -78,6 +79,33 @@ if ($action === 'controles' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
     agent_out(200, ['controles' => $out, 'at' => date('c')]);
+}
+
+if ($action === 'details' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $details = [
+    3 => 'SELECT id, statut FROM crm_prospects WHERE actif = 1 AND commercial_id IS NULL AND statut NOT IN (\'GAGNE\',\'PERDU\') LIMIT 50',
+    4 => 'SELECT MIN(id) AS garde, GROUP_CONCAT(id) AS ids, COUNT(*) AS n FROM crm_prospects WHERE email <> \'\' GROUP BY email HAVING COUNT(*) > 1 LIMIT 50',
+    5 => 'SELECT id, echeancier_id, numero_tranche, date_limite, montant_restant FROM edu_echeancier_tranches WHERE statut = \'EN_RETARD\' ORDER BY date_limite LIMIT 50',
+    6 => 'SELECT id, matricule, montant_total, montant_paye, reste_a_payer FROM edu_inscriptions WHERE statut = \'ACTIVE\' AND (reste_a_payer < 0 OR montant_paye > montant_total OR montant_total - montant_paye <> reste_a_payer) LIMIT 50',
+    10 => 'SELECT id, employe_id, type_contrat, date_fin FROM rh_contrats WHERE statut = \'EN_COURS\' AND date_fin IS NOT NULL AND date_fin < CURDATE() LIMIT 50',
+    12 => 'SELECT id, role, last_login_at, created_at FROM admin_users WHERE is_active = 1 AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 90 DAY)) ORDER BY id LIMIT 100',
+    ];
+    $id = (int)($_GET['id'] ?? 0);
+    if (!isset($details[$id])) {
+        agent_out(404, ['error' => 'Détail inconnu']);
+    }
+    $cfg = require dirname(__DIR__) . '/inc/config.php';
+    try {
+        $pdo = new PDO(
+            "mysql:host={$cfg['host']};dbname={$cfg['dbname']};charset={$cfg['charset']}",
+            $cfg['user'], $cfg['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+        try { $pdo->exec('SET SESSION TRANSACTION READ ONLY'); } catch (Throwable $e) {}
+        agent_out(200, ['id' => $id, 'lignes' => $pdo->query($details[$id])->fetchAll(PDO::FETCH_ASSOC)]);
+    } catch (Throwable $e) {
+        agent_out(503, ['error' => 'Requête impossible']);
+    }
 }
 
 agent_out(404, ['error' => 'Action inconnue']);
