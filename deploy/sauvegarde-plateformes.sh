@@ -94,7 +94,9 @@ done
 # 4. MySQL (uniquement si un accès en lecture a été préparé)
 if command -v mysqldump >/dev/null 2>&1 && [ -f "$MYSQL_CNF" ]; then
   out="$WORK/mysql-all.sql.gz"
-  if mysqldump --defaults-extra-file="$MYSQL_CNF" --all-databases --single-transaction --quick 2>"$WORK/err" | gzip > "$out"; then
+  if mysqldump --defaults-extra-file="$MYSQL_CNF" --all-databases --single-transaction --quick \
+       --no-tablespaces --routines --events --triggers 2>"$WORK/err" | gzip > "$out" \
+     && [ "$(gzip -dc "$out" | grep -c 'CREATE TABLE')" -gt 0 ]; then
     ok "mysql:toutes"
   else
     fail "mysql" "$(head -c 120 "$WORK/err" | tr '\n' ' ')"; rm -f "$out"
