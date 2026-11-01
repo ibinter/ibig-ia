@@ -11,6 +11,7 @@ import threading
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
+from .. import core_checks
 from ..auth import Principal
 from ..dbmonitor import DEFAULT_PORTS, KINDS, DbMonitorError
 from ..runtime import Runtime
@@ -50,6 +51,15 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back("/donnees", rt.dbmonitor.test(nom))
         except DbMonitorError as exc:
             return back("/donnees", f"Refusé : {exc}")
+
+    @app.post("/donnees/connexion/{nom}/catalogue")
+    def install_catalog(nom: str, who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            r = core_checks.install(rt.dbmonitor, nom, who.label)
+        except DbMonitorError as exc:
+            return back("/donnees", f"Refusé : {exc}")
+        return back("/donnees", f"Contrôles d'IBIG CORE : {r['added']} ajouté(s), {r['skipped']} déjà présent(s)")
 
     @app.post("/donnees/connexion/{nom}/supprimer")
     def remove_connection(nom: str, who: Principal = Depends(user)):

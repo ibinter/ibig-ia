@@ -163,3 +163,16 @@ def test_database_page_hides_passwords_and_is_closed_to_validators(rt, monkeypat
     v = client("v@ibig.test")
     assert v.get("/donnees").status_code == 403
     assert v.post("/donnees/connexion", data={"nom": "x"}).status_code == 403
+
+
+def test_ibig_core_catalog_is_valid_read_only_and_installs_without_duplicates(rt):
+    from ibig_agent import core_checks
+    for module, name, sql, _, severity in core_checks.CATALOG:
+        assert validate_sql(sql).upper().startswith(("SELECT", "(SELECT")), name
+        assert severity in ("warning", "critical") and len(f"{module} : {name}") <= 120
+    mon = monitor(rt, FakeDb())
+    mon.add_connection("IBIG CORE", "mysql", "h", 3306, "b", "u", SECRET, "dg")
+    first = core_checks.install(mon, "IBIG CORE", "dg")
+    assert first == {"added": len(core_checks.CATALOG), "skipped": 0}
+    assert core_checks.install(mon, "IBIG CORE", "dg") == {"added": 0, "skipped": len(core_checks.CATALOG)}
+    assert len(mon.checks()) == len(core_checks.CATALOG)

@@ -14,6 +14,7 @@
         {% for name, kind, where, who in connections %}
         <li><span class="todo-txt"><b>{{ name }}</b> <span class="pill blue">{{ kind }}</span><br><small class="muted">{{ where }} · utilisateur {{ who }} · mot de passe chiffré</small></span>
           <span style="display:flex;gap:6px">
+            <form method="post" action="/donnees/connexion/{{ name | urlencode }}/catalogue"><button class="btn sm" title="Ajoute les contrôles prêts pour IBIG CORE (CRM, EDUFORM, Finance, RH)">{{ icon('list') }} Contrôles IBIG CORE</button></form>
             <form method="post" action="/donnees/connexion/{{ name | urlencode }}/tester"><button class="btn sm">{{ icon('play') }} Tester</button></form>
             <form method="post" action="/donnees/connexion/{{ name | urlencode }}/supprimer" onsubmit="return confirm('Supprimer cet accès et ses contrôles ?')"><button class="btn sm ghost-bad">{{ icon('x') }}</button></form>
           </span></li>
