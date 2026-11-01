@@ -21,6 +21,21 @@
   <div class="card"><div class="muted small">Améliorations possibles</div><div style="font-size:28px;font-weight:800">{{ t.ameliorations }}</div></div>
 </div>
 
+<section class="card" style="margin-bottom:16px;background:var(--brand-soft);border-color:var(--brand)">
+  <div class="card-head"><div><h2>{{ icon('eye') }} Diagnostic IA — synthèse de l'écosystème</h2>
+    <div class="sub">Analyse globale : serveur, sites, FTP et incidents ouverts en un seul rapport.</div></div>
+    <form method="post" action="/ecosysteme/diagnostiquer">
+      <button class="btn primary sm" {{ 'disabled' if checking }}>{{ icon('play') }} {{ 'En cours…' if checking else 'Lancer le diagnostic' }}</button>
+    </form>
+  </div>
+  {% if global_diag.at %}
+  <p class="muted small" style="margin-bottom:8px">Dernier diagnostic : {{ global_diag.at[11:16] }} UTC</p>
+  <pre style="white-space:pre-wrap;font:inherit;font-size:14px;line-height:1.6;margin:0">{{ global_diag.text }}</pre>
+  {% else %}
+  <p class="muted">Aucun diagnostic effectué. Cliquez sur « Lancer le diagnostic » pour obtenir une synthèse de l'IA.</p>
+  {% endif %}
+</section>
+
 <section class="card" style="margin-bottom:16px">
   <div class="card-head"><div><h2>{{ icon('power') }} Le serveur</h2><div class="sub">Relevé par un collecteur en lecture seule, toutes les 2 minutes</div></div></div>
   {% if not server %}

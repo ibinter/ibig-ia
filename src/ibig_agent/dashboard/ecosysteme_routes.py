@@ -62,7 +62,8 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
                 "heartbeat": rt.ecosystem.heartbeat_status(), "diags": diags, "fixes": fixes,
                 "state_tone": STATE_TONE, "state_label": STATE_LABEL,
                 "severity_labels": SEVERITY_LABELS, "kind_labels": KIND_LABELS,
-                "ftp_summary": rt.ecosystem.ftp_summary()}
+                "ftp_summary": rt.ecosystem.ftp_summary(),
+                "global_diag": rt.ecosystem.global_diagnose_result()}
 
     @app.get("/ecosysteme", response_class=HTMLResponse)
     def ecosysteme_page(request: Request, who: Principal = Depends(user)):
@@ -169,6 +170,24 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back("/ecosysteme", f"Refusé : {exc}")
         return back("/ecosysteme", {"ack": "Pris en compte", "resolved": "Marqué résolu",
                                     "open": "Rouvert"}[status])
+
+    @app.post("/ecosysteme/diagnostiquer")
+    def global_diagnose(who: Principal = Depends(user)):
+        direction_only(who)
+        if running:
+            return back("/ecosysteme", "Une mesure est déjà en cours : patientez")
+        running.add("diag")
+
+        def work() -> None:
+            try:
+                rt.ecosystem.global_diagnose(who.label)
+            except EcosystemError:
+                pass
+            finally:
+                running.discard("diag")
+
+        threading.Thread(target=work, daemon=True).start()
+        return back("/ecosysteme", "Diagnostic lancé : résultat visible dans quelques secondes")
 
     @app.post("/ecosysteme/ftp")
     def ftp_save(label: str = Form(""), host: str = Form(""), port: str = Form("21"),

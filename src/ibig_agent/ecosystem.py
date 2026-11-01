@@ -390,6 +390,83 @@ class EcosystemService:
         set_service_value(self._sessions, self.settings, f"eco_diag_{incident_id}", text[:3000], by)
         return text
 
+    def global_diagnose(self, by: str) -> str:
+        """Diagnostic global de l'écosystème : tous les incidents ouverts + serveur + FTP en un seul appel IA."""
+        if self.llm is None:
+            raise EcosystemError("L'IA n'est pas configurée")
+
+        incidents = [i for i in self.incidents() if i.status == "open" and i.severity != "info"]
+        data = self.summary()
+        srv = self.server_state()
+        ftp = self.ftp_summary()
+
+        lines: list[str] = []
+        t = data["totals"]
+        lines.append(
+            f"ÉTAT GLOBAL : {data['message']} — {t['suivis']} actifs suivis, "
+            f"disponibilité {t['disponibilite']} % sur 24 h, {len(incidents)} incident(s) ouvert(s)."
+        )
+
+        if srv:
+            lines.append(
+                f"SERVEUR : charge {srv['load']} ({srv['cores']} cœurs), mémoire libre {srv['mem_free_pct']} %, "
+                f"disque {srv['disk_pct']} %, conteneurs {srv['containers'][0]}/{srv['containers'][1]}, "
+                f"pm2 {srv['pm2'][0]}/{srv['pm2'][1]}, erreurs web 15 min : {srv['errors_15m']}, "
+                f"services en échec : {', '.join(srv['failed_units']) or 'aucun'}."
+            )
+        else:
+            lines.append("SERVEUR : aucun relevé reçu (collecteur non installé ou VPS injoignable).")
+
+        if ftp:
+            for f in ftp:
+                if f["last_ok"] is None:
+                    lines.append(f"FTP {f['label']} ({f['host']}) : jamais vérifié.")
+                elif f["last_ok"]:
+                    lines.append(
+                        f"FTP {f['label']} : OK en {f['last_ms']} ms, {f['last_folders']} dossier(s), "
+                        f"{f['last_files']} fichier(s)" +
+                        (f", quota {f['quota_used_mb']}/{f['quota_total_mb']} Mo" if f['quota_used_mb'] else "") + "."
+                    )
+                else:
+                    lines.append(f"FTP {f['label']} : ÉCHEC — {f['last_error']}.")
+        else:
+            lines.append("FTP : aucun compte enregistré.")
+
+        if incidents:
+            lines.append("INCIDENTS OUVERTS :")
+            for i in incidents:
+                lines.append(f"  [{i.severity.upper()}] {i.title} (vu {i.count} fois, depuis {i.first_seen:%d/%m %H:%M})")
+        else:
+            lines.append("INCIDENTS OUVERTS : aucun.")
+
+        facts = "\n".join(lines)
+        try:
+            text = self.llm.write(
+                "ecosysteme.diagnostic_global",
+                "Tu es l'ingénieur d'exploitation d'IBIG SARL (Abidjan). "
+                "À partir des seuls faits fournis, produis en français simple un diagnostic global en 3 parties : "
+                "1) ÉTAT GLOBAL (une phrase de synthèse), "
+                "2) PRIORITÉS (les 3 points les plus urgents, numérotés), "
+                "3) RECOMMANDATIONS (2 à 4 actions concrètes pour les prochaines 24 h). "
+                "N'invente aucun fait. Si tout va bien, dis-le clairement. Moins de 220 mots.",
+                facts, 900,
+            ).strip()
+        except Exception as exc:
+            raise EcosystemError(f"Diagnostic impossible ({exc.__class__.__name__})") from exc
+
+        now = utcnow()
+        set_service_value(self._sessions, self.settings, "eco_diag_global",
+                          f"{now.isoformat()}|{text[:3800]}", by)
+        return text
+
+    def global_diagnose_result(self) -> dict:
+        """Dernier diagnostic global : texte + date."""
+        raw = service_value(self._sessions, self.settings, "eco_diag_global")
+        if not raw or "|" not in raw:
+            return {"at": None, "text": ""}
+        at, _, text = raw.partition("|")
+        return {"at": at, "text": text}
+
     def fix_plan(self, incident_id: int) -> tuple[str, str, list[tuple[str, str]]]:
         """Plan de correction d'un incident (titre, objectif, étapes) à confier à l'Autopilot, qui le
         suit avec preuves. Rien n'est exécuté sur les systèmes : ce sont des tâches à valider."""
