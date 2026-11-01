@@ -324,6 +324,13 @@ class Runtime:
                                 findings=self.anomalies.findings, llm=self.llm)
 
     @property
+    def consigne(self):
+        from .consigne import ConsigneService
+
+        return ConsigneService(self.sessions, self.settings, self.autopilot, self.ecosystem, self.org,
+                               self.llm)
+
+    @property
     def recurring(self):
         from .recurring import RecurringService
 

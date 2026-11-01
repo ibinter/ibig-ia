@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Consigne{% endblock %}
+{% block heading %}Donner une consigne{% endblock %}
+{% block lead %}<p class="lead">Écrivez ce que vous voulez, même en quelques mots. L'agent concerné est trouvé automatiquement, pour tout l'écosystème IBIG (pôles, sites, logiciels). Les agents préparent le travail : rien n'est envoyé, publié, payé ni modifié sans votre validation.</p>{% endblock %}
+{% block content %}
+<form class="card" method="post" action="/consigne" style="margin-bottom:16px">
+  <label class="field"><span>Votre consigne</span>
+    <textarea name="texte" rows="3" maxlength="1500" required placeholder="Exemple : vérifie que Lokativo fonctionne" style="width:100%"></textarea></label>
+  <div class="muted small" style="margin:6px 0">Exemples :
+    {% for e in examples %}<code>{{ e }}</code>{{ ' · ' if not loop.last }}{% endfor %}</div>
+  <button class="btn primary">{{ icon('sparkles') }} Envoyer</button>
+</form>
+
+<section class="card">
+  <div class="card-head"><div><h2>{{ icon('list') }} Vos consignes</h2><div class="sub">La plus récente en premier</div></div></div>
+  {% if not items %}<p class="muted">Aucune consigne pour l'instant.</p>{% endif %}
+  {% for i in items %}
+  <div style="border-top:1px solid var(--line);padding:12px 0">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="pill {{ status_tone[i.status] }} dot">{{ status_labels[i.status] }}</span>
+      <b>{{ i.text.splitlines()[0] }}</b>
+      <small class="muted">{{ i.at }} · {{ i.by }}</small>
+    </div>
+    {% if i.understood %}<p style="margin:6px 0"><span class="muted small">Compris :</span> {{ i.understood }}</p>{% endif %}
+    {% if i.targets or i.pole or i.agents %}<p class="small muted" style="margin:4px 0">
+      {% if i.pole %}Pôle {{ i.pole }}{% endif %}
+      {% if i.targets %} · Concerne {{ i.targets | join(', ') }}{% endif %}
+      {% if i.agents %} · Agents : {% for a in i.agents %}{{ agent_labels.get(a, a) }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</p>{% endif %}
+    {% if i.answer %}<pre style="white-space:pre-wrap;font:inherit;margin:6px 0">{{ i.answer }}</pre>{% endif %}
+    {% if i.status == 'a_preciser' %}
+    <form method="post" action="/consigne/{{ i.id }}/preciser" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+      <label class="field" style="flex:1;min-width:240px"><span>{{ i.question }}</span><input type="text" name="precision" maxlength="400" required></label>
+      <button class="btn primary">Préciser</button>
+    </form>
+    {% endif %}
+    {% if i.mission_id %}<a class="btn sm" href="/missions/{{ i.mission_id }}">{{ icon('target') }} Voir le travail des agents</a>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% if busy %}<script>setTimeout(function () { location.reload(); }, 6000);</script>{% endif %}
+{% endblock %}

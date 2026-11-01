@@ -56,6 +56,7 @@
         {{ nav('/publications', 'sparkles', 'Publications réussies') }}
       {% endcall %}
       {% call group('suivi', 'Suivi') %}
+        {{ nav('/consigne', 'sparkles', 'Donner une consigne') if user.role != 'valideur' }}
         {{ nav('/ecosysteme', 'shield-check', 'Écosystème') if user.role != 'valideur' }}
         {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}

@@ -25,6 +25,7 @@ from .llm import LLMError
 from .missions import MissionService
 
 MAX_TASKS = 12
+DEFAULT_BUDGET_USD = 3.0     # plafond de dépense IA d'une mission créée par l'Autopilot (modifiable)
 TASK_LABELS = {"a_faire": "À faire", "prete": "Prête", "en_cours": "En cours",
                "terminee": "Terminée", "echec": "Échec", "bloquee": "Bloquée",
                "annulee": "Annulée"}
@@ -194,6 +195,7 @@ class Autopilot:
             "name": title, "kind": "autopilot", "pole": pole, "objective": objective,
             "criteria": "Toutes les tâches terminées, chacune avec sa preuve",
             "agent": "chef", "autonomy": "lecture"}, by)
+        self.set_budget(mid, DEFAULT_BUDGET_USD, "autopilot")
         self.missions.activate(mid, by, "Plan Autopilot créé : " + origin[:300])
         ids: list[int] = []
         with self._sessions() as s:

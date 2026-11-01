@@ -210,3 +210,11 @@ def test_fix_mission_is_created_from_an_incident_through_the_autopilot(rt):
     s.link_mission(iid, mid, "dg")
     assert s.missions_for([iid, 5]) == {iid: mid}
     assert len(rt.autopilot.tasks(mid)) == 3
+
+
+def test_autopilot_missions_get_a_default_budget_so_they_are_not_blocked(rt):
+    from ibig_agent.autopilot import DEFAULT_BUDGET_USD, PlannedTask
+    mid = rt.autopilot.create_from("t", "o", [PlannedTask("a", "", "", [])], "", "dg", "test")
+    m = rt.missions.get(mid)
+    assert m.budget_usd == DEFAULT_BUDGET_USD
+    assert rt.missions.blocking_failures(rt.missions.checks(m)) == []
