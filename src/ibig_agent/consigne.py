@@ -76,7 +76,10 @@ def normalize(name: str) -> str:
 
 
 class ConsigneService:
-    def __init__(self, sessions, settings: Settings, autopilot, ecosystem, org, llm) -> None:
+    def __init__(self, sessions, settings: Settings, autopilot, ecosystem, org, llm, kb=None,
+                 dbmonitor=None) -> None:
+        self.kb = kb
+        self.dbmonitor = dbmonitor
         self._sessions = sessions
         self.settings = settings
         self.autopilot = autopilot
@@ -157,8 +160,8 @@ class ConsigneService:
                          answer=self._health_answer(found))
             return self._get(entry.id)
         if intent == "question":
-            self._update(entry.id, by, status="redirigee",
-                         answer="C'est une question : posez-la dans « Essai » pour obtenir une réponse.")
+            self._update(entry.id, by, status="repondue", understood="Question à laquelle l'agent répond",
+                         answer=self._answer_question(text))
             return self._get(entry.id)
         if background:
             threading.Thread(target=self._work, args=(entry.id, text, by), daemon=True).start()
@@ -187,6 +190,44 @@ class ConsigneService:
             if e.id == entry_id:
                 return e
         raise ConsigneError("Consigne introuvable")
+
+    def _facts(self, text: str) -> str:
+        """Ce que l'agent sait vraiment : état de l'écosystème, constats ouverts, contrôles de bases, connaissances."""
+        data = self.ecosystem.summary()
+        t = data["totals"]
+        lines = [f"Écosystème : {data['message']} ({t['suivis']} actifs suivis, disponibilité {t['disponibilite']} % sur 24 h)."]
+        for i in self.ecosystem.incidents()[:15]:
+            if i.severity != "info":
+                lines.append(f"Incident ouvert : {i.title}")
+        if self.dbmonitor is not None:
+            try:
+                names = [c[0] for c in self.dbmonitor.connection_names()]
+                lines.append("Bases raccordées en lecture : " + (", ".join(names) or "aucune"))
+                for k in self.dbmonitor.checks():
+                    if k.last_value is not None:
+                        lines.append(f"Contrôle « {k.label} » ({k.connection}) : {k.last_value:g}")
+            except Exception:  # noqa: BLE001 — les faits manquants sont simplement signalés comme tels
+                lines.append("Bases de données : lecture indisponible")
+        if self.kb is not None:
+            try:
+                lines.append("Base de connaissances :\n" + self.kb.context_for("", text, max_chars=3500))
+            except Exception:  # noqa: BLE001
+                lines.append("Base de connaissances : indisponible")
+        return "\n".join(lines)
+
+    def _answer_question(self, text: str) -> str:
+        if self.llm is None:
+            return "Aucun modèle d'IA n'est raccordé : je ne peux pas répondre aux questions pour le moment."
+        system = (
+            "Tu es l'assistant de direction d'IBIG SARL. Réponds à la question en français simple, en 5 phrases "
+            "au plus, UNIQUEMENT d'après les faits fournis. N'invente aucun chiffre. Si les faits ne permettent pas "
+            "de répondre, dis-le franchement : « Je ne peux pas le savoir pour l'instant », nomme la source qui "
+            "manque (par exemple l'accès en lecture à la base du logiciel concerné) et propose de la raccorder.")
+        try:
+            return self.llm.write("chef.consigne_question", system,
+                                  f"FAITS :\n{self._facts(text)}\n\nQUESTION :\n<<<\n{text}\n>>>", 500).strip()
+        except Exception as exc:  # noqa: BLE001 — budget, refus ou réseau : message simple
+            return f"Je n'ai pas pu répondre pour le moment ({exc.__class__.__name__})."
 
     def _health_answer(self, found: list[dict]) -> str:
         lines = []

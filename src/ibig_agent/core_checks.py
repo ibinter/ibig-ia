@@ -8,6 +8,13 @@ L'installation ajoute les contrôles absents (par nom) et ne touche pas aux autr
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
+import httpx
+
+from .configstore import service_value, set_service_value
+
 # (module, nom, requête, seuil, gravité)
 CATALOG: list[tuple[str, str, str, float, str]] = [
     ("CRM", "Devis envoyés restés sans réponse depuis plus de 30 jours",
@@ -59,3 +66,182 @@ def install(monitor, connection: str, by: str) -> dict:
         monitor.add_check(connection, label, sql, threshold, severity, by)
         added += 1
     return {"added": added, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------------------------------
+# Point d'entrée posé sur IBIG CORE : il exécute CES requêtes côté serveur (avec l'accès à la base que le
+# CORE possède déjà) et ne renvoie que des nombres. Aucun mot de passe de base n'est échangé.
+ENDPOINT_DIR = "admin/agent_ibig"
+ENDPOINT = "agent_controles.php"
+SETTING_URL, SETTING_TOKEN, SETTING_STATE = "core_url", "core_token", "core_state"
+
+
+BS = chr(92)   # antislash
+
+
+def _php_str(text: str) -> str:
+    return "'" + text.replace(BS, BS + BS).replace("'", BS + "'") + "'"
+
+
+def render_php() -> str:
+    """Fichier PHP du point d'entrée, généré depuis le catalogue (une seule source de vérité)."""
+    rows = "\n".join(f"    {n} => {_php_str(sql)}," for n, (_, _, sql, _, _) in enumerate(CATALOG, 1))
+    return f"""<?php
+declare(strict_types=1);
+
+/**
+ * IBIG CORE — point d'entrée de l'Agent IA IBIG, contrôles en LECTURE SEULE.
+ * Fichier généré par l'agent (core_checks.render_php) : ne pas le modifier à la main.
+ *
+ * Sécurité :
+ *   - jeton dans l'en-tête X-Agent-Token ; seule son empreinte SHA-256 est gardée, dans
+ *     agent_controles.hash (fermé au web par .htaccess). Fichier absent = point d'entrée coupé ;
+ *   - l'agent ne peut pas envoyer de requête : il demande « controles » et ce fichier exécute sa
+ *     liste fixe de SELECT ; il ne renvoie QUE des nombres (aucun nom, montant ni document) ;
+ *   - la session de base est ouverte en lecture seule.
+ *
+ * GET ?action=ping       → {{"ok":true}}
+ * GET ?action=controles  → {{"controles":{{"1":{{"v":3}},"2":{{"e":"..."}}}},"at":"..."}}
+ */
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+function agent_out(int $code, array $data): never
+{{
+    http_response_code($code);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}}
+
+$hashFile = __DIR__ . '/agent_controles.hash';
+$expected = is_file($hashFile) ? trim((string)file_get_contents($hashFile)) : '';
+if (!preg_match('/^[0-9a-f]{{64}}$/', $expected)) {{
+    agent_out(503, ['error' => "Point d'entrée de l'agent non activé"]);
+}}
+$token = (string)($_SERVER['HTTP_X_AGENT_TOKEN'] ?? '');
+if ($token === '' || !hash_equals($expected, hash('sha256', $token))) {{
+    usleep(300000); // freine les essais
+    agent_out(403, ['error' => 'Jeton invalide']);
+}}
+
+$action = (string)($_GET['action'] ?? '');
+if ($action === 'ping') {{
+    agent_out(200, ['ok' => true]);
+}}
+
+$queries = [
+{rows}
+];
+
+if ($action === 'controles' && $_SERVER['REQUEST_METHOD'] === 'GET') {{
+    $cfg = require dirname(__DIR__) . '/inc/config.php';
+    try {{
+        $pdo = new PDO(
+            "mysql:host={{$cfg['host']}};dbname={{$cfg['dbname']}};charset={{$cfg['charset']}}",
+            $cfg['user'], $cfg['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        );
+        try {{ $pdo->exec('SET SESSION TRANSACTION READ ONLY'); }} catch (Throwable $e) {{}}
+    }} catch (Throwable $e) {{
+        agent_out(503, ['error' => 'Base de données injoignable']);
+    }}
+    $out = [];
+    foreach ($queries as $id => $sql) {{
+        try {{
+            $out[(string)$id] = ['v' => (float)$pdo->query($sql)->fetchColumn()];
+        }} catch (Throwable $e) {{
+            $out[(string)$id] = ['e' => 'requête impossible'];
+        }}
+    }}
+    agent_out(200, ['controles' => $out, 'at' => date('c')]);
+}}
+
+agent_out(404, ['error' => 'Action inconnue']);
+"""
+
+
+HTACCESS = f"""# Seul le fichier agent_controles.php est joignable ; l'empreinte du jeton reste privée.
+<FilesMatch "{BS}.(hash|json|log|txt)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+  </IfModule>
+</FilesMatch>
+"""
+
+
+class CoreMonitor:
+    """Lit les contrôles d'IBIG CORE par son point d'entrée et les transforme en constats (page Anomalies)."""
+
+    def __init__(self, sessions, settings, anomalies, client=None) -> None:
+        self._sessions, self.settings, self.anomalies = sessions, settings, anomalies
+        self._client = client
+
+    def configure(self, base_url: str, token: str, by: str) -> None:
+        base_url = base_url.strip().rstrip("/")
+        if not base_url.startswith("https://") or len(token) < 32:
+            raise ValueError("Adresse https:// et jeton d'au moins 32 caractères requis")
+        set_service_value(self._sessions, self.settings, SETTING_URL, base_url, by)
+        set_service_value(self._sessions, self.settings, SETTING_TOKEN, token, by, secret=True)
+
+    def configured(self) -> bool:
+        return bool(service_value(self._sessions, self.settings, SETTING_URL)
+                    and service_value(self._sessions, self.settings, SETTING_TOKEN))
+
+    def fetch(self) -> dict[int, dict]:
+        base = service_value(self._sessions, self.settings, SETTING_URL)
+        token = service_value(self._sessions, self.settings, SETTING_TOKEN)
+        if not (base and token):
+            raise ValueError("IBIG CORE n'est pas raccordé")
+        client = self._client or httpx.Client(timeout=30)
+        resp = client.get(f"{base}/{ENDPOINT}", params={"action": "controles"},
+                          headers={"X-Agent-Token": token, "accept": "application/json"})
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if resp.status_code != 200 or not isinstance(data, dict):
+            raise ValueError(f"IBIG CORE {resp.status_code} : {str(data.get('error', ''))[:120] or 'réponse illisible'}")
+        return {int(k): v for k, v in (data.get("controles") or {}).items()}
+
+    def run(self, now: datetime | None = None) -> dict:
+        from .anomalies import Finding
+        from .db import utcnow
+
+        now = now or utcnow()
+        findings = self.anomalies.findings()
+        out = {"checks": len(CATALOG), "anomalies": 0, "errors": 0}
+        produced: set[str] = set()
+        new_critical = []
+        try:
+            values = self.fetch()
+        except (ValueError, httpx.HTTPError) as exc:
+            f = Finding("core|injoignable", "donnees", "warning", "IBIG CORE",
+                        "IBIG CORE : les contrôles n'ont pas pu être lus", str(exc)[:200])
+            self.anomalies._upsert(findings, f, now)
+            self.anomalies._save(findings)
+            return {**out, "errors": len(CATALOG)}
+        for n, (module, name, _sql, threshold, severity) in enumerate(CATALOG, 1):
+            res = values.get(n, {})
+            if "v" not in res:
+                out["errors"] += 1
+                continue
+            if res["v"] > threshold:
+                out["anomalies"] += 1
+                f = Finding(f"core|{n}", "donnees", severity, "IBIG CORE", f"IBIG CORE — {module} : {name} ({res['v']:g})",
+                            f"Le contrôle « {name} » renvoie {res['v']:g} (seuil toléré : {threshold:g}).")
+                produced.add(f.key)
+                if self.anomalies._upsert(findings, f, now) and severity == "critical":
+                    new_critical.append(f)
+        for f in findings:
+            if f.key.startswith("core|") and f.key not in produced and f.status != "resolved":
+                f.status = "resolved"
+        self.anomalies._save(findings)
+        self.anomalies._notify(new_critical)
+        set_service_value(self._sessions, self.settings, SETTING_STATE,
+                          json.dumps({"at": now.isoformat(), **out}), "agent")
+        return out

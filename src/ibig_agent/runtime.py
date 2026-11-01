@@ -317,6 +317,12 @@ class Runtime:
         return DbMonitor(self.sessions, self.settings, self.anomalies)
 
     @property
+    def core_monitor(self):
+        from .core_checks import CoreMonitor
+
+        return CoreMonitor(self.sessions, self.settings, self.anomalies)
+
+    @property
     def ecosystem(self):
         from .ecosystem import EcosystemService
 
@@ -328,7 +334,7 @@ class Runtime:
         from .consigne import ConsigneService
 
         return ConsigneService(self.sessions, self.settings, self.autopilot, self.ecosystem, self.org,
-                               self.llm)
+                               self.llm, kb=self.kb, dbmonitor=self.dbmonitor)
 
     @property
     def recurring(self):

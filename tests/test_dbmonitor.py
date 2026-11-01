@@ -176,3 +176,49 @@ def test_ibig_core_catalog_is_valid_read_only_and_installs_without_duplicates(rt
     assert first == {"added": len(core_checks.CATALOG), "skipped": 0}
     assert core_checks.install(mon, "IBIG CORE", "dg") == {"added": 0, "skipped": len(core_checks.CATALOG)}
     assert len(mon.checks()) == len(core_checks.CATALOG)
+
+
+def test_core_endpoint_file_matches_the_catalog_and_is_read_only():
+    from pathlib import Path
+
+    from ibig_agent import core_checks
+    shipped = (Path(__file__).resolve().parents[1] / "integrations/ibigcore/agent_controles.php").read_text(encoding="utf-8")
+    assert shipped.replace("\r\n", "\n") == core_checks.render_php()          # régénérer si le catalogue change
+    for kw in ("INSERT ", "UPDATE ", "DELETE ", "DROP ", "$_POST", "file_put_contents", "eval("):
+        assert kw not in shipped
+    assert shipped.count("'SELECT COUNT(*)") == len(core_checks.CATALOG)
+    assert "hash_equals" in shipped and "agent_controles.hash" in shipped
+
+
+def test_core_monitor_turns_numbers_into_findings_and_resolves_them(rt):
+    import httpx
+
+    from ibig_agent import core_checks
+    values = {n: {"v": 0.0} for n in range(1, len(core_checks.CATALOG) + 1)}
+    values[6] = {"v": 2.0}                       # inscriptions incohérentes (critique)
+    values[2] = {"v": 5.0}                       # sous le seuil de 20 : pas de constat
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["token"] = request.headers.get("x-agent-token")
+        if seen["token"] != "t" * 40:
+            return httpx.Response(403, json={"error": "Jeton invalide"})
+        return httpx.Response(200, json={"controles": {str(k): v for k, v in values.items()}})
+
+    anomalies = AnomalyService(rt.sessions, rt.settings, rt.org, rt.kb, pause=0)
+    mon = core_checks.CoreMonitor(rt.sessions, rt.settings, anomalies,
+                                  client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert mon.configured() is False
+    with pytest.raises(ValueError):
+        mon.configure("http://clair.ci", "t" * 40, "dg")
+    mon.configure("https://core.exemple.ci/admin/agent_ibig", "t" * 40, "dg")
+    out = mon.run()
+    assert out == {"checks": len(core_checks.CATALOG), "anomalies": 1, "errors": 0}
+    opened = [f for f in anomalies.findings() if f.key.startswith("core|") and f.status == "open"]
+    assert [f.key for f in opened] == ["core|6"] and opened[0].severity == "critical" and "(2)" in opened[0].title
+    values[6] = {"v": 0.0}
+    mon.run()
+    assert [f for f in anomalies.findings() if f.key.startswith("core|") and f.status == "open"] == []
+    mon.configure("https://core.exemple.ci/admin/agent_ibig", "x" * 40, "dg")       # mauvais jeton
+    assert mon.run()["errors"] == len(core_checks.CATALOG)
+    assert any(f.key == "core|injoignable" and f.status == "open" for f in anomalies.findings())

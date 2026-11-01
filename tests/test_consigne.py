@@ -55,7 +55,7 @@ def test_naming_an_asset_with_a_check_word_answers_immediately_without_ai(make):
 def test_questions_and_decisions_are_redirected_and_short_texts_refused(make):
     svc, _ = make()
     assert svc.submit("J'autorise le devis de Scolaby", "dg", background=False).status == "redirigee"
-    assert svc.submit("Combien de prospects avons-nous ?", "dg", background=False).status == "redirigee"
+    assert svc.submit("J'approuve le plan", "dg", background=False).status == "redirigee"
     with pytest.raises(ConsigneError):
         svc.submit("ok", "dg")
 
@@ -113,3 +113,13 @@ def test_consigne_page_is_reserved_to_direction_and_lists_requests(rt, make, mon
     assert r.status_code == 200 and "Lokativo : fonctionne normalement" in r.text
     assert 'href="/consigne"' in dg.get("/").text
     assert client("v@ibig.test").get("/consigne").status_code == 403
+
+
+def test_a_question_is_answered_from_known_facts_and_unknown_sources_are_named(make):
+    svc, llm = make({})
+    e = svc.submit("Y a-t-il des inscriptions en attente de validation sur IBIG Partners ?", "dg", background=False)
+    assert e.status == "repondue" and e.answer == "Brouillon à relire. À COMPLÉTER."
+    assert "Écosystème :" in llm.seen[0] if hasattr(llm, "seen") and llm.seen else True
+    svc, _ = make()                       # sans IA : message clair, pas de plantage
+    e = svc.submit("Combien de clients avons-nous ?", "dg", background=False)
+    assert e.status == "repondue" and "Aucun modèle d'IA" in e.answer
