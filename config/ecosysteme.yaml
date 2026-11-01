@@ -16,7 +16,14 @@ actifs:
   - {nom: "IBIG SARL — Multiservices", url: "https://intermark-business.com/multiservices", genre: site, hebergement: externe, pole: MULTISERVICES, criticite: moyenne}
   - {nom: "IBIG Group — portail", url: "https://ibigroupsarl.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: moyenne}
   - {nom: "IBIG CORE — administration", url: "https://ibigroupsarl.com/admin/login.php", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
-  - {nom: "Mailaby — emailing", url: "https://ibigroupsarl.com/admin/mailaby", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG CORE — CRM", url: "https://ibigroupsarl.com/admin/crm", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG CORE — RH", url: "https://ibigroupsarl.com/admin/rh", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG CORE — Finance", url: "https://ibigroupsarl.com/admin/finance", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG CORE — EDUFORM (gestion des formations)", url: "https://ibigroupsarl.com/admin/eduform", genre: logiciel, hebergement: ftp, pole: EDUFORM, criticite: haute}
+  - {nom: "IBIG CORE — Examens en ligne", url: "https://ibigroupsarl.com/admin/exam", genre: logiciel, hebergement: ftp, pole: EDUFORM, criticite: haute}
+  - {nom: "IBIG CORE — Gestion", url: "https://ibigroupsarl.com/admin/gestion", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG CORE — IBIG-IA (assistant du CORE)", url: "https://ibigroupsarl.com/admin/ibig-IA", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: basse}
+  - {nom: "IBIG CORE — Mailaby — emailing", url: "https://ibigroupsarl.com/admin/mailaby", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
   - {nom: "Patrice Kouakou — site personnel", url: "https://patricekouakou.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: basse}
   # --- Hébergement FTP d'intermark-business.com (193.37.145.70) -------------------------------
   - {nom: "IBIG PAY — paiement", url: "https://pay.intermark-business.com", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
