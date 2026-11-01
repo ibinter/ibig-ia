@@ -15,6 +15,7 @@ Il ne modifie rien chez les actifs : il ne fait que les lire comme le ferait un 
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Callable
@@ -29,8 +30,10 @@ import yaml
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from . import serveur
 from .anomalies import cert_days
 from .config import Settings
+from .configstore import service_value, set_service_value
 from .db import EcoAsset, EcoCheck, EcoIncident, utcnow
 from .governance import as_utc
 
@@ -40,12 +43,19 @@ SLOW_MS = {"haute": 3000, "moyenne": 4000, "basse": 6000}
 CERT_WARN_DAYS = 14
 CERT_CRITICAL_DAYS = 3
 RETENTION_DAYS = 90
+HEARTBEAT_URL = "eco_heartbeat_url"
+HEARTBEAT_STATE = "eco_heartbeat_state"
 PROBE_THREADS = 6
 SEVERITY_RANK = {"info": 0, "warning": 1, "critical": 2}
 SEVERITY_LABELS = {"info": "Amélioration", "warning": "À corriger", "critical": "Urgent"}
 KIND_LABELS = {"dispo": "Disponibilité", "vitesse": "Vitesse", "cert": "Certificat",
                "contenu": "Contenu", "http_redirect": "Sécurité", "hsts": "Sécurité",
-               "robots": "Référencement", "sitemap": "Référencement"}
+               "robots": "Référencement", "sitemap": "Référencement",
+               "srv_collecteur": "Serveur", "srv_disque": "Serveur", "srv_memoire": "Serveur",
+               "srv_charge": "Serveur", "srv_conteneur": "Serveur", "srv_pm2": "Serveur",
+               "srv_unites": "Serveur", "srv_nginx": "Serveur", "srv_securite": "Serveur",
+               "srv_maj": "Serveur", "srv_reboot": "Serveur", "srv_sauvegarde": "Sauvegarde",
+               "srv_service": "Serveur"}
 KINDS = ("site", "logiciel", "api", "autre")
 HOSTINGS = ("vps", "ftp", "externe")
 CRITICALITIES = ("haute", "moyenne", "basse")
@@ -288,18 +298,99 @@ class EcosystemService:
                 opened += self._evaluate(s, a, r, now)
             s.commit()
             opened = [i for i in opened if i.id is not None]
-        self._notify(opened)
+        server_opened = self.run_server(now)
+        self._notify(opened + server_opened)
+        self.heartbeat(now)
         return {"checked": len(assets), "ok": sum(r.ok for _, r in results),
-                "failing": sum(not r.ok for _, r in results), "new_incidents": len(opened)}
+                "failing": sum(not r.ok for _, r in results),
+                "new_incidents": len(opened) + len(server_opened)}
+
+    def run_server(self, now: datetime | None = None) -> list[EcoIncident]:
+        """Analyse le relevé du serveur (state/serveur.json) : ouvre, met à jour ou ferme les incidents `srv|…`."""
+        now = now or utcnow()
+        issues = serveur.evaluate(serveur.read(self.settings.state_dir), now)
+        current = {i.key for i in issues}
+        opened: list[EcoIncident] = []
+        with self._sessions() as s:
+            for i in issues:
+                row = self._upsert_raw(s, None, i.key, i.kind, i.severity, i.title, i.detail, i.suggestion, now)
+                if row is not None and row.id is not None:
+                    opened.append(row)
+            for row in s.scalars(select(EcoIncident).where(EcoIncident.key.like("srv|%"),
+                                                           EcoIncident.status != "resolved")).all():
+                if row.key not in current:
+                    row.status = "resolved"
+            s.commit()
+        return opened
+
+    # ------------------------------------------------------------------ sonde externe (battement)
+    def set_heartbeat_url(self, url: str, by: str) -> None:
+        """Adresse de surveillance externe (healthchecks.io, Better Stack…) : l'agent la contacte à chaque
+        mesure ; si le serveur tombe, c'est ce service extérieur qui prévient, faute de battement."""
+        url = url.strip()
+        if url and not url.startswith("https://"):
+            raise EcosystemError("Adresse invalide : elle doit commencer par https://")
+        set_service_value(self._sessions, self.settings, HEARTBEAT_URL, url, by, secret=True)
+        set_service_value(self._sessions, self.settings, HEARTBEAT_STATE, "", by)
+
+    def heartbeat(self, now: datetime | None = None) -> bool | None:
+        """Envoie le battement ; None si aucune adresse n'est réglée."""
+        url = service_value(self._sessions, self.settings, HEARTBEAT_URL)
+        if not url:
+            return None
+        client = self._http()
+        try:
+            ok = client.get(url).status_code < 400
+            detail = "" if ok else "refusé par le service"
+        except httpx.HTTPError as exc:
+            ok, detail = False, f"injoignable ({exc.__class__.__name__})"
+        finally:
+            if self._client is None:
+                client.close()
+        state = {"at": (now or utcnow()).isoformat(), "ok": ok, "detail": detail}
+        set_service_value(self._sessions, self.settings, HEARTBEAT_STATE, json.dumps(state), "agent")
+        return ok
+
+    def heartbeat_status(self) -> dict:
+        url = service_value(self._sessions, self.settings, HEARTBEAT_URL)
+        try:
+            state = json.loads(service_value(self._sessions, self.settings, HEARTBEAT_STATE) or "{}")
+        except ValueError:
+            state = {}
+        return {"configured": bool(url), "host": urlparse(url).netloc if url else "", **state}
+
+    def server_state(self, now: datetime | None = None) -> dict | None:
+        """Chiffres du relevé pour le panneau « Serveur » (None si aucun relevé)."""
+        now = now or utcnow()
+        d = serveur.read(self.settings.state_dir)
+        if d is None:
+            return None
+        mem = d.get("mem", {})
+        age = serveur.age_minutes(d, now)
+        return {
+            "age_min": None if age is None else round(age), "host": d.get("hostname", ""),
+            "uptime_days": round(d.get("uptime_s", 0) / 86400, 1), "load": d.get("load", []),
+            "cores": d.get("cores", 1),
+            "mem_free_pct": round(100 * mem.get("available_mb", 0) / max(mem.get("total_mb", 1), 1)),
+            "disk_pct": max((x.get("used_pct", 0) for x in d.get("disks", [])), default=0),
+            "containers": [len([c for c in d.get("containers", []) if c.get("state") == "running"]),
+                           len(d.get("containers", []))],
+            "pm2": [len([a for a in d.get("pm2", []) if a.get("status") == "online"]), len(d.get("pm2", []))],
+            "backups": d.get("backups", []), "failed_units": d.get("failed_units", []),
+            "updates": d.get("updates", {}), "errors_15m": d.get("nginx", {}).get("errors_15m_total", 0),
+        }
 
     # ------------------------------------------------------------------ incidents
     def _upsert(self, s: Session, a: EcoAsset, kind: str, severity: str, title: str, detail: str,
                 text: str, now: datetime) -> EcoIncident | None:
         """Ouvre ou met à jour un incident ; renvoie l'incident s'il est nouveau, rouvert ou aggravé."""
-        key = f"{a.id}|{kind}"
+        return self._upsert_raw(s, a.id, f"{a.id}|{kind}", kind, severity, title, detail, text, now)
+
+    def _upsert_raw(self, s: Session, asset_id: int | None, key: str, kind: str, severity: str,
+                    title: str, detail: str, text: str, now: datetime) -> EcoIncident | None:
         row = s.scalar(select(EcoIncident).where(EcoIncident.key == key))
         if row is None:
-            row = EcoIncident(asset_id=a.id, key=key, kind=kind, severity=severity, title=title[:300],
+            row = EcoIncident(asset_id=asset_id, key=key, kind=kind, severity=severity, title=title[:300],
                               detail=detail, suggestion=text, first_seen=now, last_seen=now)
             s.add(row)
             s.flush()
@@ -484,10 +575,16 @@ class EcosystemService:
         certs = [x["cert"] for x in active if x["cert"] is not None]
         mss = [x["ms"] for x in active if x["ms"] and x["state"] == "ok"]
         ups = [x["uptime"] for x in active if x["uptime"] is not None]
-        if crit:
-            level, message = "critique", f"{len(crit)} actif(s) en panne ou en danger"
-        elif warn:
-            level, message = "attention", f"{len(warn)} point(s) d'attention"
+        srv = [i for i in open_inc if i.asset_id is None and i.status == "open" and i.severity != "info"]
+        srv_crit = [i for i in srv if i.severity == "critical"]
+        if crit or srv_crit:
+            parts = ([f"{len(crit)} actif(s) en panne ou en danger"] if crit else []) + \
+                    ([f"{len(srv_crit)} problème(s) urgent(s) sur le serveur"] if srv_crit else [])
+            level, message = "critique", " · ".join(parts)
+        elif warn or srv:
+            parts = ([f"{len(warn)} point(s) d'attention"] if warn else []) + \
+                    ([f"{len(srv)} point(s) à voir sur le serveur"] if srv else [])
+            level, message = "attention", " · ".join(parts)
         elif not active or all(x["state"] == "inconnu" for x in active):
             level, message = "inconnu", "Première mesure en cours…"
         else:

@@ -24,6 +24,20 @@
   </form>
 </div>
 
+<form class="card" method="post" action="/ecosysteme/battement" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('shield-check') }} Surveillance depuis l'extérieur</h2>
+    <div class="sub">Si le serveur lui-même tombe, l'agent ne peut plus vous prévenir. Un service gratuit placé ailleurs (healthchecks.io ou Better Stack) reçoit un signal à chaque mesure et vous écrit s'il n'en reçoit plus.</div></div></div>
+  {% if heartbeat.configured %}
+  <p class="small"><span class="pill {{ 'green' if heartbeat.ok else 'red' }} dot">{{ 'Signal reçu' if heartbeat.ok else 'Échec du dernier signal' }}</span>
+    {{ heartbeat.host }}{% if heartbeat.at %} · dernier envoi {{ heartbeat.at[11:16] }} (UTC){% endif %}{% if heartbeat.detail %} · {{ heartbeat.detail }}{% endif %}</p>
+  {% else %}
+  <p class="muted small">Non réglé. Créez une vérification gratuite (période 5 min, tolérance 10 min, alerte par courriel et SMS), copiez son adresse « ping » et collez-la ici.</p>
+  {% endif %}
+  <label class="field"><span>Adresse du signal (https://…)</span><input type="url" name="adresse" maxlength="500" placeholder="https://hc-ping.com/…" autocomplete="off"></label>
+  <button class="btn primary">{{ icon('check') }} {{ 'Remplacer' if heartbeat.configured else 'Enregistrer' }}</button>
+  <p class="muted small">Laisser vide puis enregistrer retire la surveillance externe. L'adresse est stockée chiffrée.</p>
+</form>
+
 <form class="card" method="post" action="/ecosysteme/actif" style="margin-top:16px">
   <div class="card-head"><div><h2>{{ icon('edit') }} Ajouter un site ou un logiciel</h2><div class="sub">Il sera mesuré dans les 5 minutes qui suivent.</div></div></div>
   <div class="grid g-3" style="gap:12px">

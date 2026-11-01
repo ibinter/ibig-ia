@@ -22,6 +22,30 @@
 </div>
 
 <section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('power') }} Le serveur</h2><div class="sub">Relevé par un collecteur en lecture seule, toutes les 2 minutes</div></div></div>
+  {% if not server %}
+  <p class="muted">Aucun relevé reçu. Pour activer la surveillance du serveur, installer le collecteur (<code>deploy/collecteur-ecosysteme.py</code>, une tâche planifiée toutes les 2 minutes).</p>
+  {% else %}
+  <div class="grid g-3" style="margin-bottom:10px">
+    <div><div class="muted small">Charge (5 min, {{ server.cores }} cœurs)</div><b>{{ server.load[1] if server.load else '—' }}</b></div>
+    <div><div class="muted small">Mémoire libre</div><b>{{ server.mem_free_pct }} %</b></div>
+    <div><div class="muted small">Disque le plus plein</div><b>{{ server.disk_pct }} %</b></div>
+    <div><div class="muted small">Conteneurs en marche</div><b>{{ server.containers[0] }} / {{ server.containers[1] }}</b></div>
+    <div><div class="muted small">Applications pm2 en ligne</div><b>{{ server.pm2[0] }} / {{ server.pm2[1] }}</b></div>
+    <div><div class="muted small">Erreurs web (15 min)</div><b>{{ server.errors_15m }}</b></div>
+  </div>
+  <div class="muted small">Sauvegardes :
+    {% for b in server.backups %}<span class="pill {{ 'red' if b.age_h is none or b.age_h > 36 else 'green' }} dot" style="margin:2px">{{ b.name }} · {{ ('%.0f h' | format(b.age_h)) if b.age_h is not none else 'aucune' }}</span>{% endfor %}
+  </div>
+  <div class="muted small" style="margin-top:6px">
+    {{ server.updates.get('pending', 0) }} mise(s) à jour en attente ({{ server.updates.get('security', 0) }} de sécurité) ·
+    {{ server.failed_units | length }} service(s) système en échec · serveur allumé depuis {{ server.uptime_days }} j ·
+    relevé il y a {{ server.age_min if server.age_min is not none else '?' }} min
+  </div>
+  {% endif %}
+</section>
+
+<section class="card" style="margin-bottom:16px">
   <div class="card-head"><div><h2>{{ icon('alert') }} À traiter</h2><div class="sub">Chaque point indique la cause probable, la correction suggérée et le risque. Rien n'est corrigé sans vous.</div></div></div>
   {% set todo = incidents | selectattr('severity', 'ne', 'info') | list %}
   {% if not todo %}<p class="muted">Rien à traiter. Tout fonctionne normalement.</p>{% endif %}

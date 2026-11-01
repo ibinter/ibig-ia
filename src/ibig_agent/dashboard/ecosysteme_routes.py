@@ -54,7 +54,9 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         for a in data["assets"]:
             a["path"], a["fails"] = spark_path(a["spark"])
         data["tone"] = LEVEL_TONE[data["level"]]
-        return {"eco": data, "incidents": rt.ecosystem.incidents(), "state_tone": STATE_TONE,
+        return {"eco": data, "server": rt.ecosystem.server_state(), "incidents": rt.ecosystem.incidents(),
+                "heartbeat": rt.ecosystem.heartbeat_status(),
+                "state_tone": STATE_TONE,
                 "state_label": STATE_LABEL, "severity_labels": SEVERITY_LABELS,
                 "kind_labels": KIND_LABELS}
 
@@ -85,6 +87,19 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
 
         threading.Thread(target=work, daemon=True).start()
         return back("/ecosysteme", "Mesure lancée : la page se met à jour toute seule")
+
+    @app.post("/ecosysteme/battement")
+    def set_heartbeat(adresse: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            rt.ecosystem.set_heartbeat_url(adresse, who.label)
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        if adresse.strip():
+            ok = rt.ecosystem.heartbeat()
+            return back("/ecosysteme", "Surveillance externe enregistrée" if ok
+                        else "Adresse enregistrée, mais le service ne répond pas : vérifiez-la")
+        return back("/ecosysteme", "Surveillance externe retirée")
 
     @app.post("/ecosysteme/inventaire")
     def reload_inventory(who: Principal = Depends(user)):
