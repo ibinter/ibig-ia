@@ -37,6 +37,7 @@ class MailMessage:
     received_at: datetime | None = None
     thread_id: str = ""
     references: str = ""
+    automated: bool = False   # en-têtes d'un envoi automatique : liste, accusé, retour d'erreur
 
 
 class MailConnector(Protocol):
@@ -55,6 +56,16 @@ def _decode_header(value: str | None) -> str:
     if not value:
         return ""
     return str(email.header.make_header(email.header.decode_header(value)))
+
+
+def _is_automated_headers(msg) -> bool:
+    """Vrai pour un envoi de machine : retour d'erreur, accusé, newsletter ou liste de diffusion.
+    Répondre à ces mails crée des retours d'erreur en chaîne et abîme la réputation du domaine."""
+    auto = (msg.get("Auto-Submitted") or "no").strip().lower()
+    precedence = (msg.get("Precedence") or "").strip().lower()
+    return bool(auto != "no" or precedence in ("bulk", "list", "junk", "auto_reply")
+                or msg.get("List-Unsubscribe") or msg.get("List-Id") or msg.get("X-Auto-Response-Suppress")
+                or (msg.get("Return-Path") or "").strip() == "<>")
 
 
 def _html_to_text(raw: str) -> str:
@@ -97,6 +108,7 @@ def parse_message(raw: bytes, mailbox: str, ref: str) -> MailMessage:
         body=extract_body(msg),
         received_at=received,
         references=(msg.get("References") or "").strip(),
+        automated=_is_automated_headers(msg),
     )
 
 

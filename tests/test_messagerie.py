@@ -215,3 +215,27 @@ def test_a_real_client_mail_is_still_triaged_and_long_bodies_are_cut(rt, llm, co
     connector.add("Question prix", "Bonjour " + "x" * 10000, sender="client@exemple.ci")
     rt.messagerie.poll()
     assert "mail.triage" in llm.calls
+
+
+def test_bounces_newsletters_and_auto_replies_are_never_answered(rt, llm, connector):
+    from email.message import EmailMessage
+
+    from ibig_agent.channels.mail import parse_message
+
+    def raw(**headers):
+        m = EmailMessage()
+        m["From"], m["To"], m["Subject"] = "contact@marketing.exemple", "x@ibig.test", "Audit offert"
+        for k, v in headers.items():
+            m[k.replace("_", "-")] = v
+        m.set_content("Bonjour")
+        return m.as_bytes()
+
+    assert parse_message(raw(), "x@ibig.test", "1").automated is False
+    for hdr in ({"List_Unsubscribe": "<mailto:stop@x>"}, {"Auto_Submitted": "auto-replied"},
+                {"Precedence": "bulk"}, {"Return_Path": "<>"}):
+        assert parse_message(raw(**hdr), "x@ibig.test", "1").automated is True
+    connector.add("Undelivered Mail Returned to Sender", "This is the mail system at host mail95")
+    connector.add("Audit téléphonie offert", "Newsletter", sender="info@marketing.exemple")
+    connector.inbox[-1].automated = True            # en-tête de liste de diffusion
+    rt.messagerie.poll()
+    assert connector.sent == []

@@ -61,13 +61,17 @@ AUTO_NOTICE = (
 AUTOMATED_SENDER = re.compile(
     r"^(no[-_.]?reply|do[-_.]?not[-_.]?reply|notifications?|mailer-daemon|bounces?|newsletter"
     r"|postmaster|alerts?)\b", re.IGNORECASE)
+AUTOMATED_SUBJECT = re.compile(
+    r"^(undelivered mail|delivery status notification|mail delivery (failed|subsystem)|returned mail|"
+    r"failure notice|auto(matic)? ?reply|r[ée]ponse automatique|out of office|absence du bureau)", re.IGNORECASE)
 TRIAGE_BODY_CHARS = 3000   # au-delà, le reste n'aide pas le tri et coûte des jetons
 
 
 def is_automated(msg: MailMessage, mailbox: Mailbox) -> bool:
     """Mail envoyé par une machine ou par la boîte elle-même : inutile de payer l'IA pour le lire."""
     sender = (msg.sender or "").strip().lower()
-    return bool(AUTOMATED_SENDER.match(sender.split("@")[0]) or sender == mailbox.adresse.lower())
+    return bool(AUTOMATED_SENDER.match(sender.split("@")[0]) or sender == mailbox.adresse.lower()
+                or msg.automated or AUTOMATED_SUBJECT.match((msg.subject or "").strip()))
 
 
 def triage_schema(pole_codes: list[str]) -> dict:
