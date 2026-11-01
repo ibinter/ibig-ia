@@ -317,6 +317,12 @@ class Runtime:
         return DbMonitor(self.sessions, self.settings, self.anomalies)
 
     @property
+    def ecosystem(self):
+        from .ecosystem import EcosystemService
+
+        return EcosystemService(self.sessions, self.settings, alert=self.veille.alert_direction)
+
+    @property
     def recurring(self):
         from .recurring import RecurringService
 

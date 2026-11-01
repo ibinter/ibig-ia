@@ -670,6 +670,62 @@ class WorkflowDef(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class EcoAsset(Base):
+    """Actif de l'écosystème IBIG (site, logiciel, API) surveillé par le centre de contrôle."""
+
+    __tablename__ = "eco_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str] = mapped_column(String(500), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="site")        # site | logiciel | api | autre
+    hosting: Mapped[str] = mapped_column(String(20), default="vps")      # vps | ftp | externe
+    pole: Mapped[str] = mapped_column(String(40), default="")
+    criticality: Mapped[str] = mapped_column(String(10), default="moyenne")   # haute | moyenne | basse
+    health_path: Mapped[str] = mapped_column(String(200), default="/")
+    ok_codes: Mapped[str] = mapped_column(String(20), default="200-399")
+    expect_text: Mapped[str] = mapped_column(String(300), default="")    # mot-clé qui doit figurer sur la page
+    notes: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str] = mapped_column(String(30), default="manuel")    # config | manuel | decouverte
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EcoCheck(Base):
+    """Résultat d'une sonde sur un actif (historique conservé 90 jours)."""
+
+    __tablename__ = "eco_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_id: Mapped[int] = mapped_column(Integer, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[int] = mapped_column(Integer, default=0)              # code HTTP, 0 = injoignable
+    ms: Mapped[int] = mapped_column(Integer, default=0)
+    cert_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[str] = mapped_column(String(300), default="")
+
+
+class EcoIncident(Base):
+    """Incident détecté sur l'écosystème, avec la cause probable et la correction suggérée."""
+
+    __tablename__ = "eco_incidents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    key: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(30), default="")
+    severity: Mapped[str] = mapped_column(String(10), default="warning")   # info | warning | critical
+    title: Mapped[str] = mapped_column(String(300), default="")
+    detail: Mapped[str] = mapped_column(Text, default="")
+    suggestion: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(10), default="open", index=True)   # open | ack | resolved
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    ack_by: Mapped[str] = mapped_column(String(300), default="")
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

@@ -1,0 +1,136 @@
+"""Page « Écosystème » : le centre de contrôle de tous les sites et logiciels IBIG.
+
+Réservée à la direction et à l'administration. L'état se rafraîchit seul toutes les 30 secondes.
+Les corrections sont PROPOSÉES : cette page ne modifie rien chez les actifs surveillés.
+"""
+
+from __future__ import annotations
+
+import threading
+
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse
+
+from ..auth import Principal
+from ..ecosystem import (
+    CRITICALITIES,
+    HOSTINGS,
+    KIND_LABELS,
+    KINDS,
+    SEVERITY_LABELS,
+    EcosystemError,
+)
+from ..runtime import Runtime
+
+STATE_TONE = {"ok": "green", "attention": "amber", "critique": "red", "inconnu": "blue", "inactif": ""}
+STATE_LABEL = {"ok": "Normal", "attention": "À surveiller", "critique": "Urgent", "inconnu": "En attente",
+               "inactif": "Non suivi"}
+LEVEL_TONE = {"ok": "ok", "attention": "warn", "critique": "bad", "inconnu": "info"}
+
+
+def spark_path(values: list[int], width: int = 96, height: int = 22) -> tuple[str, list[int]]:
+    """Courbe de vitesse (SVG) des dernières mesures ; les échecs (-1) sont renvoyés à part."""
+    good = [v for v in values if v >= 0]
+    if len(values) < 2 or not good:
+        return "", [i for i, v in enumerate(values) if v < 0]
+    top = max(good) or 1
+    step = width / (len(values) - 1)
+    pts = []
+    for i, v in enumerate(values):
+        if v >= 0:
+            pts.append(f"{i * step:.1f},{height - 2 - (v / top) * (height - 4):.1f}")
+    return " ".join(pts), [round(i * step) for i, v in enumerate(values) if v < 0]
+
+
+def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
+    running: set[str] = set()
+
+    def direction_only(who: Principal) -> None:
+        if who.role == "valideur":
+            raise HTTPException(403)
+
+    def context() -> dict:
+        data = rt.ecosystem.summary()
+        for a in data["assets"]:
+            a["path"], a["fails"] = spark_path(a["spark"])
+        data["tone"] = LEVEL_TONE[data["level"]]
+        return {"eco": data, "incidents": rt.ecosystem.incidents(), "state_tone": STATE_TONE,
+                "state_label": STATE_LABEL, "severity_labels": SEVERITY_LABELS,
+                "kind_labels": KIND_LABELS}
+
+    @app.get("/ecosysteme", response_class=HTMLResponse)
+    def ecosysteme_page(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        return page(request, "ecosysteme.html", **context(), kinds=KINDS, hostings=HOSTINGS,
+                    criticalities=CRITICALITIES, poles=rt.org.poles, checking=bool(running))
+
+    @app.get("/ecosysteme/live", response_class=HTMLResponse)
+    def ecosysteme_live(request: Request, who: Principal = Depends(user)):
+        direction_only(who)
+        return page(request, "_ecosysteme_live.html", **context())
+
+    @app.post("/ecosysteme/sonder")
+    def probe_now(who: Principal = Depends(user)):
+        direction_only(who)
+        if running:
+            return back("/ecosysteme", "Une mesure est déjà en cours : patientez")
+        running.add("x")
+
+        def work() -> None:
+            try:
+                rt.ecosystem.run_probes()
+                rt.ecosystem.run_hygiene()
+            finally:
+                running.discard("x")
+
+        threading.Thread(target=work, daemon=True).start()
+        return back("/ecosysteme", "Mesure lancée : la page se met à jour toute seule")
+
+    @app.post("/ecosysteme/inventaire")
+    def reload_inventory(who: Principal = Depends(user)):
+        direction_only(who)
+        r = rt.ecosystem.sync_config()
+        if r["missing_file"]:
+            return back("/ecosysteme", "Refusé : fichier d'inventaire introuvable")
+        return back("/ecosysteme", f"Inventaire relu : {r['created']} ajouté(s), {r['updated']} mis à jour")
+
+    @app.post("/ecosysteme/actif")
+    def add_asset(nom: str = Form(""), url: str = Form(""), genre: str = Form("site"),
+                  hebergement: str = Form("vps"), pole: str = Form(""), criticite: str = Form("moyenne"),
+                  chemin: str = Form("/"), attendu: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            rt.ecosystem.add_asset(nom, url, genre, hebergement, pole, criticite, chemin, attendu)
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back("/ecosysteme", "Actif ajouté : il sera mesuré dans les 5 minutes")
+
+    @app.post("/ecosysteme/import")
+    def import_assets(liste: str = Form(""), who: Principal = Depends(user)):
+        direction_only(who)
+        r = rt.ecosystem.import_text(liste)
+        return back("/ecosysteme", f"{r['added']} actif(s) ajouté(s), {r['rejected']} ligne(s) refusée(s)")
+
+    @app.post("/ecosysteme/actif/{aid:int}/{action}")
+    def asset_action(aid: int, action: str, who: Principal = Depends(user)):
+        direction_only(who)
+        if action not in ("suivre", "ignorer"):
+            raise HTTPException(404)
+        try:
+            rt.ecosystem.set_active(aid, action == "suivre")
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back("/ecosysteme", "Actif suivi" if action == "suivre" else "Actif retiré de la surveillance")
+
+    @app.post("/ecosysteme/incident/{iid:int}/{action}")
+    def incident_action(iid: int, action: str, who: Principal = Depends(user)):
+        direction_only(who)
+        status = {"pris": "ack", "resolu": "resolved", "rouvrir": "open"}.get(action)
+        if status is None:
+            raise HTTPException(404)
+        try:
+            rt.ecosystem.set_incident_status(iid, status, who.label)
+        except EcosystemError as exc:
+            return back("/ecosysteme", f"Refusé : {exc}")
+        return back("/ecosysteme", {"ack": "Pris en compte", "resolved": "Marqué résolu",
+                                    "open": "Rouvert"}[status])

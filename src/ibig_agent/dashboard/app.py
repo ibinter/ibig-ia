@@ -61,6 +61,7 @@ from . import (
     config_routes,
     crm_routes,
     donnees_routes,
+    ecosysteme_routes,
     finance_routes,
     missions_routes,
     quotes_routes,
@@ -545,6 +546,7 @@ def create_app(rt: Runtime) -> FastAPI:
     workflows_routes.register(app, rt, user, page, back)
     anomalies_routes.register(app, rt, user, page, back)
     donnees_routes.register(app, rt, user, page, back)
+    ecosysteme_routes.register(app, rt, user, page, back)
 
     @app.get("/departements", response_class=HTMLResponse)
     def departments_page(request: Request, who: Principal = Depends(user)):

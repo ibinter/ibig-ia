@@ -1,0 +1,75 @@
+{% from "_icons.html" import icon %}
+{% set t = eco.totals %}
+{% set tone_color = {'ok': 'var(--ok)', 'warn': 'var(--warn)', 'bad': 'var(--bad)', 'info': 'var(--brand)'}[eco.tone] %}
+{% set tone_bg = {'ok': 'var(--ok-soft)', 'warn': 'var(--warn-soft)', 'bad': 'var(--bad-soft)', 'info': 'var(--brand-soft)'}[eco.tone] %}
+<section class="card" style="background:{{ tone_bg }};border-color:{{ tone_color }};margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <span style="width:18px;height:18px;border-radius:50%;background:{{ tone_color }};flex:none"></span>
+    <div style="flex:1;min-width:220px">
+      <div style="font-size:26px;font-weight:800;color:{{ tone_color }};line-height:1.2">{{ eco.message }}</div>
+      <div class="muted small" style="margin-top:4px">{{ t.suivis }} sites et logiciels suivis · mis à jour <time datetime="{{ eco.updated }}">{{ eco.updated[11:16] }}</time> (UTC), puis toutes les 5 minutes</div>
+    </div>
+  </div>
+</section>
+
+<div class="grid g-3" style="margin-bottom:16px">
+  <div class="card"><div class="muted small">Disponibilité sur 24 h</div><div style="font-size:28px;font-weight:800">{{ t.disponibilite if t.disponibilite is not none else '—' }}{{ ' %' if t.disponibilite is not none }}</div></div>
+  <div class="card"><div class="muted small">En bon état</div><div style="font-size:28px;font-weight:800">{{ t.ok }} <small class="muted">/ {{ t.suivis }}</small></div></div>
+  <div class="card"><div class="muted small">Rapidité moyenne</div><div style="font-size:28px;font-weight:800">{{ ('%.1f' | format(t.ms_moyen / 1000)) ~ ' s' if t.ms_moyen else '—' }}</div></div>
+  <div class="card"><div class="muted small">À corriger</div><div style="font-size:28px;font-weight:800;color:{{ 'var(--bad)' if t.critique else ('var(--warn)' if t.attention else 'inherit') }}">{{ t.critique + t.attention }}</div></div>
+  <div class="card"><div class="muted small">Certificat le plus proche</div><div style="font-size:28px;font-weight:800">{{ t.cert_min ~ ' j' if t.cert_min is not none else '—' }}</div></div>
+  <div class="card"><div class="muted small">Améliorations possibles</div><div style="font-size:28px;font-weight:800">{{ t.ameliorations }}</div></div>
+</div>
+
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('alert') }} À traiter</h2><div class="sub">Chaque point indique la cause probable, la correction suggérée et le risque. Rien n'est corrigé sans vous.</div></div></div>
+  {% set todo = incidents | selectattr('severity', 'ne', 'info') | list %}
+  {% if not todo %}<p class="muted">Rien à traiter. Tout fonctionne normalement.</p>{% endif %}
+  {% for i in todo %}
+  <details style="border-top:1px solid var(--line);padding:10px 0" {{ 'open' if i.severity == 'critical' and i.status == 'open' }}>
+    <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="pill {{ 'red' if i.severity == 'critical' else 'amber' }} dot">{{ severity_labels[i.severity] }}</span>
+      <b>{{ i.title }}</b>
+      <small class="muted">{{ kind_labels.get(i.kind, i.kind) }} · vu {{ i.count }} fois{% if i.status == 'ack' %} · pris en compte par {{ i.ack_by }}{% endif %}</small>
+    </summary>
+    <pre style="white-space:pre-wrap;font:inherit;margin:10px 0">{{ i.suggestion }}</pre>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if i.status == 'open' %}<form method="post" action="/ecosysteme/incident/{{ i.id }}/pris"><button class="btn sm">{{ icon('eye') }} Pris en compte</button></form>{% endif %}
+      <form method="post" action="/ecosysteme/incident/{{ i.id }}/resolu"><button class="btn sm">{{ icon('check') }} Résolu</button></form>
+    </div>
+  </details>
+  {% endfor %}
+  {% set tips = incidents | selectattr('severity', 'equalto', 'info') | list %}
+  {% if tips %}
+  <details style="border-top:1px solid var(--line);padding:10px 0;margin-top:6px">
+    <summary style="cursor:pointer"><b>{{ tips | length }} amélioration{{ 's' if tips | length > 1 }} possible{{ 's' if tips | length > 1 }}</b> <small class="muted">(sécurité et référencement, sans urgence)</small></summary>
+    <ul class="prio-list">
+      {% for i in tips %}<li><span class="todo-txt"><b>{{ i.title }}</b><br><small class="muted">{{ i.suggestion.splitlines()[1] if i.suggestion.splitlines() | length > 1 else '' }}</small></span></li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head"><div><h2>{{ icon('globe') }} Tous les sites et logiciels</h2><div class="sub">{{ eco.assets | length }} dans l'inventaire, dont {{ t.a_confirmer }} à confirmer</div></div></div>
+  <div style="overflow-x:auto">
+  <table class="tbl">
+    <thead><tr><th>État</th><th>Nom</th><th>Pôle</th><th>Hébergement</th><th>Rapidité</th><th>24 h</th><th>Évolution</th><th>Certificat</th><th></th></tr></thead>
+    <tbody>
+    {% for a in eco.assets %}
+    <tr style="{{ 'opacity:.6' if not a.active }}">
+      <td><span class="pill {{ state_tone[a.state] }} dot">{{ state_label[a.state] }}</span></td>
+      <td><b>{{ a.name }}</b><br><small class="muted"><a href="{{ a.url }}" rel="noopener noreferrer" target="_blank">{{ a.url | replace('https://', '') }}</a>{% if a.notes %}<br>{{ a.notes }}{% endif %}</small></td>
+      <td>{{ a.pole or '—' }}</td>
+      <td>{{ {'vps': 'Serveur VPS', 'ftp': 'FTP', 'externe': 'Externe'}[a.hosting] }}</td>
+      <td>{% if a.ms is not none %}{{ '%.2f' | format(a.ms / 1000) }} s{% else %}—{% endif %}</td>
+      <td>{{ a.uptime ~ ' %' if a.uptime is not none else '—' }}</td>
+      <td>{% if a.path %}<svg width="96" height="22" viewBox="0 0 96 22" aria-hidden="true"><polyline points="{{ a.path }}" fill="none" stroke="var(--brand)" stroke-width="1.5"/>{% for x in a.fails %}<line x1="{{ x }}" y1="0" x2="{{ x }}" y2="22" stroke="var(--bad)" stroke-width="1.5"/>{% endfor %}</svg>{% else %}—{% endif %}</td>
+      <td>{{ a.cert ~ ' j' if a.cert is not none else '—' }}</td>
+      <td>{% if a.active %}<form method="post" action="/ecosysteme/actif/{{ a.id }}/ignorer"><button class="btn sm ghost-bad" title="Ne plus surveiller">{{ icon('pause') }}</button></form>{% else %}<form method="post" action="/ecosysteme/actif/{{ a.id }}/suivre"><button class="btn sm primary">{{ icon('play') }} Suivre</button></form>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>

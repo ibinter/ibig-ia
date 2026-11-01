@@ -91,6 +91,23 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
         # Contrôles de données en lecture seule sur les plateformes (si des accès sont saisis)
         JobSpec("db_watch", "Contrôles des bases de données", "toutes les 6 heures",
                 lambda: rt.dbmonitor.run(), "interval", {"hours": 6, **every}, alert_after=4),
+        # Centre de contrôle de l'écosystème : inventaire, mesure toutes les 5 min, hygiène, bonjour
+        JobSpec("eco_inventory", "Inventaire de l'écosystème", "chaque jour à 5 h",
+                lambda: rt.ecosystem.sync_config(), "cron",
+                {"hour": 5, "minute": 0, **every}, manual=True),
+        JobSpec("eco_probe", "Mesure de l'écosystème", "toutes les 5 min",
+                lambda: rt.ecosystem.run_probes(), "interval",
+                {"minutes": 5, **every,
+                 "next_run_time": datetime.now(ZoneInfo(tz)) + timedelta(seconds=45)},
+                alert_after=6),
+        JobSpec("eco_hygiene", "Hygiène de l'écosystème", "chaque jour à 6 h 30",
+                lambda: rt.ecosystem.run_hygiene(), "cron", {"hour": 6, "minute": 30, **every}),
+        JobSpec("eco_briefing", "Bonjour de l'écosystème", "chaque jour à 7 h",
+                lambda: rt.veille.alert_direction("bonjour", "[IBIG] Bonjour : état de l'écosystème",
+                                                  rt.ecosystem.briefing()),
+                "cron", {"hour": 7, "minute": 0, **every}),
+        JobSpec("eco_purge", "Purge de l'historique des mesures", "chaque jour à 3 h 20",
+                lambda: rt.ecosystem.purge(), "cron", {"hour": 3, "minute": 20, **every}, manual=False),
         JobSpec("quotes_expire", "Expiration des devis", "chaque jour à 1 h",
                 lambda: rt.quotes.expire_due(), "cron", {"hour": 1, "minute": 0, **every}),
         # Catalogue complet des produits (prix, formations) : relu chaque dimanche matin
