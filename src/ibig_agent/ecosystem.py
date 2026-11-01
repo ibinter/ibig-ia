@@ -34,9 +34,9 @@ from . import core_checks, serveur
 from .anomalies import cert_days
 from .config import Settings
 from .configstore import service_value, set_service_value
-from .vault import VaultError, decrypt, encrypt
 from .db import EcoAsset, EcoCheck, EcoFtpCred, EcoFtpResult, EcoIncident, utcnow
 from .governance import as_utc
+from .vault import VaultError, decrypt, encrypt
 
 FAIL_BEFORE_INCIDENT = 2          # échecs de suite avant d'ouvrir un incident de disponibilité
 SLOW_RUNS = 3                     # mesures lentes de suite avant d'ouvrir un incident de vitesse
@@ -799,7 +799,7 @@ class EcosystemService:
             try:
                 resp = ftp.sendcmd("SITE QUOTA")
                 # format typique : "200 Quota: used=X max=Y"
-                m = re.search(r"used=(\d+).*?max=(\d+)", resp, re.I)
+                m = re.search(r"used=(\d+).*?max=(\d+)", resp, re.IGNORECASE)
                 if m:
                     quota_used = int(m.group(1)) // (1024 * 1024)
                     quota_total = int(m.group(2)) // (1024 * 1024)

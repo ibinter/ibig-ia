@@ -9,6 +9,8 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Float,
+    ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -732,7 +734,7 @@ class EcoFtpCred(Base):
     __tablename__ = "eco_ftp_creds"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    label: Mapped[str] = mapped_column(String(100), unique=True)
+    label: Mapped[str] = mapped_column(String(100), index=True, unique=True)
     host: Mapped[str] = mapped_column(String(200))
     port: Mapped[int] = mapped_column(Integer, default=21)
     mode: Mapped[str] = mapped_column(String(10), default="ftps")   # ftps | ftp
@@ -749,10 +751,11 @@ class EcoFtpResult(Base):
     """Résultat d'un contrôle FTP (connexion, liste des dossiers, occupation)."""
 
     __tablename__ = "eco_ftp_results"
+    __table_args__ = (Index("ix_eco_ftp_results_cred_at", "cred_id", "at"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cred_id: Mapped[int] = mapped_column(Integer, index=True)
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    cred_id: Mapped[int] = mapped_column(Integer, ForeignKey("eco_ftp_creds.id", ondelete="CASCADE"))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     ok: Mapped[bool] = mapped_column(Boolean, default=True)
     ms: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(String(300), default="")

@@ -21,7 +21,6 @@ from ..ecosystem import (
     SEVERITY_LABELS,
     EcosystemError,
 )
-from ..vault import VaultError
 from ..runtime import Runtime
 
 STATE_TONE = {"ok": "green", "attention": "amber", "critique": "red", "inconnu": "blue", "inactif": ""}
