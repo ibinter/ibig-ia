@@ -674,11 +674,11 @@ class EcosystemService:
         srv_crit = [i for i in srv if i.severity == "critical"]
         if crit or srv_crit:
             parts = ([f"{len(crit)} actif(s) en panne ou en danger"] if crit else []) + \
-                    ([f"{len(srv_crit)} problème(s) urgent(s) sur le serveur"] if srv_crit else [])
+                    ([f"{len(srv_crit)} problème(s) urgent(s) (serveur, bases de données)"] if srv_crit else [])
             level, message = "critique", " · ".join(parts)
         elif warn or srv:
             parts = ([f"{len(warn)} point(s) d'attention"] if warn else []) + \
-                    ([f"{len(srv)} point(s) à voir sur le serveur"] if srv else [])
+                    ([f"{len(srv)} point(s) à voir (serveur, bases de données)"] if srv else [])
             level, message = "attention", " · ".join(parts)
         elif not active or all(x["state"] == "inconnu" for x in active):
             level, message = "inconnu", "Première mesure en cours…"
