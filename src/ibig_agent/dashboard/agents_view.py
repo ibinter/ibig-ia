@@ -125,7 +125,8 @@ def agent_cards(rt: Runtime, now: datetime | None = None) -> list[AgentCard]:
                         "sera complète"),
             [AgentAction("calendrier", "Préparer le calendrier de la semaine", "calendar",
                          bool(ready_poles), "" if ready_poles else "fiches pôles à compléter")],
-            [("#publication", "Rédiger une publication maintenant"),
+            [("#campagne", "Campagne multi-réseaux"),
+             ("#publication", "Un seul réseau"),
              ("/campagnes", "Campagnes mail")]),
         AgentCard(
             "contenus_web", "Agent Contenus web", "globe", "green",
