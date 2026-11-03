@@ -1,0 +1,32 @@
+{
+  "name": "IBIG Agent IA",
+  "short_name": "IBIG IA",
+  "description": "Centre de pilotage multi-agents IBIG SARL",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eff3fb",
+  "theme_color": "#1a62e8",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231a62e8'/%3E%3Cstop offset='1' stop-color='%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='192' height='192' rx='40' fill='url(%23g)'/%3E%3Cpath d='M52 140V52m44 88V52m44 88V52' stroke='white' stroke-width='18' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%231a62e8'/%3E%3Cstop offset='1' stop-color='%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='96' fill='url(%23g)'/%3E%3Cpath d='M136 368V144m120 224V144m120 224V144' stroke='white' stroke-width='48' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {"name": "Tableau de bord", "url": "/", "description": "Accueil"},
+    {"name": "Campagnes", "url": "/campagnes", "description": "Gérer les campagnes"},
+    {"name": "Publications", "url": "/publications", "description": "Planifier les publications"}
+  ],
+  "prefer_related_applications": false
+}
