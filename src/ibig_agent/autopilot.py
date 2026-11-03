@@ -312,37 +312,53 @@ class Autopilot:
 
     def execute(self, mission_id: int, by: str) -> dict:
         """Fait préparer par leurs agents tous les brouillons des tâches prêtes d'une mission.
-        Une panne du modèle compte comme un essai raté : la tâche est retentée (3 essais au plus)
-        puis passe en échec et bloque celles qui en dépendent. Crédit ou plafond épuisé : arrêt
-        net, sans compter d'essai. La clôture reste humaine (preuve exigée) ; rien n'est envoyé."""
+        Tourne en plusieurs passes : après chaque brouillon d'agent, la tâche est auto-clôturée
+        et les dépendantes se débloquent. Les tâches humaines restent à clore manuellement.
+        Une panne du modèle compte comme un essai raté (3 essais au plus) puis passe en échec.
+        Crédit ou plafond épuisé : arrêt net. Rien n'est envoyé ni publié."""
         from .llm import BudgetExceeded, LLMCreditExhausted
 
         out = {"prepared": 0, "failed": 0, "skipped": 0, "stopped": ""}
-        with self._sessions() as s:
-            todo = [(t.id, t.agent) for t in self._tasks(s, mission_id)
-                    if t.status == "prete" and t.agent and not t.result]
-        for task_id, agent in todo:
-            if agent_control.is_suspended(self._sessions, agent):
-                out["skipped"] += 1
-                continue
-            if self._over_budget(mission_id):
-                out["stopped"] = "Budget de la mission atteint : relevez-le pour continuer"
-                return out
-            while True:
-                try:
-                    self.prepare(task_id, by)
-                    out["prepared"] += 1
-                    break
-                except AutopilotError as exc:
-                    if isinstance(exc.__cause__, (LLMCreditExhausted, BudgetExceeded)):
-                        out["stopped"] = str(exc)
-                        return out
-                    if not isinstance(exc.__cause__, LLMError):
-                        out["skipped"] += 1
+        max_passes = 20  # garde-fou contre les boucles infinies
+        for _ in range(max_passes):
+            with self._sessions() as s:
+                todo = [(t.id, t.agent) for t in self._tasks(s, mission_id)
+                        if t.status == "prete" and t.agent and not t.result]
+            if not todo:
+                break
+            for task_id, agent in todo:
+                if agent_control.is_suspended(self._sessions, agent):
+                    out["skipped"] += 1
+                    continue
+                if self._over_budget(mission_id):
+                    out["stopped"] = "Budget de la mission atteint : relevez-le pour continuer"
+                    return out
+                while True:
+                    try:
+                        self.prepare(task_id, by)
+                        out["prepared"] += 1
+                        # Auto-clôture la tâche agent pour débloquer les dépendantes
+                        with self._sessions() as s:
+                            t = self._get(s, task_id)
+                            if t.status == "en_cours":
+                                t.status, t.ended_at = "terminee", utcnow()
+                                self._event(s, t.mission_id, "etat",
+                                            f"Tâche {t.position} clôturée automatiquement "
+                                            "(brouillon prêt)", by)
+                                self._refresh(s, t.mission_id)
+                                self._close_if_done(s, t.mission_id, by)
+                            s.commit()
                         break
-                    if self._count_failed_attempt(task_id, str(exc), by):
-                        out["failed"] += 1
-                        break
+                    except AutopilotError as exc:
+                        if isinstance(exc.__cause__, (LLMCreditExhausted, BudgetExceeded)):
+                            out["stopped"] = str(exc)
+                            return out
+                        if not isinstance(exc.__cause__, LLMError):
+                            out["skipped"] += 1
+                            break
+                        if self._count_failed_attempt(task_id, str(exc), by):
+                            out["failed"] += 1
+                            break
         return out
 
     def _over_budget(self, mission_id: int) -> bool:
