@@ -511,6 +511,37 @@ def create_app(rt: Runtime) -> FastAPI:
             return back("/agents", "Échec : publication non créée")
         return back("/validations", "Publication rédigée : relisez-la ci-dessous puis validez")
 
+    @app.post("/agents/campagne")
+    def write_campaign(request: Request, sujet: str = Form(...), jour: str = Form(""),
+                       comptes: list[int] = Form(default=[]),
+                       who: Principal = Depends(user)):
+        if who.role == "valideur":
+            return back("/agents", "Refusé : réservé à la direction")
+        if not sujet.strip() or rt.llm is None:
+            return back("/agents", "Refusé : saisissez un sujet")
+        accounts = rt.org.social_accounts
+        today = datetime.now(ZoneInfo(rt.settings.timezone)).date()
+        day = date.fromisoformat(jour) if jour else today + timedelta(days=1)
+        selected = [accounts[i] for i in comptes if 0 <= i < len(accounts)]
+        if not selected:
+            selected = [a for a in accounts if a.publication_auto]
+        if not selected:
+            return back("/agents", "Aucun compte sélectionné")
+        errors, created = [], 0
+        for account in selected:
+            try:
+                pid = rt.communication.write_post(account.pole, account, sujet.strip()[:300], day)
+                if pid:
+                    created += 1
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{account.reseau} {account.compte}: {exc}")
+        if not created:
+            return back("/agents", "Échec : " + "; ".join(errors[:2]))
+        msg = f"{created} publication{'s' if created > 1 else ''} rédigée{'s' if created > 1 else ''} — relisez et validez"
+        if errors:
+            msg += f" ({len(errors)} erreur{'s' if len(errors) > 1 else ''})"
+        return back("/validations", msg)
+
     @app.get("/essai", response_class=HTMLResponse)
     def trial_form(request: Request, who: Principal = Depends(user)):
         return page(request, "essai.html", poles=rt.org.poles, result=None, form={})

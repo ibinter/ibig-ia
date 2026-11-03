@@ -39,12 +39,38 @@
   <p class="muted" style="margin:0">Les demandes sont réservées aux comptes de direction.</p>
   {% else %}
   <div class="tabs" role="tablist">
-    <button type="button" class="tab on" data-tab="publication">{{ icon('share') }} Une publication</button>
+    <button type="button" class="tab on" data-tab="campagne">{{ icon('zap') }} Campagne multi-réseaux</button>
+    <button type="button" class="tab" data-tab="publication">{{ icon('share') }} Un seul compte</button>
     <button type="button" class="tab" data-tab="contenu-web">{{ icon('globe') }} Un article ou une page produit</button>
     <button type="button" class="tab" data-tab="rapide">{{ icon('play') }} Actions rapides</button>
   </div>
 
-  <div class="tab-panel" id="publication">
+  <div class="tab-panel" id="campagne">
+    <form method="post" action="/agents/campagne" id="form-campagne">
+      <div class="grid g-2" style="gap:12px;margin-bottom:12px">
+        <label class="field"><span>Sujet / message central</span><input type="text" name="sujet" required placeholder="Ex. : bienvenue novembre, IBIG à vos côtés tout le mois" style="width:100%"></label>
+        <label class="field"><span>Date de publication</span><input type="date" name="jour" value="{{ jour }}"></label>
+      </div>
+      <div class="field" style="margin-bottom:12px">
+        <span style="display:block;margin-bottom:6px;font-weight:500">Réseaux à publier</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          {% for i, a in accounts %}{% if a.publication_auto %}
+          <label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:.9em">
+            <input type="checkbox" name="comptes" value="{{ i }}" checked style="accent-color:var(--accent)">
+            <span>{{ a.reseau | lisible }} — {{ a.compte }}</span>
+          </label>
+          {% endif %}{% endfor %}
+        </div>
+        <p class="muted small" style="margin:6px 0 0">Seuls les comptes en publication automatique sont listés. Décochez ceux à exclure.</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btn-campagne" onclick="this.innerHTML='Rédaction en cours…';this.disabled=true">{{ icon('sparkles') }} Rédiger pour tous les réseaux sélectionnés</button>
+        <span class="muted small">Chaque réseau reçoit son texte adapté + brief visuel. Tout arrive dans Validations.</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="tab-panel" id="publication" hidden>
     <form method="post" action="/agents/publication">
       <div class="grid g-3" style="gap:12px">
         <label class="field"><span>Compte</span>
@@ -126,7 +152,7 @@
       <button class="btn sm" disabled title="{{ a.reason or 'Réservé à la direction' }}" style="opacity:.55;cursor:not-allowed">{{ icon(a.icon) }} {{ a.label }}</button>
       {% endif %}
     {% endfor %}
-    {% for href, label in c.links %}<a class="btn sm ghost" href="{{ '#demander' if href in ('#publication', '#contenu-web') else href }}" {% if href in ('#publication', '#contenu-web') %}data-open="{{ href[1:] }}"{% endif %}>{{ label }} {{ icon('arrow-right') }}</a>{% endfor %}
+    {% for href, label in c.links %}<a class="btn sm ghost" href="{{ '#demander' if href in ('#publication', '#contenu-web', '#campagne') else href }}" {% if href in ('#publication', '#contenu-web', '#campagne') %}data-open="{{ href[1:] }}"{% endif %}>{{ label }} {{ icon('arrow-right') }}</a>{% endfor %}
   </div>
   {% set off = c.actions | rejectattr('enabled') | list %}
   {% if off %}<p class="muted small" style="margin:8px 0 0">{{ icon('clock') }} {{ off | map(attribute='label') | join(', ') }} : {{ off[0].reason }}.</p>{% endif %}
@@ -147,7 +173,7 @@
     a.addEventListener('click', function () { open(a.dataset.open); });
   });
   var h = location.hash.slice(1);
-  if (h === 'publication' || h === 'contenu-web') {
+  if (h === 'publication' || h === 'contenu-web' || h === 'campagne') {
     open(h); document.getElementById('demander').scrollIntoView();
   }
 })();

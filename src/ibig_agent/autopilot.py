@@ -85,9 +85,7 @@ def validate_plan(raw: dict) -> tuple[str, str, list[PlannedTask]]:
             raise AutopilotError(f"La tâche {n} n'a pas de titre")
         agent = str(it.get("agent", "")).strip().lower()
         agent = agent if agent in agent_control.AGENTS else ""   # inconnu ou « humain »
-        depends = sorted({int(d) for d in it.get("depend_de", []) if isinstance(d, int)})
-        if any(d < 1 or d >= n for d in depends):
-            raise AutopilotError(f"La tâche {n} dépend d'une tâche inexistante ou postérieure")
+        depends = sorted({int(d) for d in it.get("depend_de", []) if isinstance(d, int) and 1 <= int(d) < n})
         tasks.append(PlannedTask(title, " ".join(str(it.get("detail", "")).split())[:1000],
                                  agent, depends))
     title = " ".join(str(raw.get("titre", "")).split())[:200] or tasks[0].title[:200]
