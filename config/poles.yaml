@@ -12,79 +12,79 @@ poles:
     site: https://intermark-business.com/
     activite: Communication institutionnelle du groupe
     cibles: Grand public, partenaires, institutions
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@intermark-business.com"
+    suppleant: "ibigr.sarl@gmail.com"
+    commercial: "contact@intermark-business.com"
+    support: "contact@intermark-business.com"
   - code: EDUFORM
     nom: IBIG EDUFORM
     site: https://ibig-eduform.com/
     activite: Formation professionnelle, certifications métiers, insertion
     cibles: Jeunes diplômés, salariés, entreprises
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "formation@intermark-business.com"
+    suppleant: "formation@ibig-eduform.com"
+    commercial: "recrutement@ibig-eduform.com"
+    support: "formation@ibig-eduform.com"
   - code: IMMOTRUST
     nom: IBIG IMMOTRUST
     site: https://ibigimmotrust.com/
     activite: Immobilier, BTP, sécurisation des investissements
     cibles: Investisseurs, diaspora, particuliers
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@ibigimmotrust.com"
+    suppleant: "info@ibigimmotrust.com"
+    commercial: "contact@ibigimmotrust.com"
+    support: "info@ibigimmotrust.com"
   - code: SOFT
     nom: IBIG SOFT
     site: https://ibigsoft.com/
     activite: Édition logicielle, SaaS, applications métiers (14 solutions)
     cibles: PME, écoles, cliniques, agences, ONG
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@ibigsoft.com"
+    suppleant: "contact@scolaby.com"
+    commercial: "contact@ibigsoft.com"
+    support: "contact@ibigsoft.com"
   - code: MARKET
     nom: IBIG MARKET
     site: https://ibig-market.com/
     activite: Commerce, distribution, e-commerce
     cibles: Particuliers, revendeurs
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@ibig-market.com"
+    suppleant: "contact@intermark-business.com"
+    commercial: "contact@ibig-market.com"
+    support: "contact@ibig-market.com"
   - code: DIGITAL
     nom: IBIG DIGITAL
     site: https://ibig-digital.com/
     activite: Digitalisation, ERP, intelligence artificielle
     cibles: Entreprises et institutions
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@ibig-digital.com"
+    suppleant: "contact@intermark-business.com"
+    commercial: "contact@ibig-digital.com"
+    support: "contact@ibig-digital.com"
   - code: CONSEIL
     nom: IBIG CONSEIL+
     site: https://intermark-business.com/conseil/
     activite: Conseil stratégique, ingénierie de projets, structuration
     cibles: Dirigeants, porteurs de projets
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@intermark-business.com"
+    suppleant: "ibigr.sarl@gmail.com"
+    commercial: "contact@intermark-business.com"
+    support: "contact@intermark-business.com"
   - code: PARTNERS
     nom: IBIG PARTNERS
     site: https://www.ibigpartners.com/
     activite: Représentation commerciale, partenariats stratégiques
     cibles: Revendeurs, apporteurs d'affaires
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@ibigpartners.com"
+    suppleant: "support@ibigpartners.com"
+    commercial: "contact@ibigpartners.com"
+    support: "support@ibigpartners.com"
   - code: MULTISERVICES
     nom: IBIG MULTISERVICES
     site: https://intermark-business.com/multiservices
     activite: Logistique, RH, transport, communication, tourisme
     cibles: Entreprises, particuliers
-    valideur: ""
-    suppleant: ""
-    commercial: ""
-    support: ""
+    valideur: "contact@intermark-business.com"
+    suppleant: "ibigr.sarl@gmail.com"
+    commercial: "contact@intermark-business.com"
+    support: "contact@intermark-business.com"
