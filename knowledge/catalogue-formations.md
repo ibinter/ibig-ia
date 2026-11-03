@@ -1,66 +1,66 @@
----
-titre: Catalogue des formations EDUFORM et IBIG LEARN
-pole: EDUFORM
-type: catalogue
----
-# Catalogue des formations EDUFORM et IBIG LEARN
+# IBIG EDUFORM — RÉFÉRENTIEL PÉDAGOGIQUE ET COMMERCIAL APPROFONDI
+Statut : BROUILLON À VALIDER
+Sources : Présentation institutionnelle IBIG SARL 2026, pages 5 à 7 ; éléments de catalogue et de site communiqués dans les documents IBIG.
 
-<!-- Section 7, point 4 : catalogue des formations, avec dates de sessions. Tenir les dates
-à jour : l'agent ne publie jamais une date qui n'est pas ici. Relevé sur ibig-eduform.com le
-30/10/2026. Les dates changent vite : elles ne sont pas recopiées ici, l'agent renvoie au
-calendrier du site. Certification : non rattachée à une formation précise sur le site. -->
+## Positionnement
+Former des professionnels directement employables, avec une pédagogie orientée compétences et pratique. Les formats présentés sont : présentiel, hybride, en ligne, intra-entreprise, Samedi Pro et e-learning.
 
-## Le catalogue complet
+## Domaines métiers identifiés
+- Finance et comptabilité.
+- Audit et contrôle de gestion.
+- Ressources humaines, management et paie.
+- QHSE.
+- Logistique et supply chain.
+- Gestion de projets et ONG.
+- Communication et relations publiques.
+- Droit et conformité.
+- Banque et assurance.
+- Immobilier et BTP.
+- Digital, data et intelligence artificielle.
+- Entrepreneuriat et croissance.
+- Outils logiciels cités : Sage, SAP et Odoo.
 
-IBIG EDUFORM propose **2 295 formations** réparties en **25 domaines** (chiffre affiché sur
-https://ibig-eduform.com/catalogue-formations.php le 30/10/2026), en présentiel, en ligne ou en
-hybride. Chaque formation a sa page de programme : https://ibig-eduform.com/formation/…
+## Méthode pédagogique décrite dans les contenus IBIG
+1. Analyse des besoins : diagnostic du profil, des objectifs et des exigences terrain.
+2. Formation intensive : cas réels, simulations, outils métiers, travaux guidés et correction professionnelle.
+3. Évaluation et certification : évaluations et validation des compétences.
+4. Insertion et suivi : stages, missions, coaching carrière et orientation, selon les dispositifs disponibles.
 
-| Domaine | Formations |
-|---|---|
-| Informatique & Tech | 242 |
-| IA & Digitalisation | 207 |
-| Comptabilité & Finance | 199 |
-| Gestion Commerciale & Marketing | 195 |
-| GRH | 137 |
-| Management & Leadership | 124 |
-| Droit & Juridique | 113 |
-| Entrepreneuriat | 112 |
-| QHSE | 89 |
-| Logistique & Supply Chain | 87 |
-| Communication Professionnelle | 85 |
-| Banque & Assurance | 74 |
-| Direction & Administration | 74 |
-| Agriculture | 72 |
-| BTP & Construction | 67 |
-| Développement Personnel | 67 |
-| Éducation & Formation | 61 |
-| Santé & Pharmacie | 53 |
-| Mines, Énergie & Pétrole | 51 |
-| Infographie & Design | 46 |
-| Tourisme & Hôtellerie | 42 |
-| Immobilier | 29 |
-| Autres | 29 |
-| Logiciels de Gestion | 22 |
-| Beauté & Bien-être | 18 |
+## Catalogue phare de la présentation institutionnelle 2026
+Les tarifs ci-dessous sont ceux du catalogue 2025–2026 et ne sont pas des prix garantis actuels.
+- DAF : Directeur Administratif & Financier — 60 h — 400 000 FCFA en ligne / 450 000 FCFA en présentiel.
+- Responsable Commercial & Marketing — 30 h — 200 000 / 250 000 FCFA.
+- Transformation Digitale des PME — 25 h — 200 000 / 250 000 FCFA.
+- De Comptable à Chef Comptable — 30 h — présentiel dès 200 000 FCFA.
+- Transport, Logistique & Supply Chain — 30 h — présentiel dès 200 000 FCFA.
+- Responsable HSE / QHSE — 25 h — présentiel dès 250 000 FCFA.
+- Gestion Immobilière Professionnelle — 25 h — présentiel dès 200 000 FCFA.
+- Gestion de Projets Humanitaires & ONG — 25 h — présentiel dès 200 000 FCFA.
+- Intelligence Artificielle pour Professionnels — 7 h — 95 000 FCFA en présentiel.
 
-Pour le détail d'une formation (programme, durée, prix, dates), l'agent renvoie à la page du
-catalogue ou au calendrier : https://ibig-eduform.com/calendrier.php. Le catalogue complet n'est
-pas recopié ici : seules les formations listées plus bas ont un prix connu de l'agent.
+## Formats et parcours complémentaires
+- Formation intra-entreprise et renforcement de capacités.
+- Samedi Pro pour professionnels en activité.
+- E-learning via ibig-elearning.com.
+- Campagne de recrutement formateurs 2026–2027.
+- Suivi 30 jours, réseau alumni, stages et coaching carrière mentionnés dans la présentation.
 
-## Sessions mises en avant (prix relevés sur le site)
+## Questions de qualification pour une demande de formation
+- Quel métier ou quelle fonction souhaitez-vous renforcer ?
+- Quel est le niveau actuel des participants ?
+- Quel résultat professionnel concret attendez-vous ?
+- Combien de personnes sont concernées ?
+- Préférez-vous présentiel, hybride ou en ligne ?
+- Souhaitez-vous une formation inter-entreprises ou intra-entreprise ?
+- Quelle période serait adaptée ?
+- Existe-t-il un cahier des charges ou un plan de formation ?
 
-| Formation | Certification | Durée | Modalité (présentiel / en ligne) | Prochaines sessions | Prix ou « sur devis » |
-|---|---|---|---|---|---|
-| Intelligence Artificielle pour Professionnels | À COMPLÉTER | 7 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | À COMPLÉTER |
-| DAF – Directeur Administratif & Financier | À COMPLÉTER | 60 h | en ligne ou présentiel | voir le calendrier sur ibig-eduform.com | 400 000 FCFA en ligne ; 450 000 FCFA en présentiel |
-| Responsable Commercial & Marketing | À COMPLÉTER | 30 h | en ligne ou présentiel | voir le calendrier sur ibig-eduform.com | 200 000 FCFA en ligne ; 250 000 FCFA en présentiel |
-| Transformation Digitale des PME | À COMPLÉTER | 25 h | en ligne ou présentiel | voir le calendrier sur ibig-eduform.com | 200 000 FCFA en ligne ; 250 000 FCFA en présentiel |
-| Responsable HSE / QHSE | À COMPLÉTER | 25 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | à partir de 250 000 FCFA |
-| Transport, Logistique & Supply Chain Management | À COMPLÉTER | 30 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | à partir de 200 000 FCFA |
-| De Comptable à Chef Comptable | À COMPLÉTER | 30 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | à partir de 200 000 FCFA |
-| Odoo – initiation ERP | À COMPLÉTER | 2 samedis (12 h) | présentiel | voir le calendrier sur ibig-eduform.com | gratuit |
-| Gestion Immobilière Professionnelle | À COMPLÉTER | 25 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | à partir de 200 000 FCFA |
-| Gestion de Projets Humanitaires & ONG | À COMPLÉTER | 25 h | À COMPLÉTER | voir le calendrier sur ibig-eduform.com | à partir de 200 000 FCFA |
+## Réponse commerciale attendue
+Ne pas envoyer une simple liste de formations. Identifier le besoin, proposer le programme pertinent, confirmer le public, les objectifs, la durée, le format, le calendrier et le tarif de la session en vigueur.
 
-Plateforme en ligne : https://ibiglearn.com
+## Limites
+- Ne jamais garantir un emploi, une promotion ou une augmentation de salaire.
+- Ne jamais affirmer une homologation ou reconnaissance étatique sans preuve officielle.
+- Les certificats vérifiables en ligne sont mentionnés sur verify.intermark-business.com ; confirmer les règles et le périmètre de vérification.
+- Ne jamais diffuser de données ou certificats nominatifs sans autorisation.
+- Les programmes, dates, prix et places doivent être vérifiés dans le calendrier actif.
