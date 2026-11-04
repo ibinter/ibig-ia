@@ -84,3 +84,11 @@ def test_pages_sites_seo_and_mission(rt):
     assert "Correction" in c.get(f"/seo/{a.id}").text
     r = c.post(f"/seo/{a.id}/mission", follow_redirects=False)
     assert r.status_code == 303 and "/missions/" in r.headers["location"]
+
+
+def test_private_portal_is_never_audited_nor_counted(rt):
+    a = one_asset(rt, "Portail privé", "https://prive.ci")
+    a.notes = "seo:non — administration"
+    service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site({"/": GOOD}))
+    assert service.run() == {"sites": 0, "moyenne": None}
+    assert service.overview() == [] and service.result(a.id) is None

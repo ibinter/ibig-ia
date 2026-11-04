@@ -39,6 +39,13 @@ SLOW_MS = 2500
 SKIP_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".zip", ".xml", ".gz", ".mp4")
 
 
+PRIVATE_MARK = "seo:non"   # dans les notes d'un actif : espace privé, volontairement non indexé
+
+
+def is_private(asset) -> bool:
+    return PRIVATE_MARK in (getattr(asset, "notes", "") or "").lower()
+
+
 @dataclass
 class Issue:
     code: str
@@ -282,7 +289,8 @@ class SeoService:
 
     def run(self) -> dict:
         """Audit de tous les sites suivis (en parallèle, sans jamais rien modifier chez eux)."""
-        sites = [a for a in self._assets() if a.active and a.kind == "site" and a.url.startswith("http")]
+        sites = [a for a in self._assets() if a.active and a.kind == "site" and a.url.startswith("http")
+                 and not is_private(a)]
         client = self._http()
         with ThreadPoolExecutor(4) as ex:
             res = list(ex.map(lambda a: self.audit(a, client), sites))
@@ -301,7 +309,7 @@ class SeoService:
         """Tous les sites, du moins bien référencé au mieux : ce qu'il faut traiter d'abord."""
         rows = []
         for a in self._assets():
-            if a.kind != "site":
+            if a.kind != "site" or is_private(a):
                 continue
             r = self.result(a.id)
             sev = {"critical": 0, "warning": 0, "info": 0}

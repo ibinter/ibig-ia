@@ -14,7 +14,7 @@ actifs:
   - {nom: "IBIG SARL — site officiel", url: "https://intermark-business.com", genre: site, hebergement: externe, pole: GROUPE, criticite: haute, attendu: "IBIG"}
   - {nom: "IBIG SARL — Conseil+", url: "https://intermark-business.com/conseil/", genre: site, hebergement: externe, pole: CONSEIL, criticite: moyenne}
   - {nom: "IBIG SARL — Multiservices", url: "https://intermark-business.com/multiservices", genre: site, hebergement: externe, pole: MULTISERVICES, criticite: moyenne}
-  - {nom: "IBIG SARL — portail ibigroupsarl.com", url: "https://ibigroupsarl.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG SARL — portail ibigroupsarl.com", url: "https://ibigroupsarl.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: moyenne, notes: "seo:non — portail d'administration privé, volontairement non indexé"}
   - {nom: "IBIG CORE — administration", url: "https://ibigroupsarl.com/admin/login.php", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
   - {nom: "IBIG CORE — CRM", url: "https://ibigroupsarl.com/admin/crm", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
   - {nom: "IBIG CORE — RH", url: "https://ibigroupsarl.com/admin/rh", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}

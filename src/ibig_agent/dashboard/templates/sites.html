@@ -21,9 +21,9 @@
       <td><span class="pill {{ state_tone[a.state] }} dot">{{ state_label[a.state] }}</span></td>
       <td>{{ a.ms if a.ms is not none else '—' }}{{ ' ms' if a.ms is not none }}</td>
       <td>{{ a.uptime if a.uptime is not none else '—' }}{{ ' %' if a.uptime is not none }}</td>
-      <td>{% if a.seo %}<a href="/seo/{{ a.id }}"><span class="pill {{ grade_tone[a.seo.grade] }}">{{ a.seo.score }}/100</span></a>{% elif a.kind == 'site' %}<span class="muted small">pas encore audité</span>{% else %}<span class="muted small">—</span>{% endif %}</td>
+      <td>{% if a.seo %}<a href="/seo/{{ a.id }}"><span class="pill {{ grade_tone[a.seo.grade] }}">{{ a.seo.score }}/100</span></a>{% elif 'seo:non' in (a.notes or '').lower() %}<span class="pill blue">Privé : non indexé</span>{% elif a.kind == 'site' %}<span class="muted small">pas encore audité</span>{% else %}<span class="muted small">—</span>{% endif %}</td>
       <td class="muted small">{{ a.hosting }}</td>
-      <td>{% if a.kind == 'site' %}<a class="btn sm" href="/seo/{{ a.id }}">Fiche SEO</a>{% endif %}</td>
+      <td>{% if a.kind == 'site' and 'seo:non' not in (a.notes or '').lower() %}<a class="btn sm" href="/seo/{{ a.id }}">Fiche SEO</a>{% endif %}</td>
     </tr>
     {% endfor %}
     </tbody></table></div>
