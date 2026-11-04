@@ -144,8 +144,30 @@ def test_ma_journee_gathers_everything_for_direction_and_is_the_landing_page(rt,
     dg, login = client("dg@ibig.test")
     assert login.status_code == 303 and login.headers["location"] == "/journee"
     page = dg.get("/journee")
-    assert page.status_code == 200 and "À faire d'abord" in page.text and "Reste à encaisser" in page.text
+    assert page.status_code == 200 and "Vos décisions du moment" in page.text and "Reste à encaisser" in page.text
     assert "Donner une consigne" in page.text and 'href="/journee"' in page.text
     v, login = client("v@ibig.test")
     assert login.headers["location"] == "/"
     assert v.get("/journee", follow_redirects=False).status_code == 303
+
+
+def test_ma_journee_shows_at_most_three_ready_decisions_with_yes_no(rt, make, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+    from ibig_agent.db import PendingAction
+    svc, _ = make()
+    monkeypatch.setattr(type(rt), "consigne", property(lambda self: svc))
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    with rt.sessions() as s:
+        for n in range(5):
+            s.add(PendingAction(agent="messagerie", action_type="mail.reply", level=2, channel="mail",
+                                title=f"Réponse n°{n}", payload={"body": f"Bonjour {n}"}, status="pending"))
+        s.commit()
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    text = c.get("/journee").text
+    assert text.count("Oui, envoyer") == 3 and "3 sur 5" in text and "Bonjour 0" in text
+    r = c.post("/validations/1/rejeter", data={"retour": "/journee"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/journee")

@@ -17,13 +17,26 @@
 </section>
 
 <section class="card" style="margin-bottom:16px">
-  <div class="card-head"><div><h2>{{ icon('target') }} À faire d'abord</h2></div></div>
-  {% if not j.priorites %}<p class="muted">Rien d'urgent. Vous pouvez avancer sur vos projets.</p>{% endif %}
-  <ol style="margin:0;padding-left:20px">
-  {% for p in j.priorites %}
-    <li style="margin:8px 0"><a href="{{ p.lien }}" style="font-weight:700;color:{{ tone_color[p.ton] }}">{{ p.texte }}</a></li>
+  <div class="card-head"><div><h2>{{ icon('target') }} Vos décisions du moment</h2>
+    <div class="sub">{% if j.decisions_total > j.decisions|length %}{{ j.decisions|length }} sur {{ j.decisions_total }} : les autres arrivent dès que vous avez répondu.{% else %}Un clic suffit : la réponse est déjà prête.{% endif %}</div></div></div>
+  {% for d in j.decisions %}
+  <div style="border-top:1px solid var(--line);padding:12px 0">
+    <b>{{ d.titre | lisible }}</b>{% if d.pole %} <span class="muted small">· {{ d.pole }}</span>{% endif %}
+    {% if d.resume %}<div class="muted small">{{ d.resume }}</div>{% endif %}
+    {% if d.texte %}<pre style="white-space:pre-wrap;margin:8px 0;font-family:inherit">{{ d.texte }}</pre>{% endif %}
+    {% if d.incomplet %}<div class="alert amber">{{ icon('alert') }}<span>Texte incomplet : ouvrez la validation pour le compléter.</span></div>
+    <a class="btn sm" href="/validations#p{{ d.id }}">Compléter</a>
+    {% else %}
+    <div class="inline" style="gap:8px">
+      <form method="post" action="/validations/{{ d.id }}/approuver"><input type="hidden" name="retour" value="/journee"><button class="btn ok">{{ icon('check') }} Oui, envoyer</button></form>
+      <form method="post" action="/validations/{{ d.id }}/rejeter"><input type="hidden" name="retour" value="/journee"><button class="btn ghost-bad">{{ icon('x') }} Non</button></form>
+      <a class="btn sm" href="/validations#p{{ d.id }}">Modifier</a>
+    </div>
+    {% endif %}
+  </div>
   {% endfor %}
-  </ol>
+  {% if not j.decisions %}<p class="muted">Aucune décision pour vous. {% if j.priorites %}Il reste : <a href="{{ j.priorites[0].lien }}">{{ j.priorites[0].texte }}</a>.{% else %}Vous pouvez avancer sur vos projets.{% endif %}</p>{% endif %}
+  <p class="muted small" style="margin-bottom:0">{{ icon('sparkles') }} Les agents ont réglé seuls {{ j.handled_alone }} chose(s) depuis hier, sans vous déranger.</p>
 </section>
 
 <form class="card" method="post" action="/consigne" style="margin-bottom:16px">
@@ -32,6 +45,8 @@
   <button class="btn primary" style="margin-top:8px">Envoyer</button>
 </form>
 
+<details class="card" style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:700">Voir le détail (chiffres, alertes, consignes)</summary>
+<div style="margin-top:12px">
 <div class="grid g-3" style="margin-bottom:16px">
   <a class="card" href="/validations" style="text-decoration:none;color:inherit"><div class="muted small">À valider</div><div style="font-size:28px;font-weight:800;color:{{ 'var(--warn)' if j.pending else 'inherit' }}">{{ j.pending }}</div><div class="muted small">{{ j.prepared }} préparée(s) par les agents</div></a>
   <a class="card" href="/finance" style="text-decoration:none;color:inherit"><div class="muted small">Reste à encaisser</div><div style="font-size:28px;font-weight:800">{{ '{:,}'.format(j.outstanding).replace(',', ' ') }} <small>FCFA</small></div><div class="muted small">{{ j.payments_to_confirm }} paiement(s) à confirmer{% if j.tranches_retard %} · {{ j.tranches_retard }} tranche(s) EDUFORM en retard{% endif %}</div></a>
@@ -59,6 +74,8 @@
       <div class="muted small">{{ {'en_cours': 'Prise en charge…', 'prise': 'Prise en charge', 'a_preciser': 'À préciser : ' ~ e.question, 'repondue': 'Réponse donnée', 'redirigee': 'Redirigée', 'echec': 'Impossible'}[e.status] }} · {{ e.at }}</div></div>
   {% endfor %}
 </section>
+
+</div></details>
 
 <p class="muted small">Dépense IA ce mois : {{ j.ai_spend }} $ sur {{ j.ai_budget }} $ · <a href="/">Ancien accueil (statistiques détaillées)</a></p>
 {% endblock %}

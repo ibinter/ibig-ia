@@ -7,9 +7,42 @@ Lecture seule : aucune action n'est lancée d'ici.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
+from sqlalchemy import func, select
+
 from ..auth import Principal
+from ..db import JournalEntry, PendingAction, utcnow
 from ..llm import effective_budget
 from .stats import home_stats, sales_summary
+
+MAX_DECISIONS = 3
+SENT_KEYS = ("body", "texte", "contenu_html")
+
+
+def _decisions(rt, who: Principal) -> tuple[list[dict], int]:
+    """Les (au plus 3) propositions les plus anciennes que cette personne peut trancher, avec
+    le texte déjà prêt. Les autres attendent : on n'en montre jamais plus de trois à la fois."""
+    with rt.sessions() as s:
+        rows = s.scalars(select(PendingAction).where(PendingAction.status == "pending")
+                         .order_by(PendingAction.created_at)).all()
+    mine = [pa for pa in rows if who.can_decide(pa)]
+    cards = []
+    for pa in mine[:MAX_DECISIONS]:
+        text = next((pa.payload[k] for k in SENT_KEYS if isinstance(pa.payload.get(k), str)), "")
+        cards.append({"id": pa.id, "titre": pa.title, "pole": pa.pole, "type": pa.action_type,
+                      "texte": text[:600], "resume": pa.payload.get("resume", ""),
+                      "incomplet": "COMPLÉTER" in text.upper()})
+    return cards, len(mine)
+
+
+def _handled_alone(rt) -> int:
+    """Ce que les agents ont fait seuls depuis 24 h (niveau automatique), pour montrer le travail épargné."""
+    since = utcnow() - timedelta(hours=24)
+    with rt.sessions() as s:
+        return s.scalar(select(func.count()).select_from(JournalEntry).where(
+            JournalEntry.level == 1, JournalEntry.status == "executed",
+            JournalEntry.created_at >= since)) or 0
 
 TONE_BY_LEVEL = {"ok": "ok", "attention": "warn", "critique": "bad", "inconnu": "info"}
 BACKUP_MAX_H = 36
@@ -66,7 +99,9 @@ def build(rt, who: Principal) -> dict:
         "tranches_retard": tranches, "quotes_waiting": sales["quotes_waiting"],
         "hot_prospects": stats.hot_prospects, "open_tickets": stats.open_tickets,
     }
+    decisions, waiting = _decisions(rt, who)
     return {
+        "decisions": decisions, "decisions_total": waiting, "handled_alone": _handled_alone(rt),
         "niveau": summary["level"], "ton": TONE_BY_LEVEL[summary["level"]], "message": summary["message"],
         "suivis": summary["totals"]["suivis"], "dispo": summary["totals"]["disponibilite"],
         "priorites": _priorities(ctx),

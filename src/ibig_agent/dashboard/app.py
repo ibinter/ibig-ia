@@ -651,10 +651,12 @@ def create_app(rt: Runtime) -> FastAPI:
         return back(f"/validations#p{pid}", "Photo retirée : visuel aux couleurs IBIG seul")
 
     @app.post("/validations/{pid}/approuver")
-    def approve(pid: int, contenu: str | None = Form(None), who: Principal = Depends(user)):
+    def approve(pid: int, contenu: str | None = Form(None), retour: str = Form(""),
+                who: Principal = Depends(user)):
         pa = load(pid)
+        home = "/journee" if retour == "/journee" else "/validations"
         if not who.can_decide(pa):
-            return back("/validations", f"Refusé : vous ne validez pas le pôle {pa.pole}")
+            return back(home, f"Refusé : vous ne validez pas le pôle {pa.pole}")
         override = None
         key = next((k for k in EDITABLE_KEYS if k in pa.payload), None)
         if contenu is not None and key and contenu.strip() != pa.payload[key].strip():
@@ -662,20 +664,22 @@ def create_app(rt: Runtime) -> FastAPI:
         try:
             out = rt.governor.approve(pid, by=who.label, payload_override=override)
         except GovernanceError as exc:
-            return back("/validations", f"Refusé : {exc}")
+            return back(home, f"Refusé : {exc}")
         msg = "Validé et exécuté" if out.status == "executed" else f"Échec : {out.error}"
-        return back("/validations", msg)
+        return back(home, msg)
 
     @app.post("/validations/{pid}/rejeter")
-    def reject(pid: int, motif: str = Form(""), who: Principal = Depends(user)):
+    def reject(pid: int, motif: str = Form(""), retour: str = Form(""),
+               who: Principal = Depends(user)):
         pa = load(pid)
+        home = "/journee" if retour == "/journee" else "/validations"
         if not who.can_decide(pa):
-            return back("/validations", f"Refusé : vous ne validez pas le pôle {pa.pole}")
+            return back(home, f"Refusé : vous ne validez pas le pôle {pa.pole}")
         try:
             rt.governor.reject(pid, by=who.label, reason=motif)
         except GovernanceError as exc:
-            return back("/validations", f"Refusé : {exc}")
-        return back("/validations", "Rejeté")
+            return back(home, f"Refusé : {exc}")
+        return back(home, "Rejeté")
 
     @app.post("/validations/{pid}/traite")
     def handled(pid: int, note: str = Form(""), who: Principal = Depends(user)):
