@@ -1,5 +1,5 @@
 /* IBIG Agent IA — Service Worker v1 */
-const CACHE = 'ibig-ia-v1';
+const CACHE = 'ibig-ia-v2';
 const STATIC = [
   '/static/app.css',
   '/static/manifest.json'
