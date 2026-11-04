@@ -1,0 +1,26 @@
+# Copier en config/mailboxes.yaml (non versionné) et compléter (section 19).
+# Les secrets ne sont jamais écrits ici : on indique le NOM de la variable
+# d'environnement qui les contient (alimentée par le coffre à secrets).
+mailboxes:
+  - adresse: contact@ibigsoft.com
+    hebergeur: lws            # lws (IMAP/SMTP) ou gmail (API Gmail)
+    pole: SOFT
+    responsable: ""           # personne qui gère la boîte / reçoit les transferts
+    signature: |
+      L'équipe IBIG SOFT
+      www.ibigsoft.com
+    imap_host: mail.lws-hosting.com
+    imap_port: 993
+    smtp_host: mail.lws-hosting.com
+    smtp_port: 465
+    password_env: LWS_CONTACT_IBIGSOFT_PASSWORD
+
+  - adresse: ibigeduform@gmail.com
+    hebergeur: gmail
+    pole: EDUFORM
+    responsable: ""
+    signature: |
+      L'équipe IBIG EDUFORM
+      www.ibig-eduform.com
+    # Jeton OAuth de compte dédié à l'agent (jamais le mot de passe d'un salarié)
+    gmail_token_env: GMAIL_TOKEN_IBIGEDUFORM

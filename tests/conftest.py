@@ -107,7 +107,7 @@ class FakeConnector:
 @pytest.fixture
 def kb_dir(tmp_path):
     dest = tmp_path / "knowledge"
-    shutil.copytree(ROOT / "knowledge", dest)
+    shutil.copytree(ROOT / "tests" / "fixtures" / "knowledge", dest)   # contenu figé : indépendant des vraies fiches
     (dest / "faq" / "soft.md").write_text(FAQ_SOFT, encoding="utf-8")
     return dest
 
@@ -116,7 +116,7 @@ def kb_dir(tmp_path):
 def config_dir(tmp_path):
     """Configuration du dépôt, avec valideur et suppléant renseignés pour SOFT."""
     dest = tmp_path / "config"
-    shutil.copytree(ROOT / "config", dest)
+    shutil.copytree(ROOT / "tests" / "fixtures" / "config", dest)     # configuration figée : indépendante de la vraie
     poles = yaml.safe_load((dest / "poles.yaml").read_text(encoding="utf-8"))
     for p in poles["poles"]:
         if p["code"] == "SOFT":

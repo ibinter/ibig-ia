@@ -27,12 +27,15 @@ def ap(rt, llm):
 def test_bad_plans_are_refused():
     for plan, msg in (({"taches": []}, "aucune tâche"),
                       ({"taches": [{"titre": "", "agent": "", "depend_de": []}]}, "titre"),
-                      ({"taches": [{"titre": "A", "agent": "", "depend_de": [1]}]}, "postérieure"),
-                      ({"taches": [{"titre": "A", "agent": "", "depend_de": [0]}]}, "inexistante"),
                       ({"taches": [{"titre": f"T{i}", "agent": "", "depend_de": []}
                                    for i in range(13)]}, "trop long")):
         with pytest.raises(AutopilotError, match=msg):
             validate_plan(plan)
+    # une dépendance vers une tâche inexistante ou postérieure est écartée, pas fatale pour tout le plan
+    for bad in ([1], [0], [5]):
+        _, _, tasks = validate_plan({"taches": [{"titre": "A", "agent": "", "depend_de": bad},
+                                                {"titre": "B", "agent": "", "depend_de": [1]}]})
+        assert tasks[0].depends == [] and tasks[1].depends == [1]
     _, _, tasks = validate_plan({"taches": [{"titre": "A", "agent": "pirate", "depend_de": []}]})
     assert tasks[0].agent == ""                                # agent inconnu : une personne
 
@@ -281,14 +284,17 @@ def test_question_and_decision_create_no_mission_and_one_off_costs_nothing(rt, l
     assert llm.calls == []                                   # aucun appel d'IA pour ces trois cas
 
 
-def test_execute_prepares_ready_agent_tasks_but_never_closes_them(rt, llm):
+def test_execute_prepares_agent_tasks_and_closes_them_as_unreviewed_drafts(rt, llm):
+    from ibig_agent.autopilot import AUTO_EVIDENCE
     ap = rt.autopilot
     mid = ap.from_procedure("preparation-devis", "Collège Les Palmiers", "Awa", "SOFT")
     out = ap.execute(mid, "Awa")
     assert out["prepared"] == 1 and out["failed"] == 0
     first = ap.tasks(mid)[0]
-    assert first.status == "en_cours" and first.result and first.evidence == ""
-    assert ap.tasks(mid)[1].status == "a_faire"               # la clôture reste humaine
+    assert first.status == "terminee" and first.result and first.evidence == AUTO_EVIDENCE
+    assert first.finished_at is not None and first.finished_by.startswith("agent ")   # traçable
+    assert ap.tasks(mid)[1].status == "prete"                 # la suite est débloquée, la tâche humaine reste à faire
+    assert ap.report(mid)["unreviewed"] == 1 and ap.report(mid)["closed"] is False
 
 
 def test_execute_retries_then_fails_the_task_and_blocks_the_next(rt, llm, monkeypatch):
@@ -498,7 +504,7 @@ def test_recurring_can_prepare_drafts_within_a_budget(rt, llm):
     mid = rt.recurring.all()[0].last_mission
     assert llm.calls == ["chef.autopilot_task"]                    # brouillon de l'agent « chef »
     assert rt.missions.get(mid).budget_usd == 0.5
-    assert rt.autopilot.tasks(mid)[0].status == "en_cours" and rt.autopilot.tasks(mid)[0].result
+    assert rt.autopilot.tasks(mid)[0].status == "terminee" and rt.autopilot.tasks(mid)[0].result
 
 
 def test_recurring_manual_run_and_page(rt):

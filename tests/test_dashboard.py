@@ -310,10 +310,12 @@ def test_configuration_pages_render_each_form_once(rt, accounts):
 
 
 def test_sidebar_is_collapsible_and_marks_current_page(rt, accounts):
-    page = client(rt, "dg@ibig.test").get("/journal").text
+    page = client(rt, "dg@ibig.test").get("/services").text      # une page de réglages : « Réglages » est actif
     assert 'id="side-toggle"' in page and 'id="nav-q"' in page
     assert '<a href="/reglages" class="on ' in page and 'aria-current="page"' in page
     assert page.count('aria-current="page"') == 1
+    journal = client(rt, "dg@ibig.test").get("/journal").text    # le journal a désormais sa propre entrée
+    assert '<a href="/journal" class="on ' in journal and journal.count('aria-current="page"') == 1
     assert '<a href="/validations" class="on ' in client(rt, "dg@ibig.test").get(
         "/validations").text
 

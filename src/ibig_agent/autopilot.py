@@ -25,6 +25,7 @@ from .llm import LLMError
 from .missions import MissionService
 
 MAX_TASKS = 12
+AUTO_EVIDENCE = "Brouillon préparé par l'agent (non relu par un humain)"
 DEFAULT_BUDGET_USD = 3.0     # plafond de dépense IA d'une mission créée par l'Autopilot (modifiable)
 TASK_LABELS = {"a_faire": "À faire", "prete": "Prête", "en_cours": "En cours",
                "terminee": "Terminée", "echec": "Échec", "bloquee": "Bloquée",
@@ -341,10 +342,13 @@ class Autopilot:
                         with self._sessions() as s:
                             t = self._get(s, task_id)
                             if t.status == "en_cours":
-                                t.status, t.ended_at = "terminee", utcnow()
+                                # Clôture technique pour débloquer la suite : le brouillon n'est PAS relu.
+                                t.status, t.finished_at = "terminee", utcnow()
+                                t.finished_by = f"agent {agent}"
+                                t.evidence = AUTO_EVIDENCE
                                 self._event(s, t.mission_id, "etat",
-                                            f"Tâche {t.position} clôturée automatiquement "
-                                            "(brouillon prêt)", by)
+                                            f"Tâche {t.position} clôturée automatiquement : brouillon "
+                                            "préparé par l'agent, à relire avant tout usage", by)
                                 self._refresh(s, t.mission_id)
                                 self._close_if_done(s, t.mission_id, by)
                             s.commit()
@@ -474,6 +478,7 @@ class Autopilot:
             "cost_usd": round(sum(r.cost_usd for r in rows), 4),
             "duration_s": seconds if closed else 0,
             "proofs": [(r.position, r.title, r.evidence) for r in done if r.evidence],
+            "unreviewed": sum(r.evidence == AUTO_EVIDENCE for r in done),
         }
 
     def progress(self, mission_id: int) -> tuple[int, int]:

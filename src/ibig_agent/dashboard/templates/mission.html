@@ -36,7 +36,7 @@
     {% if report %}<div class="card" style="margin-top:16px">
       <div class="card-head"><div><h2>{{ icon('chart') }} Rapport de mission</h2><div class="sub">{{ 'Mission terminée' if report.closed else 'Mission en cours' }}</div></div></div>
       <dl class="kv">
-        <dt>Avancement</dt><dd>{{ report.done }} tâche{{ 's' if report.done > 1 }} sur {{ report.total }}</dd>
+        <dt>Avancement</dt><dd>{{ report.done }} tâche{{ 's' if report.done > 1 }} sur {{ report.total }}{% if report.unreviewed %} <span class="pill amber dot">dont {{ report.unreviewed }} brouillon{{ 's' if report.unreviewed > 1 }} non relu{{ 's' if report.unreviewed > 1 }}</span>{% endif %}</dd>
         <dt>Problèmes</dt><dd>{{ report.failed }} bloquée{{ 's' if report.failed > 1 }} ou en échec · {{ report.retries }} nouvel{{ 'les' if report.retries > 1 else '' }} essai{{ 's' if report.retries > 1 }}</dd>
         <dt>Coût IA</dt><dd>{{ '%.4f' | format(m.spent_usd or 0) }} $ dépensés{% if m.budget_usd %} sur {{ '%g' | format(m.budget_usd) }} $ de budget{% else %} (pas de budget propre){% endif %}
           <form method="post" action="/missions/{{ m.id }}/budget" style="display:inline-flex;gap:6px;margin-left:8px"><input type="text" name="budget" value="{{ m.budget_usd or '' }}" size="5" placeholder="$" aria-label="Budget en dollars"><button class="btn">Fixer</button></form></dd>

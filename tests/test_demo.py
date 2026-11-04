@@ -7,8 +7,9 @@ from ibig_agent.demo import DemoMailbox, DemoSite, build_demo, seed
 
 
 def test_demo_uses_only_simulated_channels_and_seeds_every_path(tmp_path):
-    demo = build_demo(tmp_path / "demo", Settings(config_dir=ROOT / "config",
-                                                  knowledge_dir=ROOT / "knowledge",
+    real_sheet = (ROOT / "knowledge/poles/soft.md").read_bytes()
+    demo = build_demo(tmp_path / "demo", Settings(config_dir=ROOT / "tests" / "fixtures" / "config",
+                                                  knowledge_dir=ROOT / "tests" / "fixtures" / "knowledge",
                                                   _env_file=None))
     rt = demo.runtime
     assert all(isinstance(c, DemoMailbox) for c in rt.connectors.values())
@@ -26,4 +27,4 @@ def test_demo_uses_only_simulated_channels_and_seeds_every_path(tmp_path):
             "transfere"} <= set(decisions)
     assert pending >= 4
     # Le dépôt réel n'est pas modifié par la démonstration.
-    assert "statut: a_completer" in (ROOT / "knowledge/poles/soft.md").read_text("utf-8")
+    assert (ROOT / "knowledge/poles/soft.md").read_bytes() == real_sheet
