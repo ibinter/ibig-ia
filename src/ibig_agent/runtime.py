@@ -331,6 +331,12 @@ class Runtime:
                                 core_details=lambda n: self.core_monitor.details(n))
 
     @property
+    def seo(self):
+        from .seo import SeoService
+
+        return SeoService(self.sessions, self.settings, self.ecosystem.assets)
+
+    @property
     def consigne(self):
         from .consigne import ConsigneService
 

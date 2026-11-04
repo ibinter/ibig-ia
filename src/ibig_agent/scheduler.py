@@ -98,6 +98,8 @@ def job_specs(rt: Runtime) -> list[JobSpec]:
         JobSpec("core_checks", "Contrôles d'IBIG CORE", "toutes les 6 heures",
                 lambda: rt.core_monitor.run() if rt.core_monitor.configured() else {"raccorde": False},
                 "interval", {"hours": 6, **every}, alert_after=4),
+        JobSpec("seo_audit", "Audit du référencement des sites", "chaque jour à 4 h",
+                lambda: rt.seo.run(), "cron", {"hour": 4, "minute": 0, **every}, manual=True),
         JobSpec("eco_probe", "Mesure de l'écosystème", "toutes les 5 min",
                 lambda: rt.ecosystem.run_probes(), "interval",
                 {"minutes": 5, **every,

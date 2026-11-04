@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Sites du groupe{% endblock %}
+{% block heading %}Sites du groupe{% endblock %}
+{% block lead %}<p class="lead">Tous les sites et logiciels IBIG au même endroit, rangés par pôle : état, vitesse, référencement. Chaque ligne mène à la fiche détaillée.</p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px">
+  <b>{{ eco.totals.suivis }}</b> actifs suivis · <b>{{ eco.totals.ok }}</b> normaux · <b>{{ eco.totals.attention }}</b> à surveiller · <b>{{ eco.totals.critique }}</b> urgents
+  <a class="btn sm" href="/ecosysteme" style="margin-left:12px">Mesures et incidents</a>
+  <a class="btn sm" href="/seo">Référencement</a>
+</section>
+{% for pole, items in by_pole.items() %}
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('globe') }} {{ pole }}</h2><div class="sub">{{ items | length }} actif(s)</div></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Nom</th><th>État</th><th>Réponse</th><th>Dispo 24 h</th><th>Référencement</th><th>Hébergement</th><th></th></tr></thead>
+    <tbody>
+    {% for a in items %}
+    <tr>
+      <td><b>{{ a.name }}</b><div class="muted small"><a href="{{ a.url }}" target="_blank" rel="noopener">{{ a.url | replace('https://', '') }}</a></div></td>
+      <td><span class="pill {{ state_tone[a.state] }} dot">{{ state_label[a.state] }}</span></td>
+      <td>{{ a.ms if a.ms is not none else '—' }}{{ ' ms' if a.ms is not none }}</td>
+      <td>{{ a.uptime if a.uptime is not none else '—' }}{{ ' %' if a.uptime is not none }}</td>
+      <td>{% if a.seo %}<a href="/seo/{{ a.id }}"><span class="pill {{ grade_tone[a.seo.grade] }}">{{ a.seo.score }}/100</span></a>{% elif a.kind == 'site' %}<span class="muted small">pas encore audité</span>{% else %}<span class="muted small">—</span>{% endif %}</td>
+      <td class="muted small">{{ a.hosting }}</td>
+      <td>{% if a.kind == 'site' %}<a class="btn sm" href="/seo/{{ a.id }}">Fiche SEO</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+</section>
+{% endfor %}
+{% endblock %}
