@@ -334,7 +334,7 @@ class Runtime:
     def seo(self):
         from .seo import SeoService
 
-        return SeoService(self.sessions, self.settings, self.ecosystem.assets)
+        return SeoService(self.sessions, self.settings, self.ecosystem.assets, llm=self.llm)
 
     @property
     def consigne(self):

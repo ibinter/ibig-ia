@@ -1,6 +1,7 @@
 """Audit de référencement : règles, note, exploration, mission (aucun accès réseau réel)."""
 
 import httpx
+import pytest
 
 from ibig_agent.db import EcoAsset
 from ibig_agent.seo import Issue, SeoService, analyze_page, grade, score
@@ -92,3 +93,32 @@ def test_private_portal_is_never_audited_nor_counted(rt):
     service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site({"/": GOOD}))
     assert service.run() == {"sites": 0, "moyenne": None}
     assert service.overview() == [] and service.result(a.id) is None
+
+
+class FakeLlm:
+    def __init__(self, answers):
+        self.answers = list(answers)
+
+    def write(self, purpose, system, user, max_tokens=4000):
+        assert "IBI GROUP SARL" in system and "jamais" in system.lower()
+        return self.answers.pop(0)
+
+
+def test_meta_proposals_are_validated_refused_when_wrong_and_feed_the_mission(rt):
+    a = one_asset(rt, "Site meta", "https://meta.ci")
+    pages = {"/": "<html><body><h1>x</h1><a href='/p'>p</a>" + "mot " * 300 + "</body></html>",
+             "/p": "<html><body>court</body></html>"}
+    service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site(pages),
+                         llm=FakeLlm([('{"title": "Logiciels de gestion à Abidjan | IBIG SARL", '
+                                       '"description": "IBIG SARL, ou INTERMARK BUSINESS INTERNATIONAL GROUP, '
+                                       'conçoit des logiciels de gestion pour entreprises et écoles en Côte d Ivoire."}'),
+                                      '{"title": "IBIG Group, la meilleure agence digitale", "description": "x"}']))
+    service.audit(a)
+    out = service.propose_meta(a.id, "dg")
+    assert len(out) == 1 and "IBIG SARL" in out[0]["title"] and out[0]["status"] == "propose"
+    service.decide_meta(a.id, 0, True, "dg")
+    assert service.meta_proposals(a.id)[0]["status"] == "valide"
+    _title, _goal, steps = service.fix_plan(a.id)
+    assert steps[0][0].startswith("Appliquer les 1 titre") and "<title>" in steps[0][1]
+    with pytest.raises(ValueError):
+        service.decide_meta(a.id, 5, True, "dg")

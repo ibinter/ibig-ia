@@ -39,6 +39,10 @@ SLOW_MS = 2500
 SKIP_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".zip", ".xml", ".gz", ".mp4")
 
 
+META_KEY = "seo_meta_{}"
+BRAND = ("IBIG SARL (nom abrégé de INTERMARK BUSINESS INTERNATIONAL GROUP, aussi appelée IBI GROUP SARL) : "
+         "ces trois noms peuvent apparaître. Ne jamais écrire « IBIG Group ».")
+META_CODES = {"title_absent", "title_longueur", "desc_absente", "desc_longueur"}
 PRIVATE_MARK = "seo:non"   # dans les notes d'un actif : espace privé, volontairement non indexé
 
 
@@ -70,6 +74,7 @@ class _Page(HTMLParser):
         self.ldjson = 0
         self.links: list[str] = []
         self.words = 0
+        self.excerpt = ""
         self._in: str | None = None
         self._skip = 0
 
@@ -111,6 +116,8 @@ class _Page(HTMLParser):
             self.title += data
         if not self._skip:
             self.words += len(data.split())
+            if len(self.excerpt) < 900 and data.strip():
+                self.excerpt += " " + " ".join(data.split())
 
 
 def analyze_page(html: str, url: str) -> tuple[list[Issue], list[str]]:
@@ -186,7 +193,9 @@ def grade(value: int) -> str:
 
 class SeoService:
     def __init__(self, sessions: sessionmaker[Session], settings: Settings,
-                 assets: Callable[[], list[EcoAsset]], client: httpx.Client | None = None) -> None:
+                 assets: Callable[[], list[EcoAsset]], client: httpx.Client | None = None,
+                 llm=None) -> None:
+        self.llm = llm
         self._sessions = sessions
         self.settings = settings
         self._assets = assets
@@ -328,6 +337,73 @@ class SeoService:
         grouped: dict[str, Issue] = {}
         for i in sorted((Issue(**x) for x in r["issues"]), key=lambda x: order[x.severity]):
             grouped.setdefault(i.code, i)
-        steps = [(i.problem[:80], f"{i.fix}\nPage : {i.page}") for i in list(grouped.values())[:10]]
+        steps = [(i.problem[:80], f"{i.fix}\nPage : {i.page}") for i in list(grouped.values())[:9]]
+        ok = [m for m in self.meta_proposals(asset_id) if m["status"] == "valide"]
+        if ok:
+            snippets = "\n\n".join(f"Page : {m['page']}\n<title>{m['title']}</title>\n"
+                                    f"<meta name=\"description\" content=\"{m['description']}\">" for m in ok)
+            steps.insert(0, (f"Appliquer les {len(ok)} titre(s) et description(s) validés",
+                             "Remplacer les balises de chaque page par celles-ci (déjà validées par la direction) :"
+                             "\n\n" + snippets))
         return (f"Améliorer le référencement de {name}",
                 f"Faire passer {name} de {r['score']}/100 à 90/100 en corrigeant les points ci-dessous.", steps)
+
+
+    # ------------------------------------------------------------------ titres et descriptions
+    def meta_proposals(self, asset_id: int) -> list[dict]:
+        raw = service_value(self._sessions, self.settings, META_KEY.format(asset_id))
+        try:
+            return json.loads(raw) if raw else []
+        except ValueError:
+            return []
+
+    def propose_meta(self, asset_id: int, by: str) -> list[dict]:
+        """L'IA rédige un titre et une description pour chaque page à corriger. Ce sont des PROPOSITIONS :
+        rien n'est publié, un humain valide chacune."""
+        if self.llm is None:
+            raise ValueError("L'IA n'est pas configurée")
+        r = self.result(asset_id)
+        asset = next((a for a in self._assets() if a.id == asset_id), None)
+        if asset is None or r is None:
+            raise ValueError("Lancez d'abord un audit de ce site")
+        pages = list(dict.fromkeys(i["page"] for i in r["issues"] if i["code"] in META_CODES))[:PAGES_PER_SITE]
+        if not pages:
+            raise ValueError("Titres et descriptions déjà corrects")
+        client, out = self._http(), []
+        for url in pages:
+            _status, html, _ms = self._get(client, url)
+            page = _Page()
+            try:
+                page.feed(html)
+            except Exception:  # noqa: BLE001, S110 — du HTML cassé ne doit jamais arrêter la rédaction
+                pass
+            facts = (f"Site : {asset.name} ({asset.url})\nPôle : {asset.pole or 'groupe'}\nPage : {url}\n"
+                     f"Titre actuel : {' '.join(page.title.split()) or '(aucun)'}\n"
+                     f"Description actuelle : {page.meta.get('description', '(aucune)')}\n"
+                     f"Texte de la page : {page.excerpt.strip()[:800]}")
+            try:
+                text = self.llm.write(
+                    "seo.meta",
+                    "Tu rédiges le référencement d'une page pour IBIG (Abidjan). Réponds UNIQUEMENT par un JSON "
+                    '{"title": "...", "description": "..."} en français. Titre : 40 à 60 caractères, mot-clé '
+                    "principal en premier puis la marque. Description : 120 à 155 caractères, concrète, donne "
+                    "envie de cliquer. N'utilise que les faits du texte fourni : aucun prix, aucun chiffre, "
+                    f"aucune promesse inventés. Marque : {BRAND}", facts, 300)
+                data = json.loads(text[text.index("{"):text.rindex("}") + 1])
+                title, desc = " ".join(str(data["title"]).split()), " ".join(str(data["description"]).split())
+            except Exception:  # noqa: BLE001, S112 — une page sans proposition valable est simplement ignorée
+                continue
+            if "ibig group" in (title + desc).lower():
+                continue
+            if TITLE_RANGE[0] <= len(title) <= TITLE_RANGE[1] and DESC_RANGE[0] <= len(desc) <= DESC_RANGE[1]:
+                out.append({"page": url, "title": title, "description": desc, "status": "propose"})
+        set_service_value(self._sessions, self.settings, META_KEY.format(asset_id), json.dumps(out), by)
+        return out
+
+    def decide_meta(self, asset_id: int, index: int, approve: bool, by: str) -> None:
+        items = self.meta_proposals(asset_id)
+        if not 0 <= index < len(items):
+            raise ValueError("Proposition introuvable")
+        items[index]["status"] = "valide" if approve else "rejete"
+        items[index]["by"] = by
+        set_service_value(self._sessions, self.settings, META_KEY.format(asset_id), json.dumps(items), by)

@@ -58,7 +58,8 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         result = rt.seo.result(aid)
         order = {"critical": 0, "warning": 1, "info": 2}
         issues = sorted((result or {}).get("issues", []), key=lambda i: order[i["severity"]])
-        return page(request, "seo_detail.html", asset=asset, r=result, issues=issues, grade_tone=GRADE_TONE)
+        return page(request, "seo_detail.html", asset=asset, r=result, issues=issues, grade_tone=GRADE_TONE,
+                    metas=rt.seo.meta_proposals(aid))
 
     @app.post("/seo/auditer")
     def audit_all(who: Principal = Depends(user)):
@@ -96,3 +97,24 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
         except (ValueError, AutopilotError) as exc:
             return back(f"/seo/{aid}", f"Refusé : {exc}")
         return back(f"/missions/{mid}", "Mission de référencement créée : validez puis suivez les étapes")
+
+    @app.post("/seo/{aid:int}/redaction")
+    def seo_write(aid: int, who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            n = len(rt.seo.propose_meta(aid, who.label))
+        except ValueError as exc:
+            return back(f"/seo/{aid}", f"Refusé : {exc}")
+        return back(f"/seo/{aid}", f"{n} proposition(s) rédigée(s) : relisez puis validez" if n
+                    else "L'IA n'a rien proposé de valable : réessayez")
+
+    @app.post("/seo/{aid:int}/meta/{idx:int}/{action}")
+    def seo_meta_decide(aid: int, idx: int, action: str, who: Principal = Depends(user)):
+        direction_only(who)
+        if action not in ("valider", "rejeter"):
+            raise HTTPException(404)
+        try:
+            rt.seo.decide_meta(aid, idx, action == "valider", who.label)
+        except ValueError as exc:
+            return back(f"/seo/{aid}", f"Refusé : {exc}")
+        return back(f"/seo/{aid}", "Validé" if action == "valider" else "Rejeté")
