@@ -164,3 +164,17 @@ def test_intermark_connector_signs_requests_and_reports_refusals(rt):
     with pytest.raises(ValueError, match="Signature invalide"):
         bad.ping()
     assert not IntermarkConnector(lambda: "", client=client).ready()
+
+
+def test_plain_text_for_sites_that_escape_html_and_all_php_sites_are_listed(rt):
+    from ibig_agent.articles import PHP_SITES, to_text
+
+    out = to_text("## Titre\n\nUn **gras**.\n- a\n### Sous\nFin")
+    assert "TITRE" in out and "Un gras." in out and "<" not in out and "Sous" in out
+    s = ArticleService(rt.sessions, rt.settings)
+    assert {t["key"] for t in s.targets()} == {"DIGITAL", *PHP_SITES}
+    assert not any(t["ready"] for t in s.targets() if t["key"] in PHP_SITES)
+    s.set_site_secret("IMMO", "x" * 40, "dg")
+    assert {t["key"]: t["ready"] for t in s.targets()}["IMMO"] is True
+    with pytest.raises(ValueError):
+        s.set_site_secret("INCONNU", "x", "dg")
