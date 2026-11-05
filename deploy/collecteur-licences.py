@@ -73,7 +73,7 @@ def elearn() -> list[dict]:
     req = urllib.request.Request(
         env["NEXT_PUBLIC_SUPABASE_URL"] + "/rest/v1/organizations?select=id,name,plan,is_active,billing_email,slug,created_at",
         headers={"apikey": key, "Authorization": "Bearer " + key})
-    rows = json.load(urllib.request.urlopen(req, timeout=30))  # noqa: S310 - URL de notre propre projet
+    rows = json.load(urllib.request.urlopen(req, timeout=30))
     return [{"external_id": str(r["id"]), "client": r["name"], "contact": r.get("billing_email") or "",
              "product": "IBIG E-LEARN", "raw_plan": r.get("plan"),
              "raw_status": "active" if r.get("is_active") else "inactive", "amount": 0,
