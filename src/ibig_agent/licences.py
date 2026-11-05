@@ -13,7 +13,7 @@ PLANS = {"mensuel": 1, "trimestriel": 3, "semestriel": 6, "annuel": 12,
          "unique": 0, "essai": 0, "gratuit": 0}                      # mois couverts par une période
 BILLING = {"mensuel": "mensuel", "monthly": "mensuel", "trimestriel": "trimestriel", "quarterly": "trimestriel",
            "semestriel": "semestriel", "semiannual": "semestriel", "annuel": "annuel", "yearly": "annuel",
-           "annual": "annuel"}
+           "annual": "annuel", "lifetime": "unique", "one_time": "unique", "onetime": "unique", "perpetuelle": "unique"}
 FREE_WORDS = {"free", "gratuit", "decouverte", "découverte"}
 TRIAL_WORDS = {"trial", "essai"}
 CANCEL_WORDS = {"cancelled", "canceled", "annule", "annulé", "resilie", "résilié", "resiliee"}

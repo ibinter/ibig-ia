@@ -9,6 +9,7 @@ L'agent IA importe ensuite ce fichier dans « Licences et abonnements ».
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -29,7 +30,49 @@ def my(sql: str) -> list[dict]:
     return [json.loads(line) for line in out.splitlines() if line.startswith("{")]
 
 
+def pg_host(db: str, sql: str) -> list[dict]:
+    """PostgreSQL installé sur le serveur lui-même (Lokativo, Secretis)."""
+    cmd = ["runuser", "-u", "postgres", "--", "psql", "-d", db, "-tA", "-v", "ON_ERROR_STOP=1"]
+    out = subprocess.run(cmd, input=sql, capture_output=True, text=True, timeout=60, check=True).stdout
+    return [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+
+
+def _iso(value) -> str:
+    """Date Prisma/SQLite (millisecondes ou texte) -> AAAA-MM-JJ."""
+    if value in (None, ""):
+        return ""
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value / 1000, UTC).date().isoformat()
+    return str(value)[:10]
+
+
+def docpro() -> list[dict]:
+    con = sqlite3.connect("file:/var/www/docpro/prisma/prod.db?mode=ro", uri=True)
+    rows = con.execute("""select l.id, u.name, u.email, p.code, l.status, p.durationType, p.price,
+                          l.startDate, l.endDate from License l join User u on u.id = l.userId
+                          left join Plan p on p.id = l.planId""").fetchall()
+    return [{"external_id": r[0], "client": r[1] or r[2], "contact": r[2], "product": "DOCPRO", "raw_plan": r[3],
+             "raw_status": r[4], "billing": r[5], "amount": r[6] or 0, "starts": _iso(r[7]), "ends": _iso(r[8]),
+             "site": ""} for r in rows]
+
+
 SOURCES = {
+    "LOKATIVO": lambda: pg_host("lokativo", """
+        select json_build_object('external_id', o.id::text, 'client', o.nom, 'contact', coalesce(o.email, ''),
+          'product', 'LOKATIVO', 'raw_plan', o.plan, 'raw_status', o.statut,
+          'billing', (select p.periode from "PaiementLicence" p where p."orgId" = o.id order by p."createdAt" desc limit 1),
+          'amount', coalesce((select p.montant from "PaiementLicence" p where p."orgId" = o.id
+                              order by p."createdAt" desc limit 1), 0),
+          'starts', o."createdAt"::date,
+          'ends', (case when o.statut = 'essai' then o."essaiFin" else o."abonnementFin" end)::date, 'site', o.slug)
+        from "Organisation" o;"""),
+    "SECRETIS": lambda: pg_host("secretis_prod", """
+        select json_build_object('external_id', l.id::text, 'client', o.name, 'contact', coalesce(o.email, ''),
+          'product', 'SECRETIS', 'raw_plan', l.plan_name, 'raw_status', l.status, 'billing', l.billing_cycle,
+          'amount', coalesce(l.price, 0), 'starts', l.starts_at::date, 'ends', l.ends_at::date,
+          'site', coalesce(o.domain, o.slug))
+        from licenses l join organizations o on o.id = l.organization_id where l.superseded_at is null;"""),
+    "DOCPRO": docpro,
     "SANTAREX": lambda: pg("santarex_postgres", "santarex_db", """
         select json_build_object('external_id', l.id::text, 'client', coalesce(t.nom, l."tenantSlug"),
           'contact', coalesce(t.email, ''), 'product', 'SANTAREX', 'raw_plan', l."offreCode",
