@@ -9,10 +9,12 @@ L'agent IA importe ensuite ce fichier dans « Licences et abonnements ».
 
 import json
 import os
+import re
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from datetime import UTC, datetime
 
 OUT = os.environ.get("IBIG_LICENCES_OUT", "/opt/ibig-ia/state/licences-collectees.json")
@@ -35,6 +37,47 @@ def pg_host(db: str, sql: str) -> list[dict]:
     cmd = ["runuser", "-u", "postgres", "--", "psql", "-d", db, "-tA", "-v", "ON_ERROR_STOP=1"]
     out = subprocess.run(cmd, input=sql, capture_output=True, text=True, timeout=60, check=True).stdout
     return [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+
+
+def _env(path: str) -> dict:
+    out = {}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            m = re.match(r"([A-Z_]+)=(.*)", line.strip())
+            if m:
+                out[m.group(1)] = m.group(2).strip().strip('"').strip("'")
+    return out
+
+
+def digital() -> list[dict]:
+    """IBIG DIGITAL (base Neon) : les commandes de sites des clients, avec hébergement/maintenance annuels."""
+    url = _env("/var/www/ibig-digital/.env")["DATABASE_URL"]
+    sql = """select json_build_object('external_id', o.id::text, 'client', coalesce(nullif(c.company, ''), c.name),
+      'contact', coalesce(c.email, ''), 'product', 'IBIG DIGITAL', 'raw_plan', o.formule, 'raw_status', o.status,
+      'billing', case when coalesce(o.total_annual, 0) > 0 then 'annuel' else 'unique' end,
+      'amount', case when coalesce(o.total_annual, 0) > 0 then o.total_annual else coalesce(o.total_initial, 0) end,
+      'starts', coalesce(o.delivery_date, o.created_at)::date,
+      'ends', case when coalesce(o.total_annual, 0) > 0
+                   then (coalesce(o.delivery_date, o.created_at)::date + interval '1 year')::date end,
+      'site', coalesce(o.site_url, o.domain, ''))
+      from client_orders o join clients c on c.id = o.client_id;"""
+    out = subprocess.run(["psql", url, "-tA", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True,
+                         text=True, timeout=60, check=True).stdout
+    return [json.loads(line) for line in out.splitlines() if line.startswith("{")]
+
+
+def elearn() -> list[dict]:
+    """IBIG E-LEARN (Supabase) : organisations clientes et leur forfait."""
+    env = _env("/var/www/ibig-elearn/.env")
+    key = env["SUPABASE_SERVICE_ROLE_KEY"]
+    req = urllib.request.Request(
+        env["NEXT_PUBLIC_SUPABASE_URL"] + "/rest/v1/organizations?select=id,name,plan,is_active,billing_email,slug,created_at",
+        headers={"apikey": key, "Authorization": "Bearer " + key})
+    rows = json.load(urllib.request.urlopen(req, timeout=30))  # noqa: S310 - URL de notre propre projet
+    return [{"external_id": str(r["id"]), "client": r["name"], "contact": r.get("billing_email") or "",
+             "product": "IBIG E-LEARN", "raw_plan": r.get("plan"),
+             "raw_status": "active" if r.get("is_active") else "inactive", "amount": 0,
+             "starts": _iso(r.get("created_at")), "ends": "", "site": r.get("slug") or ""} for r in rows]
 
 
 def _iso(value) -> str:
@@ -73,6 +116,8 @@ SOURCES = {
           'site', coalesce(o.domain, o.slug))
         from licenses l join organizations o on o.id = l.organization_id where l.superseded_at is null;"""),
     "DOCPRO": docpro,
+    "IBIG_DIGITAL": digital,
+    "IBIG_ELEARN": elearn,
     "SANTAREX": lambda: pg("santarex_postgres", "santarex_db", """
         select json_build_object('external_id', l.id::text, 'client', coalesce(t.nom, l."tenantSlug"),
           'contact', coalesce(t.email, ''), 'product', 'SANTAREX', 'raw_plan', l."offreCode",
