@@ -347,6 +347,12 @@ class Runtime:
         return self._analytics
 
     @property
+    def licences(self):
+        from .licences import LicenseService
+
+        return LicenseService(self.sessions)
+
+    @property
     def consigne(self):
         from .consigne import ConsigneService
 

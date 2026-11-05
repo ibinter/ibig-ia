@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -781,6 +782,26 @@ class Visit(Base):
     ref: Mapped[str] = mapped_column(String(120), default="")    # domaine d'origine (google.com, direct…)
     visitor: Mapped[str] = mapped_column(String(16), default="")  # empreinte anonyme valable un jour
     device: Mapped[str] = mapped_column(String(10), default="")  # mobile | ordi | tablette
+
+
+class License(Base):
+    """Licence ou abonnement vendu à un client (logiciel, plateforme, hébergement, maintenance…)."""
+
+    __tablename__ = "licenses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client: Mapped[str] = mapped_column(String(200), index=True)
+    contact: Mapped[str] = mapped_column(String(200), default="")      # e-mail ou téléphone
+    product: Mapped[str] = mapped_column(String(200), index=True)
+    plan: Mapped[str] = mapped_column(String(10), default="annuel")    # mensuel | annuel | unique | essai
+    amount_fcfa: Mapped[int] = mapped_column(Integer, default=0)       # prix de la période (FCFA)
+    starts_on: Mapped[date] = mapped_column(Date)
+    ends_on: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)   # vide = sans échéance
+    status: Mapped[str] = mapped_column(String(12), default="active")  # active | suspendue | resiliee
+    site: Mapped[str] = mapped_column(String(200), default="")         # site ou plateforme concerné
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
