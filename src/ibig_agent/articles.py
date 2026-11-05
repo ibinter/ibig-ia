@@ -217,6 +217,8 @@ PHP_SITES = {
              "https://ibigimmotrust.com/api/publier-article.php", "html"),
     "EDUFORM": ("connector_eduform_secret", "IBIG EDUFORM (ibig-eduform.com)",
                 "https://ibig-eduform.com/api/publier-article.php", "html"),
+    "SOFT": ("connector_soft_secret", "IBIG SOFT (ibigsoft.com)",
+             "https://ibigsoft.com/api/publier-article.php", "html"),
     "PATRICE": ("connector_patrice_secret", "patricekouakou.com",
                 "https://patricekouakou.com/api/publier-article.php", "texte"),
 }
