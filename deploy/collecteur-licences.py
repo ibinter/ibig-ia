@@ -91,7 +91,7 @@ def main() -> int:
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(OUT))
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(result, fh, ensure_ascii=False)
-    os.chmod(tmp, 0o640)
+    os.chmod(tmp, 0o644)  # lisible par le conteneur de l agent (montage en lecture seule)
     os.replace(tmp, OUT)
     print({k: len(v) for k, v in result["sources"].items()}, "erreurs:", list(result["errors"]))
     return 0
