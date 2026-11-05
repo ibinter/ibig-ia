@@ -9,7 +9,15 @@ from sqlalchemy import select
 
 from .db import License, utcnow
 
-PLANS = {"mensuel": 1, "annuel": 12, "unique": 0, "essai": 0}      # mois couverts par une période
+PLANS = {"mensuel": 1, "trimestriel": 3, "semestriel": 6, "annuel": 12,
+         "unique": 0, "essai": 0, "gratuit": 0}                      # mois couverts par une période
+BILLING = {"mensuel": "mensuel", "monthly": "mensuel", "trimestriel": "trimestriel", "quarterly": "trimestriel",
+           "semestriel": "semestriel", "semiannual": "semestriel", "annuel": "annuel", "yearly": "annuel",
+           "annual": "annuel"}
+FREE_WORDS = {"free", "gratuit", "decouverte", "découverte"}
+TRIAL_WORDS = {"trial", "essai"}
+CANCEL_WORDS = {"cancelled", "canceled", "annule", "annulé", "resilie", "résilié", "resiliee"}
+PAUSE_WORDS = {"suspended", "suspendu", "suspendue", "inactive", "inactif"}
 STATUSES = ("active", "suspendue", "resiliee")
 SOON_DAYS = 30
 
@@ -18,6 +26,15 @@ def add_months(d: date, months: int) -> date:
     m = d.month - 1 + months
     year, month = d.year + m // 12, m % 12 + 1
     return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
+
+
+def _day(value) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
 
 
 def state_of(row: License, today: date | None = None) -> str:
@@ -85,6 +102,75 @@ class LicenseService:
             row.updated_at = utcnow()
             s.commit()
 
+    # ------------------------------------------------- import depuis les logiciels
+
+    @staticmethod
+    def normalize(raw: dict) -> dict | None:
+        """Ligne brute d'un logiciel -> champs d'une licence ; None si démo ou inutilisable."""
+        words = {str(raw.get(k) or "").strip().lower() for k in ("raw_status", "raw_plan", "kind", "etat")}
+        if "demo" in words or not str(raw.get("client") or "").strip():
+            return None
+        starts = _day(raw.get("starts")) or datetime.now(UTC).date()
+        ends = _day(raw.get("ends"))
+        status_word = str(raw.get("raw_status") or "").strip().lower()
+        if status_word in TRIAL_WORDS or raw.get("is_trial") in (1, "1", True):
+            plan = "essai"
+        elif words & FREE_WORDS or str(raw.get("raw_plan") or "").strip().lower() in FREE_WORDS:
+            plan = "gratuit"
+        else:
+            plan = BILLING.get(str(raw.get("billing") or "").strip().lower(), "")
+            if not plan:
+                days = (ends - starts).days if ends else 0
+                plan = "mensuel" if 0 < days <= 45 else ("annuel" if days else "unique")
+        status = "resiliee" if status_word in CANCEL_WORDS else ("suspendue" if status_word in PAUSE_WORDS else "active")
+        if status_word == "expired" and ends is None:
+            ends = starts
+        if plan == "gratuit":
+            ends = None
+        try:
+            amount = max(0, int(float(raw.get("amount") or 0)))
+        except (TypeError, ValueError):
+            amount = 0
+        return {"client": str(raw["client"]).strip()[:200], "contact": str(raw.get("contact") or "")[:200],
+                "product": str(raw.get("product") or "")[:200], "plan": plan, "amount_fcfa": amount,
+                "starts_on": starts, "ends_on": ends, "status": status, "site": str(raw.get("site") or "")[:200]}
+
+    def import_rows(self, source: str, rows: list[dict]) -> dict:
+        """Crée ou met à jour les licences d'un logiciel (clé : source + identifiant d'origine)."""
+        created = updated = skipped = 0
+        with self._sessions() as s:
+            known = {r.external_id: r for r in s.scalars(select(License).where(License.source == source)).all()}
+            for raw in rows:
+                ext, data = str(raw.get("external_id") or ""), self.normalize(raw)
+                if not ext or data is None:
+                    skipped += 1
+                    continue
+                row = known.get(ext)
+                if row is None:
+                    s.add(License(source=source, external_id=ext, **data))
+                    created += 1
+                    continue
+                changed = {k: v for k, v in data.items() if getattr(row, k) != v}
+                if changed:
+                    for k, v in changed.items():
+                        setattr(row, k, v)
+                    row.updated_at = utcnow()
+                    updated += 1
+            s.commit()
+        return {"source": source, "created": created, "updated": updated, "skipped": skipped}
+
+    def sync_file(self, path) -> list[dict]:
+        """Lit le fichier écrit chaque nuit par le collecteur du serveur et importe tout."""
+        import json
+        from pathlib import Path
+
+        p = Path(path)
+        if not p.exists():
+            raise ValueError("Le collecteur n'a encore rien produit")
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return [self.import_rows(src, rows) for src, rows in sorted(data.get("sources", {}).items())
+                if isinstance(rows, list)]
+
     def rows(self, today: date | None = None) -> list[dict]:
         with self._sessions() as s:
             items = list(s.scalars(select(License).order_by(License.ends_on.is_(None), License.ends_on)).all())
@@ -94,12 +180,15 @@ class LicenseService:
     def summary(self, today: date | None = None) -> dict:
         rows = self.rows(today)
         live = [r for r in rows if r["state"] in ("active", "bientot", "sans_echeance")]
+        paid = [r for r in live if r["row"].plan not in ("gratuit", "essai")]
         monthly = 0.0
-        for r in live:
+        for r in paid:
             months = PLANS[r["row"].plan]
             if months:
                 monthly += r["row"].amount_fcfa / months
-        return {"total": len(rows), "actives": len(live),
+        return {"total": len(rows), "actives": len(paid),
+                "gratuites": sum(r["row"].plan == "gratuit" for r in live),
+                "essais": sum(r["row"].plan == "essai" and r["state"] != "expiree" for r in rows),
                 "bientot": sum(r["state"] == "bientot" for r in rows),
                 "expirees": sum(r["state"] == "expiree" for r in rows),
                 "mensuel_fcfa": round(monthly)}

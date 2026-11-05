@@ -800,8 +800,12 @@ class License(Base):
     status: Mapped[str] = mapped_column(String(12), default="active")  # active | suspendue | resiliee
     site: Mapped[str] = mapped_column(String(200), default="")         # site ou plateforme concerné
     notes: Mapped[str] = mapped_column(Text, default="")
+    source: Mapped[str] = mapped_column(String(30), default="manuel")      # manuel | SANTAREX | SCOLABY…
+    external_id: Mapped[str] = mapped_column(String(120), default="")      # identifiant dans le logiciel d'origine
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (Index("ix_licenses_source_ext", "source", "external_id"),)
 
 
 def include_object(obj, name, type_, reflected, compare_to) -> bool:

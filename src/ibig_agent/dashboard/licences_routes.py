@@ -51,6 +51,17 @@ def register(app: FastAPI, rt: Runtime, user, page, back) -> None:
             return back("/licences", f"Non enregistrée : {exc}")
         return back("/licences", "Licence enregistrée")
 
+    @app.post("/licences/synchroniser")
+    def licence_sync(who: Principal = Depends(user)):
+        direction_only(who)
+        try:
+            res = rt.licences.sync_file(rt.settings.state_dir / "licences-collectees.json")
+        except ValueError as exc:
+            return back("/licences", str(exc))
+        created = sum(r["created"] for r in res)
+        updated = sum(r["updated"] for r in res)
+        return back("/licences", f"Synchronisé : {created} nouvelle(s), {updated} mise(s) à jour")
+
     @app.post("/licences/{lid}/renouveler")
     def licence_renew(lid: int, who: Principal = Depends(user)):
         direction_only(who)

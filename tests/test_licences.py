@@ -59,6 +59,55 @@ def test_bad_input_is_refused(rt):
         s.set_status(999, "active")
 
 
+RAW = [
+    {"external_id": "1", "client": "Clinique A", "product": "SANTAREX", "raw_plan": "cabinet",
+     "raw_status": "active", "amount": 300000, "starts": "2026-01-10", "ends": "2027-01-10"},
+    {"external_id": "2", "client": "Cabinet B", "product": "SANTAREX", "raw_plan": "decouverte",
+     "raw_status": "decouverte", "amount": 0, "starts": "2026-05-01", "ends": "2026-06-01"},
+    {"external_id": "3", "client": "Dr C", "product": "SANTAREX", "raw_plan": "cabinet", "raw_status": "essai",
+     "starts": "2026-10-20", "ends": "2026-11-20"},
+    {"external_id": "4", "client": "Démo", "product": "SANTAREX", "raw_plan": "pro", "raw_status": "DEMO"},
+    {"external_id": "5", "client": "École D", "product": "SCOLABY", "raw_plan": "PRO", "raw_status": "ACTIVE",
+     "billing": "TRIMESTRIEL", "amount": "45000.0", "starts": "2026-09-01", "ends": "2026-12-01"},
+    {"external_id": "", "client": "Sans identifiant", "product": "X"},
+]
+
+
+def test_import_normalizes_skips_demo_and_never_duplicates(rt):
+    s = rt.licences
+    res = s.import_rows("SANTAREX", RAW[:4] + RAW[5:])
+    assert res == {"source": "SANTAREX", "created": 3, "updated": 0, "skipped": 2}
+    by = {r["row"].client: r["row"] for r in s.rows(TODAY)}
+    assert by["Clinique A"].plan == "annuel" and by["Clinique A"].amount_fcfa == 300000
+    assert by["Cabinet B"].plan == "gratuit" and by["Cabinet B"].ends_on is None
+    assert by["Dr C"].plan == "essai" and by["Dr C"].source == "SANTAREX"
+    s.import_rows("SCOLABY", [RAW[4]])
+    assert {r["row"].client: r["row"].plan for r in s.rows(TODAY)}["École D"] == "trimestriel"
+    again = s.import_rows("SANTAREX", RAW[:3])                       # relance : aucun doublon, rien à changer
+    assert again["created"] == 0 and again["updated"] == 0
+    changed = dict(RAW[0], ends="2028-01-10")
+    assert s.import_rows("SANTAREX", [changed])["updated"] == 1
+    assert sum(1 for r in s.rows(TODAY) if r["row"].client == "Clinique A") == 1
+    s.add("Mairie", "Site web", "unique", 1000, date(2026, 1, 1))     # une saisie manuelle n'est jamais touchée
+    s.import_rows("SANTAREX", [])
+    assert any(r["row"].client == "Mairie" for r in s.rows(TODAY))
+    summary = s.summary(TODAY)
+    assert summary["gratuites"] == 1 and summary["essais"] == 1
+
+
+def test_sync_file_reads_collector_output_and_reports_a_missing_file(rt, tmp_path):
+    import json
+
+    s = rt.licences
+    with pytest.raises(ValueError):
+        s.sync_file(tmp_path / "absent.json")
+    f = tmp_path / "licences-collectees.json"
+    f.write_text(json.dumps({"at": "2026-11-05T03:40:00", "sources": {"SANTAREX": RAW[:3], "SCOLABY": [RAW[4]]},
+                             "errors": {}}), encoding="utf-8")
+    out = s.sync_file(f)
+    assert {r["source"]: r["created"] for r in out} == {"SANTAREX": 3, "SCOLABY": 1}
+
+
 def test_page_is_for_direction_and_actions_work(rt):
     UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
     c = TestClient(create_app(rt), base_url="https://testserver")
