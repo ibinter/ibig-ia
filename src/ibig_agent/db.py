@@ -844,6 +844,23 @@ class ArticlePublication(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class MaintenanceAction(Base):
+    """Demande de maintenance (redémarrage, sauvegarde…) : demandée, confirmée par la direction, exécutée sur le serveur."""
+
+    __tablename__ = "maintenance_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    action: Mapped[str] = mapped_column(String(30))
+    target: Mapped[str] = mapped_column(String(60))
+    status: Mapped[str] = mapped_column(String(12), default="demandee", index=True)
+    # demandee -> confirmee -> en_cours -> ok | erreur ; ou annulee | refusee
+    requested_by: Mapped[str] = mapped_column(String(300), default="")
+    confirmed_by: Mapped[str] = mapped_column(String(300), default="")
+    output: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

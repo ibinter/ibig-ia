@@ -347,6 +347,12 @@ class Runtime:
         return self._analytics
 
     @property
+    def maintenance(self):
+        from .maintenance import MaintenanceService
+
+        return MaintenanceService(self.sessions)
+
+    @property
     def articles(self):
         from .articles import ArticleService
 
