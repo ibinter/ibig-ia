@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Audience{% endblock %}
+{% block heading %}Audience des sites{% endblock %}
+{% block lead %}<p class="lead">Qui visite quoi : les sites les plus vus, les pages les plus lues, d'où viennent les visiteurs et ce qu'ils font (appel, WhatsApp, formulaire). Aucun cookie et aucune adresse IP conservée : les visiteurs sont comptés de façon anonyme.</p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+  <div><div class="muted small">Pages vues</div><div style="font-size:34px;font-weight:800">{{ total_views }}</div></div>
+  <div><div class="muted small">Visiteurs (par jour)</div><div style="font-size:34px;font-weight:800">{{ total_visitors }}</div></div>
+  <div style="margin-left:auto" class="small">Période :
+    {% for d, lab in [(1, "24 h"), (7, "7 jours"), (30, "30 jours"), (90, "90 jours")] %}
+    <a class="btn sm {{ 'primary' if d == days }}" href="/audience?days={{ d }}&site={{ selected }}">{{ lab }}</a>
+    {% endfor %}</div>
+</section>
+{% if not rows %}
+<section class="card"><p class="muted">Aucune visite reçue pour l'instant. Dès que le script est posé sur un site et qu'un visiteur l'ouvre, les chiffres apparaissent ici.</p></section>
+{% else %}
+<section class="card" style="margin-bottom:16px">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Site</th><th>Pages vues</th><th>Visiteurs</th><th>Actions</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr {% if r.site == selected %}style="background:var(--hover,#f4f7fb)"{% endif %}>
+      <td><b>{{ r.site }}</b></td><td>{{ r.views }}</td><td>{{ r.visitors }}</td><td>{{ r.actions }}</td>
+      <td><a class="btn sm" href="/audience?site={{ r.site }}&days={{ days }}">Détails</a></td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+</section>
+{% if detail %}
+<h2 style="margin:8px 0">{{ selected }}</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+  <section class="card"><h3>Pages les plus lues</h3>
+    {% for p, n in detail.pages %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small">{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="muted small">—</p>{% endfor %}</section>
+  <section class="card"><h3>D'où viennent les visiteurs</h3>
+    {% for p, n in detail.refs %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small">{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="muted small">—</p>{% endfor %}</section>
+  <section class="card"><h3>Actions des visiteurs</h3>
+    {% for p, n in detail.actions %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small">{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="muted small">Aucune action pour l'instant.</p>{% endfor %}</section>
+  <section class="card"><h3>Appareils</h3>
+    {% for p, n in detail.devices %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small">{{ p }}</span><b>{{ n }}</b></div>{% else %}<p class="muted small">—</p>{% endfor %}</section>
+</div>
+<section class="card" style="margin-top:16px"><h3>Jour par jour</h3>
+  <div class="table-wrap"><table><thead><tr><th>Jour</th><th>Pages vues</th><th>Visiteurs</th></tr></thead><tbody>
+  {% for d in detail.series | reverse %}<tr><td>{{ d.day }}</td><td>{{ d.views }}</td><td>{{ d.visitors }}</td></tr>{% endfor %}
+  </tbody></table></div></section>
+{% endif %}
+{% endif %}
+{% endblock %}

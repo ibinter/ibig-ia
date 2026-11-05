@@ -87,6 +87,7 @@
         {{ nav('/consigne', 'sparkles', 'Donner une consigne') if user.role != 'valideur' }}
         {{ nav('/sites', 'globe', 'Sites du groupe') if user.role != 'valideur' }}
         {{ nav('/seo', 'target', 'Référencement (SEO)') if user.role != 'valideur' }}
+        {{ nav('/audience', 'chart', 'Audience des sites') if user.role != 'valideur' }}
         {{ nav('/ecosysteme', 'shield-check', 'Écosystème') if user.role != 'valideur' }}
         {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}

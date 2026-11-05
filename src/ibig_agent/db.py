@@ -766,6 +766,23 @@ class EcoFtpResult(Base):
     detail: Mapped[str] = mapped_column(Text, default="")
 
 
+class Visit(Base):
+    """Événement de visite reçu des sites du groupe (page vue, clic, formulaire). Sans cookie ni IP."""
+
+    __tablename__ = "visits"
+    __table_args__ = (Index("ix_visits_site_at", "site", "at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    site: Mapped[str] = mapped_column(String(120))               # domaine du site (sans www)
+    path: Mapped[str] = mapped_column(String(300), default="/")
+    event: Mapped[str] = mapped_column(String(20), default="pageview")   # pageview | click | form | custom
+    label: Mapped[str] = mapped_column(String(120), default="")
+    ref: Mapped[str] = mapped_column(String(120), default="")    # domaine d'origine (google.com, direct…)
+    visitor: Mapped[str] = mapped_column(String(16), default="")  # empreinte anonyme valable un jour
+    device: Mapped[str] = mapped_column(String(10), default="")  # mobile | ordi | tablette
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

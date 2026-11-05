@@ -337,6 +337,16 @@ class Runtime:
         return SeoService(self.sessions, self.settings, self.ecosystem.assets, llm=self.llm)
 
     @property
+    def analytics(self):
+        from .analytics import AnalyticsService
+
+        if getattr(self, "_analytics", None) is None:
+            self._analytics = AnalyticsService(
+                self.sessions, self.settings.secret_key,
+                lambda: {a.url for a in self.ecosystem.assets()})
+        return self._analytics
+
+    @property
     def consigne(self):
         from .consigne import ConsigneService
 

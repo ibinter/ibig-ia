@@ -56,6 +56,7 @@ from ..llm import effective_budget
 from ..runtime import Runtime
 from ..scheduler import _safe
 from . import (
+    analytics_routes,
     anomalies_routes,
     catalogue_routes,
     config_routes,
@@ -589,6 +590,7 @@ def create_app(rt: Runtime) -> FastAPI:
     donnees_routes.register(app, rt, user, page, back)
     ecosysteme_routes.register(app, rt, user, page, back)
     seo_routes.register(app, rt, user, page, back)
+    analytics_routes.register(app, rt, user, page, back)
     consigne_routes.register(app, rt, user, page, back)
 
     @app.get("/departements", response_class=HTMLResponse)
