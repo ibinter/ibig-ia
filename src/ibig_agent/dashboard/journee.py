@@ -65,6 +65,12 @@ def _priorities(c: dict) -> list[dict]:
     if c["tranches_retard"]:
         items.append({"texte": f"{c['tranches_retard']} tranche(s) de paiement EDUFORM en retard : relancer",
                       "lien": "/ecosysteme", "ton": "warn"})
+    if c["licences_a_renouveler"]:
+        items.append({"texte": f"{c['licences_a_renouveler']} licence(s) payante(s) arrivent à échéance : "
+                               "relancer le renouvellement", "lien": "/licences?filtre=bientot", "ton": "warn"})
+    if c["licences_expirees"]:
+        items.append({"texte": f"{c['licences_expirees']} licence(s) payante(s) expirée(s) récemment",
+                      "lien": "/licences?filtre=expiree", "ton": "warn"})
     if c["quotes_waiting"]:
         items.append({"texte": f"{c['quotes_waiting']} devis attendent la réponse du client", "lien": "/devis",
                       "ton": "info"})
@@ -92,7 +98,11 @@ def build(rt, who: Principal) -> dict:
     core = [i for i in incidents if i.key.startswith("anom|core|")]
     tranches = next((int(i.title.rsplit("(", 1)[1].rstrip(")")) for i in core if i.key == "anom|core|5"
                      and i.title.endswith(")") and i.title.rsplit("(", 1)[1].rstrip(")").isdigit()), 0)
+    paid = [r for r in rt.licences.rows() if r["row"].plan not in ("gratuit", "essai")]
     ctx = {
+        "licences_a_renouveler": sum(r["state"] == "bientot" for r in paid),
+        "licences_expirees": sum(r["state"] == "expiree" and r["days"] is not None and r["days"] >= -30
+                                 for r in paid),
         "urgent_incidents": [i for i in incidents if i.severity == "critical"],
         "pending": stats.pending, "payments_to_confirm": sales["payments_to_confirm"],
         "consignes_a_preciser": sum(e.status == "a_preciser" for e in entries),

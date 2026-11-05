@@ -1,6 +1,6 @@
 """Licences et abonnements : échéances, renouvellement, statuts, page réservée à la direction."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -106,6 +106,22 @@ def test_sync_file_reads_collector_output_and_reports_a_missing_file(rt, tmp_pat
                              "errors": {}}), encoding="utf-8")
     out = s.sync_file(f)
     assert {r["source"]: r["created"] for r in out} == {"SANTAREX": 3, "SCOLABY": 1}
+
+
+def test_ma_journee_warns_about_paid_licences_only(rt):
+    from datetime import timedelta
+
+    today = datetime.now(UTC).date()
+    s = rt.licences
+    s.add("Clinique", "SANTAREX", "annuel", 500000, today - timedelta(days=350))      # fin dans ~15 jours
+    s.add("Essai", "LOKATIVO", "essai", 0, today - timedelta(days=20), today + timedelta(days=5))
+    s.add("Gratuit", "SCOLABY", "gratuit", 0, today - timedelta(days=100))
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    text = c.get("/journee").text
+    assert "1 licence(s) payante(s) arrivent à échéance" in text         # l'essai et le gratuit ne comptent pas
+    assert "/licences?filtre=bientot" in text
 
 
 def test_page_is_for_direction_and_actions_work(rt):
