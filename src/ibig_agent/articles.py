@@ -7,12 +7,17 @@ retirée. Les noms de l'entreprise sont contrôlés (jamais « IBIG Group »).
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import html
 import json
 import re
+import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 
+import httpx
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -24,6 +29,7 @@ BRAND = ("IBIG SARL (nom abrégé de INTERMARK BUSINESS INTERNATIONAL GROUP, aus
          "ces trois noms peuvent apparaître. Ne jamais écrire « IBIG Group ».")
 BANNED = re.compile(r"ibig\s+group", re.IGNORECASE)
 DIGITAL_SECRET = "connector_digital_url"
+INTERMARK_SECRET = "connector_intermark_secret"
 
 
 def slugify(value: str) -> str:
@@ -35,6 +41,42 @@ def check_names(*parts: str) -> None:
     if any(BANNED.search(p or "") for p in parts):
         raise ValueError("Le nom « IBIG Group » est interdit : écrire IBIG SARL, "
                          "INTERMARK BUSINESS INTERNATIONAL GROUP ou IBI GROUP SARL")
+
+
+def to_html(text_: str) -> str:
+    """Texte simple (## titre, ### sous-titre, - liste, **gras**) -> HTML sûr pour les sites qui affichent du HTML."""
+    def inline(s: str) -> str:
+        return re.sub(r"\*\*(.+?)\*\*", lambda m: f"<strong>{m.group(1)}</strong>", html.escape(s))
+    out, para, items = [], [], []
+
+    def flush():
+        if para:
+            out.append("<p>" + inline(" ".join(para)) + "</p>")
+            para.clear()
+        if items:
+            out.append("<ul>" + "".join(f"<li>{inline(i)}</li>" for i in items) + "</ul>")
+            items.clear()
+
+    for line in text_.splitlines():
+        s = line.strip()
+        if not s:
+            flush()
+        elif s.startswith("### "):
+            flush()
+            out.append(f"<h3>{inline(s[4:])}</h3>")
+        elif s.startswith("## "):
+            flush()
+            out.append(f"<h2>{inline(s[3:])}</h2>")
+        elif s.startswith("- "):
+            if para:
+                flush()
+            items.append(s[2:])
+        else:
+            if items:
+                flush()
+            para.append(s)
+    flush()
+    return "\n".join(out)
 
 
 @dataclass
@@ -100,17 +142,68 @@ class DigitalConnector:
             eng.dispose()
 
 
+class IntermarkConnector:
+    """INTERMARK BUSINESS : appelle la porte d'entrée signée du site (api/publier-article.php)."""
+
+    key = "INTERMARK"
+    label = "INTERMARK BUSINESS (intermark-business.com)"
+    endpoint = "https://intermark-business.com/api/publier-article.php"
+
+    def __init__(self, get_secret: Callable[[], str], client: httpx.Client | None = None):
+        self._get_secret = get_secret
+        self._client = client
+
+    def ready(self) -> bool:
+        return bool(self._get_secret())
+
+    def _call(self, payload: dict) -> dict:
+        secret = self._get_secret()
+        if not secret:
+            raise ValueError("Clé de publication d'INTERMARK BUSINESS non configurée")
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        ts = str(int(time.time()))
+        sig = hmac.new(secret.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+        headers = {"Content-Type": "application/json", "X-Ibig-Timestamp": ts, "X-Ibig-Signature": sig,
+                   "User-Agent": "IBIG-Agent/1.0"}
+        client = self._client or httpx.Client(timeout=30)
+        resp = client.post(self.endpoint, content=body, headers=headers)
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if resp.status_code != 200 or not data.get("ok"):
+            raise ValueError(f"Le site a refusé ({resp.status_code}) : {data.get('error', 'réponse inattendue')}")
+        return data
+
+    def ping(self) -> bool:
+        return bool(self._call({"action": "ping"}).get("ok"))
+
+    def publish(self, article: Article) -> Published:
+        data = self._call({"action": "publish", "titre": article.title, "slug": article.slug,
+                           "resume": article.excerpt, "contenu": to_html(article.content),
+                           "image": article.cover_image, "pole": "", "meta_title": article.seo_title or article.title,
+                           "meta_description": article.seo_description or article.excerpt})
+        return Published(str(data["id"]), str(data["url"]))
+
+    def unpublish(self, external_id: str) -> None:
+        self._call({"action": "unpublish", "id": int(external_id)})
+
+
 class ArticleService:
     def __init__(self, sessions: sessionmaker[Session], settings: Settings, llm=None, connectors: list | None = None):
         self._sessions = sessions
         self._settings = settings
         self._llm = llm
         self._connectors = connectors if connectors is not None else [
-            DigitalConnector(lambda: service_value(sessions, settings, DIGITAL_SECRET))]
+            DigitalConnector(lambda: service_value(sessions, settings, DIGITAL_SECRET)),
+            IntermarkConnector(lambda: service_value(sessions, settings, INTERMARK_SECRET))]
 
     # ---------------------------------------------------------------- configuration
     def set_digital_url(self, url: str, by: str) -> None:
         set_service_value(self._sessions, self._settings, DIGITAL_SECRET, url.strip(), by, secret=True)
+
+    def set_intermark_secret(self, secret: str, by: str) -> None:
+        set_service_value(self._sessions, self._settings, INTERMARK_SECRET, secret.strip(), by, secret=True)
 
     def targets(self) -> list[dict]:
         return [{"key": c.key, "label": c.label, "ready": c.ready()} for c in self._connectors]

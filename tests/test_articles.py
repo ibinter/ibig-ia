@@ -116,3 +116,51 @@ def test_page_is_for_direction_only(rt):
     assert "Mon article" in page and "Valider" in page
     bad = c.post("/articles", data={"titre": "IBIG Group", "contenu": "x"}, follow_redirects=False)
     assert "msg=" in bad.headers["location"]
+
+
+def test_to_html_escapes_everything_and_keeps_the_simple_format():
+    from ibig_agent.articles import to_html
+
+    out = to_html("## Titre <b>\n\nUn **gras** et <script>x</script>.\n- a\n- b\n### Sous\nFin")
+    assert "<h2>Titre &lt;b&gt;</h2>" in out and "<strong>gras</strong>" in out
+    assert "<script>" not in out and "<ul><li>a</li><li>b</li></ul>" in out and "<h3>Sous</h3>" in out
+
+
+def test_intermark_connector_signs_requests_and_reports_refusals(rt):
+    import hashlib
+    import hmac
+    import json
+
+    import httpx
+
+    from ibig_agent.articles import IntermarkConnector
+
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = request.content
+        ts, sig = request.headers["x-ibig-timestamp"], request.headers["x-ibig-signature"]
+        expected = hmac.new(b"s" * 40, ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return httpx.Response(401, json={"ok": False, "error": "Signature invalide"})
+        data = json.loads(body)
+        seen[data["action"]] = data
+        if data["action"] == "publish":
+            return httpx.Response(200, json={"ok": True, "id": 12, "url": "https://intermark-business.com/actualites/x"})
+        return httpx.Response(200, json={"ok": True})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    good = IntermarkConnector(lambda: "s" * 40, client=client)
+    assert good.ready() and good.ping()
+    s = service(rt)
+    aid = s.create("Un titre", "## A\nTexte <b>risqué</b>.", "dg")
+    art = s.get(aid)[0]
+    pub = good.publish(art)
+    assert pub.external_id == "12" and pub.url.endswith("/actualites/x")
+    assert "<h2>A</h2>" in seen["publish"]["contenu"] and "<b>" not in seen["publish"]["contenu"]
+    good.unpublish("12")
+    assert seen["unpublish"]["id"] == 12
+    bad = IntermarkConnector(lambda: "x" * 40, client=client)
+    with pytest.raises(ValueError, match="Signature invalide"):
+        bad.ping()
+    assert not IntermarkConnector(lambda: "", client=client).ready()
