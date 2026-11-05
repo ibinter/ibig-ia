@@ -36,6 +36,7 @@ TITLE_RANGE = (30, 65)
 DESC_RANGE = (70, 160)
 MIN_WORDS = 250
 SLOW_MS = 2500
+PAUSE_S = 0.6        # délai entre deux lectures d'un même site
 SKIP_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".zip", ".xml", ".gz", ".mp4")
 
 
@@ -196,6 +197,7 @@ class SeoService:
                  assets: Callable[[], list[EcoAsset]], client: httpx.Client | None = None,
                  llm=None) -> None:
         self.llm = llm
+        self.pause = PAUSE_S
         self._sessions = sessions
         self.settings = settings
         self._assets = assets
@@ -207,11 +209,19 @@ class SeoService:
             headers={"User-Agent": "IBIG-SEO/1.0 (lecture seule)"})
 
     def _get(self, client: httpx.Client, url: str) -> tuple[int, str, int]:
+        """Une lecture, avec une pause avant (on ne mitraille jamais un hébergeur) et une seule reprise
+        après un 429 « trop de requêtes »."""
         started = time.monotonic()
-        try:
-            r = client.get(url)
-        except httpx.HTTPError:
-            return 0, "", int((time.monotonic() - started) * 1000)
+        for attempt in (0, 1):
+            time.sleep(self.pause)
+            started = time.monotonic()
+            try:
+                r = client.get(url)
+            except httpx.HTTPError:
+                return 0, "", int((time.monotonic() - started) * 1000)
+            if r.status_code != 429 or attempt:
+                break
+            time.sleep(self.pause * 10)
         return r.status_code, r.text, int((time.monotonic() - started) * 1000)
 
     # ------------------------------------------------------------------ audit
@@ -301,8 +311,15 @@ class SeoService:
         sites = [a for a in self._assets() if a.active and a.kind == "site" and a.url.startswith("http")
                  and not is_private(a)]
         client = self._http()
+        by_host: dict[str, list[EcoAsset]] = {}
+        for a in sites:                       # un même hébergeur n'est jamais lu en parallèle
+            by_host.setdefault(urlparse(a.url).netloc, []).append(a)
+
+        def one_host(group: list[EcoAsset]) -> list[dict]:
+            return [self.audit(a, client) for a in group]
+
         with ThreadPoolExecutor(4) as ex:
-            res = list(ex.map(lambda a: self.audit(a, client), sites))
+            res = [r for part in ex.map(one_host, by_host.values()) for r in part]
         return {"sites": len(sites),
                 "moyenne": round(sum(r["score"] for r in res) / len(res)) if res else None}
 

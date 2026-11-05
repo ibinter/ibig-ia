@@ -122,3 +122,28 @@ def test_meta_proposals_are_validated_refused_when_wrong_and_feed_the_mission(rt
     assert steps[0][0].startswith("Appliquer les 1 titre") and "<title>" in steps[0][1]
     with pytest.raises(ValueError):
         service.decide_meta(a.id, 5, True, "dg")
+
+
+@pytest.fixture(autouse=True)
+def no_pause(monkeypatch):
+    monkeypatch.setattr("ibig_agent.seo.PAUSE_S", 0)
+
+
+def test_a_429_is_retried_once_and_the_audit_never_reads_one_host_in_parallel(rt):
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(429)
+            return httpx.Response(200, text=GOOD)
+        return httpx.Response(404)
+
+    a = one_asset(rt, "Site 429", "https://limite.ci")
+    b = one_asset(rt, "Meme hote", "https://limite.ci/conseil")
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    service = SeoService(rt.sessions, rt.settings, lambda: [a, b], client=client)
+    r = service.audit(a)
+    assert r["issues"][0]["code"] != "inaccessible" and calls["n"] == 2
+    assert service.run()["sites"] == 2
