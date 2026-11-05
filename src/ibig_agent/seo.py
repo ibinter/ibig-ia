@@ -29,7 +29,8 @@ from .configstore import service_value, set_service_value
 from .db import EcoAsset, utcnow
 
 PENALTY = {"critical": 25, "warning": 8, "info": 3}
-PAGES_PER_SITE = 5
+PAGES_PER_SITE = 12
+META_PAGES = 6        # pages rédigées par l'IA en une fois (coût maîtrisé)
 HISTORY = 12
 KEY = "seo_{}"
 TITLE_RANGE = (30, 65)
@@ -383,7 +384,7 @@ class SeoService:
         asset = next((a for a in self._assets() if a.id == asset_id), None)
         if asset is None or r is None:
             raise ValueError("Lancez d'abord un audit de ce site")
-        pages = list(dict.fromkeys(i["page"] for i in r["issues"] if i["code"] in META_CODES))[:PAGES_PER_SITE]
+        pages = list(dict.fromkeys(i["page"] for i in r["issues"] if i["code"] in META_CODES))[:META_PAGES]
         if not pages:
             raise ValueError("Titres et descriptions déjà corrects")
         client, out = self._http(), []
