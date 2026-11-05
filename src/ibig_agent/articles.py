@@ -79,6 +79,22 @@ def to_html(text_: str) -> str:
     return "\n".join(out)
 
 
+def to_text(text_: str) -> str:
+    """Texte simple -> texte brut lisible (pour les sites qui affichent le texte sans HTML)."""
+    out = []
+    for line in text_.splitlines():
+        s = line.strip()
+        if s.startswith("### "):
+            out += ["", s[4:], ""]
+        elif s.startswith("## "):
+            out += ["", s[3:].upper(), ""]
+        elif s.startswith("- "):
+            out.append("• " + s[2:])
+        else:
+            out.append(re.sub(chr(92) + "*" + chr(92) + "*(.+?)" + chr(92) + "*" + chr(92) + "*", lambda m: m.group(1), s))
+    return chr(10).join(out).strip()
+
+
 @dataclass
 class Published:
     external_id: str
@@ -142,14 +158,12 @@ class DigitalConnector:
             eng.dispose()
 
 
-class IntermarkConnector:
-    """INTERMARK BUSINESS : appelle la porte d'entrée signée du site (api/publier-article.php)."""
+class SignedPhpConnector:
+    """Site PHP du groupe : appelle sa porte d'entrée signée (api/publier-article.php)."""
 
-    key = "INTERMARK"
-    label = "INTERMARK BUSINESS (intermark-business.com)"
-    endpoint = "https://intermark-business.com/api/publier-article.php"
-
-    def __init__(self, get_secret: Callable[[], str], client: httpx.Client | None = None):
+    def __init__(self, key: str, label: str, endpoint: str, get_secret: Callable[[], str], fmt: str = "html",
+                 client: httpx.Client | None = None):
+        self.key, self.label, self.endpoint, self._fmt = key, label, endpoint, fmt
         self._get_secret = get_secret
         self._client = client
 
@@ -159,7 +173,7 @@ class IntermarkConnector:
     def _call(self, payload: dict) -> dict:
         secret = self._get_secret()
         if not secret:
-            raise ValueError("Clé de publication d'INTERMARK BUSINESS non configurée")
+            raise ValueError(f"Clé de publication de {self.label} non configurée")
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         ts = str(int(time.time()))
         sig = hmac.new(secret.encode(), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
@@ -180,13 +194,32 @@ class IntermarkConnector:
 
     def publish(self, article: Article) -> Published:
         data = self._call({"action": "publish", "titre": article.title, "slug": article.slug,
-                           "resume": article.excerpt, "contenu": to_html(article.content),
-                           "image": article.cover_image, "pole": "", "meta_title": article.seo_title or article.title,
+                           "resume": article.excerpt,
+                           "contenu": to_html(article.content) if self._fmt == "html" else to_text(article.content),
+                           "image": article.cover_image, "pole": "", "categorie": article.category, "meta_title": article.seo_title or article.title,
                            "meta_description": article.seo_description or article.excerpt})
         return Published(str(data["id"]), str(data["url"]))
 
     def unpublish(self, external_id: str) -> None:
         self._call({"action": "unpublish", "id": int(external_id)})
+
+
+class IntermarkConnector(SignedPhpConnector):
+    def __init__(self, get_secret: Callable[[], str], client: httpx.Client | None = None):
+        super().__init__("INTERMARK", "INTERMARK BUSINESS (intermark-business.com)",
+                         "https://intermark-business.com/api/publier-article.php", get_secret, "html", client)
+
+
+# clé du site -> nom du secret dans le coffre, adresse de la porte d'entrée, format du texte
+PHP_SITES = {
+    "INTERMARK": ("connector_intermark_secret", "INTERMARK BUSINESS (intermark-business.com)", "", "html"),
+    "IMMO": ("connector_immo_secret", "IBIG IMMO TRUST (ibigimmotrust.com)",
+             "https://ibigimmotrust.com/api/publier-article.php", "html"),
+    "EDUFORM": ("connector_eduform_secret", "IBIG EDUFORM (ibig-eduform.com)",
+                "https://ibig-eduform.com/api/publier-article.php", "html"),
+    "PATRICE": ("connector_patrice_secret", "patricekouakou.com",
+                "https://patricekouakou.com/api/publier-article.php", "texte"),
+}
 
 
 class ArticleService:
@@ -196,14 +229,18 @@ class ArticleService:
         self._llm = llm
         self._connectors = connectors if connectors is not None else [
             DigitalConnector(lambda: service_value(sessions, settings, DIGITAL_SECRET)),
-            IntermarkConnector(lambda: service_value(sessions, settings, INTERMARK_SECRET))]
+            IntermarkConnector(lambda: service_value(sessions, settings, INTERMARK_SECRET))] + [
+            SignedPhpConnector(k, label, url, (lambda n=name: service_value(sessions, settings, n)), fmt)
+            for k, (name, label, url, fmt) in PHP_SITES.items() if k != "INTERMARK"]
 
     # ---------------------------------------------------------------- configuration
     def set_digital_url(self, url: str, by: str) -> None:
         set_service_value(self._sessions, self._settings, DIGITAL_SECRET, url.strip(), by, secret=True)
 
-    def set_intermark_secret(self, secret: str, by: str) -> None:
-        set_service_value(self._sessions, self._settings, INTERMARK_SECRET, secret.strip(), by, secret=True)
+    def set_site_secret(self, key: str, secret: str, by: str) -> None:
+        if key not in PHP_SITES:
+            raise ValueError("Site inconnu")
+        set_service_value(self._sessions, self._settings, PHP_SITES[key][0], secret.strip(), by, secret=True)
 
     def targets(self) -> list[dict]:
         return [{"key": c.key, "label": c.label, "ready": c.ready()} for c in self._connectors]
