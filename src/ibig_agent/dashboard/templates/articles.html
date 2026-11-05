@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Publier un article{% endblock %}
+{% block heading %}Publier un article{% endblock %}
+{% block lead %}<p class="lead">On rédige une seule fois, on valide, puis l'agent publie l'article sur les sites choisis. Rien n'est publié sans votre validation. Les noms à utiliser : IBIG SARL, INTERMARK BUSINESS INTERNATIONAL GROUP ou IBI GROUP SARL (jamais « IBIG Group »).</p>{% endblock %}
+{% block content %}
+{% if not article %}
+<section class="card" style="margin-bottom:16px">
+  <h3>Faire rédiger par l'assistant</h3>
+  <form method="post" action="/articles/rediger" style="display:grid;gap:10px">
+    <label class="small">Sujet de l'article<input name="sujet" required placeholder="ex. Pourquoi digitaliser la gestion de son école"></label>
+    <label class="small">Points à couvrir (facultatif)<textarea name="points" rows="3" placeholder="idées, chiffres, public visé…"></textarea></label>
+    <div><button class="btn primary">Rédiger un brouillon</button> <span class="muted small">Vous pourrez tout relire et corriger.</span></div>
+  </form>
+</section>
+<details class="card" style="margin-bottom:16px"><summary><b>Ou écrire soi-même</b></summary>
+  <form method="post" action="/articles" style="display:grid;gap:10px;margin-top:10px">
+    <label class="small">Titre<input name="titre" required></label>
+    <label class="small">Texte<textarea name="contenu" rows="8" placeholder="## Titre de partie&#10;Un paragraphe…&#10;- un point"></textarea></label>
+    <div><button class="btn">Créer le brouillon</button></div>
+  </form></details>
+<section class="card">
+  <h3>Mes articles</h3>
+  <div class="table-wrap"><table><thead><tr><th>Titre</th><th>État</th><th>Modifié</th><th></th></tr></thead><tbody>
+  {% for a in rows %}<tr><td><b>{{ a.title }}</b></td><td><span class="pill {{ tones[a.status] }}">{{ labels[a.status] }}</span></td>
+    <td class="muted small">{{ a.updated_at.strftime('%d/%m/%Y') }}</td><td><a class="btn sm" href="/articles?id={{ a.id }}">Ouvrir</a></td></tr>
+  {% endfor %}</tbody></table></div>
+  {% if not rows %}<p class="muted">Aucun article pour l'instant.</p>{% endif %}
+</section>
+{% else %}
+<p><a href="/articles">← Tous les articles</a> · <span class="pill {{ tones[article.status] }}">{{ labels[article.status] }}</span></p>
+<section class="card" style="margin-bottom:16px">
+  <form method="post" action="/articles/{{ article.id }}" style="display:grid;gap:10px">
+    <label class="small">Titre<input name="titre" value="{{ article.title }}" required></label>
+    <label class="small">Résumé (160 caractères)<input name="resume" value="{{ article.excerpt }}" maxlength="400"></label>
+    <label class="small">Texte (## titre, ### sous-titre, - liste)<textarea name="contenu" rows="18">{{ article.content }}</textarea></label>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+      <label class="small">Catégorie<input name="categorie" value="{{ article.category }}"></label>
+      <label class="small">Image de couverture (adresse)<input name="image" value="{{ article.cover_image }}"></label>
+      <label class="small">Titre pour Google (60 car.)<input name="seo_titre" value="{{ article.seo_title }}"></label>
+      <label class="small">Description pour Google (155 car.)<input name="seo_description" value="{{ article.seo_description }}"></label>
+    </div>
+    <div><button class="btn primary">Enregistrer</button> <span class="muted small">Toute modification demande une nouvelle validation.</span></div>
+  </form>
+</section>
+<section class="card" style="margin-bottom:16px">
+  <h3>Publier</h3>
+  {% if article.status == 'brouillon' %}
+  <p class="muted small">Relisez l'article, puis validez-le : il sera alors prêt à être publié.</p>
+  <form method="post" action="/articles/{{ article.id }}/valider"><button class="btn primary">Valider : prêt à publier</button></form>
+  {% else %}
+  <form method="post" action="/articles/{{ article.id }}/publier" style="display:grid;gap:8px">
+    {% for t in targets %}<label><input type="checkbox" name="sites" value="{{ t.key }}" {{ 'disabled' if not t.ready }}> {{ t.label }}{% if not t.ready %} <span class="muted small">(pas encore relié)</span>{% endif %}</label>{% endfor %}
+    <div><button class="btn primary">Publier sur les sites cochés</button></div>
+  </form>
+  {% endif %}
+</section>
+{% if pubs %}
+<section class="card"><h3>Publications</h3>
+  <div class="table-wrap"><table><thead><tr><th>Site</th><th>État</th><th>Détail</th><th></th></tr></thead><tbody>
+  {% for p in pubs %}<tr><td>{{ p.target }}</td><td>{{ p.status }}</td>
+    <td class="small">{% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener">{{ p.url }}</a>{% endif %}{{ p.error }}<div class="muted">{{ p.at.strftime('%d/%m/%Y %H:%M') }} · {{ p.by }}</div></td>
+    <td>{% if p.status == 'ok' %}<form method="post" action="/articles/{{ article.id }}/retirer/{{ p.target }}"><button class="btn sm">Retirer</button></form>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

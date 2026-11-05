@@ -808,6 +808,42 @@ class License(Base):
     __table_args__ = (Index("ix_licenses_source_ext", "source", "external_id"),)
 
 
+class Article(Base):
+    """Article rédigé une fois dans l'agent, publié sur un ou plusieurs sites du groupe."""
+
+    __tablename__ = "articles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(300))
+    slug: Mapped[str] = mapped_column(String(200), index=True)
+    excerpt: Mapped[str] = mapped_column(Text, default="")
+    content: Mapped[str] = mapped_column(Text, default="")             # format simple : ## titre, ### sous-titre, - liste
+    category: Mapped[str] = mapped_column(String(100), default="")
+    cover_image: Mapped[str] = mapped_column(String(500), default="")
+    seo_title: Mapped[str] = mapped_column(String(300), default="")
+    seo_description: Mapped[str] = mapped_column(String(400), default="")
+    status: Mapped[str] = mapped_column(String(10), default="brouillon")   # brouillon | pret | publie
+    created_by: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ArticlePublication(Base):
+    """Trace d'une publication d'un article sur un site (pour pouvoir la retirer)."""
+
+    __tablename__ = "article_publications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    article_id: Mapped[int] = mapped_column(Integer, ForeignKey("articles.id", ondelete="CASCADE"), index=True)
+    target: Mapped[str] = mapped_column(String(30))                    # clé du site : DIGITAL…
+    status: Mapped[str] = mapped_column(String(10), default="ok")      # ok | erreur | retire
+    external_id: Mapped[str] = mapped_column(String(120), default="")
+    url: Mapped[str] = mapped_column(String(500), default="")
+    error: Mapped[str] = mapped_column(String(300), default="")
+    by: Mapped[str] = mapped_column(String(300), default="")
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 def include_object(obj, name, type_, reflected, compare_to) -> bool:
     """Autogénération Alembic : la colonne pgvector (hors modèle) n'est pas une différence."""
     return not (type_ == "column" and reflected and compare_to is None

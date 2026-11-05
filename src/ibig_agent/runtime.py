@@ -347,6 +347,12 @@ class Runtime:
         return self._analytics
 
     @property
+    def articles(self):
+        from .articles import ArticleService
+
+        return ArticleService(self.sessions, self.settings, llm=self.llm)
+
+    @property
     def licences(self):
         from .licences import LicenseService
 

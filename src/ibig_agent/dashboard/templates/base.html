@@ -89,6 +89,7 @@
         {{ nav('/seo', 'target', 'Référencement (SEO)') if user.role != 'valideur' }}
         {{ nav('/audience', 'chart', 'Audience des sites') if user.role != 'valideur' }}
         {{ nav('/licences', 'shield-check', 'Licences et abonnements') if user.role != 'valideur' }}
+        {{ nav('/articles', 'web', 'Publier un article') if user.role != 'valideur' }}
         {{ nav('/ecosysteme', 'shield-check', 'Écosystème') if user.role != 'valideur' }}
         {{ nav('/commande', 'chart', 'Centre de commande') if user.role != 'valideur' }}
         {{ nav('/indicateurs', 'chart', 'Indicateurs') }}
