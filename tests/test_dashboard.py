@@ -192,6 +192,14 @@ def test_getting_started_lists_next_step(rt, accounts):
                  "Valider depuis WhatsApp", "Indiquer le temps passé avant"):
         assert step in page
     assert 'href="/services"' in page and "Y aller" in page
+    # refonte : les nouvelles étapes et le guide complet des pages
+    for step in ("Suivre les positions sur Google", "Compter les visites des sites",
+                 "Suivre les licences et abonnements", "Publier un article sur plusieurs sites",
+                 "Maintenir les logiciels depuis"):
+        assert step in page
+    for route in ("/journee", "/sites", "/seo", "/audience", "/google", "/licences", "/articles", "/maintenance"):
+        assert f'href="{route}"' in page
+    assert "Ouvrir Ma journée" in page and "À quoi sert chaque page" in page
 
 
 def test_agents_page_lists_every_agent(rt, accounts):

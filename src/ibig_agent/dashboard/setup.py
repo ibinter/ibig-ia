@@ -130,6 +130,37 @@ def setup_steps(rt: Runtime) -> list[Step]:
              "configuré" if get("brevo_api_key") else "non configuré", optional=True,
              link="/services"),
     ]
+    ready_sites = [t["label"] for t in rt.articles.targets() if t["ready"]]
+    lic = rt.licences.summary()
+    visits = rt.analytics.overview(30)
+    steps += [
+        Step("google", "target", "Suivre les positions sur Google", rt.google.configured(),
+             "Voir, pour chaque site, combien de personnes viennent de Google, avec quels mots, et à quelle place.",
+             "Ajouter chaque site dans Google Search Console, puis donner à l'agent un compte de service en lecture "
+             "seule (clé rangée dans le coffre chiffré).",
+             "7 sites lus chaque nuit" if rt.google.configured() else "non relié", optional=True, link="/google"),
+        Step("audience", "chart", "Compter les visites des sites", bool(visits),
+             "Savoir quels sites et quelles pages sont les plus vus, d'où viennent les visiteurs et ce qu'ils font, "
+             "sans cookie ni adresse IP.",
+             "Poser le petit script de suivi dans l'en-tête de chaque site (déjà fait pour les 7 sites du groupe).",
+             f"{sum(v['views'] for v in visits)} pages vues en 30 jours" if visits else "aucune visite reçue",
+             optional=True, link="/audience"),
+        Step("licences", "shield-check", "Suivre les licences et abonnements", bool(lic["total"]),
+             "Ne jamais rater un renouvellement : qui a acheté quoi, jusqu'à quand, et le revenu mensuel estimé.",
+             "Se remplit seul chaque nuit depuis les logiciels reliés ; saisie à la main seulement pour les autres.",
+             f"{lic['total']} licence(s), {lic['actives']} payante(s) active(s)" if lic["total"] else "rien d'importé",
+             optional=True, link="/licences"),
+        Step("articles", "globe", "Publier un article sur plusieurs sites", bool(ready_sites),
+             "Écrire une fois, valider, puis publier sur les sites choisis, avec trace et retrait possible.",
+             "Menu « Publier un article » : sujet, relecture, validation, puis cocher les sites.",
+             f"{len(ready_sites)} site(s) reliés" if ready_sites else "aucun site relié", optional=True,
+             link="/articles"),
+        Step("maintenance", "power", "Maintenir les logiciels depuis l'agent", bool(rt.maintenance.recent(1)),
+             "Redémarrer un logiciel ou lancer une sauvegarde en deux clics, avec confirmation et journal.",
+             "Menu « Maintenance » : choisir l'action et le logiciel, demander, puis confirmer.",
+             "déjà utilisée" if rt.maintenance.recent(1) else "jamais utilisée", optional=True,
+             link="/maintenance"),
+    ]
     links = {"mails": "/boites", "fiches": "/connaissances", "faq": "/connaissances",
              "canaux": "/reseaux"}
     for st in steps:

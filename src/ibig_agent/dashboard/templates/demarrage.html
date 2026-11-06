@@ -2,7 +2,7 @@
 {% from "_icons.html" import icon %}
 {% block title %}Mise en route{% endblock %}
 {% block heading %}Mise en route{% endblock %}
-{% block lead %}<p class="lead">Où en est l'agent, et la prochaine chose à faire pour qu'il travaille pour vous.</p>{% endblock %}
+{% block lead %}<p class="lead">Où en est l'agent, la prochaine chose à faire, et à quoi sert chaque page. Chaque matin, commencez par <a href="/journee"><b>Ma journée</b></a> : l'agent y a mis les trois choses à décider d'abord.</p>{% endblock %}
 {% block content %}
 {% set done, total = setup %}
 {% set pct = (done / total * 100) | round(0) | int if total else 100 %}
@@ -33,6 +33,7 @@
     <div class="hero-how">{{ icon('arrow-right') }}<span>{{ ns.next.how }}</span></div>
     {% if ns.next.link and can_go %}<a class="btn hero-btn" href="{{ ns.next.link }}">{{ icon('arrow-right') }} {{ 'Commencer' if not ns.next.done else 'Ouvrir' }}</a>{% endif %}
     {% endif %}
+    {% if can_go %}<a class="btn sm" href="/journee" style="margin-top:10px">{{ icon('home') }} Ouvrir Ma journée</a>{% endif %}
   </div>
 </section>
 
@@ -106,33 +107,52 @@
 <div class="section-title">{{ icon('list') }}<h2>À quoi sert chaque page</h2></div>
 <div class="guide-groups">
   <div class="card">
-    <h3 class="guide-h">Au quotidien</h3>
+    <h3 class="guide-h">Chaque jour</h3>
     <div class="guide">
-      <a href="/validations">{{ icon('check-circle') }}<span><b>Validations</b>Ce que l'agent a préparé et qui attend votre accord. <em>La page la plus importante.</em></span></a>
-      <a href="/">{{ icon('home') }}<span><b>Accueil</b>Les chiffres du jour, l'activité et le budget IA.</span></a>
-      <a href="/prospects">{{ icon('target') }}<span><b>Prospects</b>Les personnes intéressées, notées de froid à chaud, avec les relances.</span></a>
-      <a href="/tickets">{{ icon('life') }}<span><b>Support</b>Les questions techniques que l'agent n'a pas pu résoudre seul.</span></a>
+      <a href="/journee">{{ icon('home') }}<span><b>Ma journée</b>Les trois choses à décider d'abord, et ce que l'agent a déjà géré seul. <em>La page à ouvrir le matin.</em></span></a>
+      <a href="/validations">{{ icon('check-circle') }}<span><b>Validations</b>Ce que l'agent a préparé et qui attend votre accord.</span></a>
+      <a href="/consigne">{{ icon('sparkles') }}<span><b>Donner une consigne</b>Dites en une phrase ce que vous voulez : l'agent prépare le travail.</span></a>
       <a href="/arret">{{ icon('power') }}<span><b>Bouton d'arrêt</b>Couper l'agent tout de suite, sur un canal ou partout.</span></a>
     </div>
   </div>
   <div class="card">
-    <h3 class="guide-h">Communication</h3>
+    <h3 class="guide-h">Les sites du groupe</h3>
     <div class="guide">
-      <a href="/agents">{{ icon('bot') }}<span><b>Agents IA</b>Chaque agent, ce qu'il fait, et des boutons pour lui demander un travail.</span></a>
-      <a href="/calendrier">{{ icon('calendar') }}<span><b>Calendrier éditorial</b>Les publications de la semaine, par pôle et par réseau.</span></a>
-      <a href="/reseaux">{{ icon('share') }}<span><b>Réseaux sociaux</b>Comptes, chaînes, numéros WhatsApp, publications programmées, commentaires.</span></a>
-      <a href="/campagnes">{{ icon('mail') }}<span><b>Campagnes mail</b>Newsletters rédigées par l'agent, envoyées par Brevo après validation.</span></a>
-      <a href="/essai">{{ icon('sparkles') }}<span><b>Essayer l'agent</b>Collez un message et voyez la réponse proposée, sans rien envoyer.</span></a>
+      <a href="/sites">{{ icon('globe') }}<span><b>Sites du groupe</b>Tous les sites et logiciels au même endroit, avec leur état et leur note.</span></a>
+      <a href="/seo">{{ icon('target') }}<span><b>Référencement (SEO)</b>La note sur 100 de chaque site et ce qu'il faut corriger pour mieux apparaître.</span></a>
+      <a href="/audience">{{ icon('chart') }}<span><b>Audience des sites</b>Pages vues, visiteurs, d'où ils viennent et ce qu'ils font, sans cookie.</span></a>
+      <a href="/google">{{ icon('target') }}<span><b>Positions sur Google</b>Clics, affichages et place moyenne de chaque site, avec les mots tapés.</span></a>
+      <a href="/ecosysteme">{{ icon('shield-check') }}<span><b>Écosystème</b>La santé des serveurs, des sites et des sauvegardes, avec alertes.</span></a>
     </div>
   </div>
   <div class="card">
-    <h3 class="guide-h">Réglages et suivi</h3>
+    <h3 class="guide-h">Clients et ventes</h3>
     <div class="guide">
+      <a href="/licences">{{ icon('shield-check') }}<span><b>Licences et abonnements</b>Qui a acheté quoi, jusqu'à quand, et les renouvellements à relancer.</span></a>
+      <a href="/prospects">{{ icon('target') }}<span><b>Prospects</b>Les personnes intéressées, notées de froid à chaud, avec les relances.</span></a>
+      <a href="/devis">{{ icon('list') }}<span><b>Devis</b>Les devis préparés et ceux qui attendent la réponse du client.</span></a>
+      <a href="/tickets">{{ icon('life') }}<span><b>Support</b>Les questions techniques que l'agent n'a pas pu résoudre seul.</span></a>
+    </div>
+  </div>
+  <div class="card">
+    <h3 class="guide-h">Publier et communiquer</h3>
+    <div class="guide">
+      <a href="/articles">{{ icon('globe') }}<span><b>Publier un article</b>Écrire une fois, valider, publier sur plusieurs sites, et retirer si besoin.</span></a>
+      <a href="/calendrier">{{ icon('calendar') }}<span><b>Calendrier éditorial</b>Les publications de la semaine, par pôle et par réseau.</span></a>
+      <a href="/reseaux">{{ icon('share') }}<span><b>Réseaux sociaux</b>Comptes, chaînes, numéros WhatsApp, publications programmées, commentaires.</span></a>
+      <a href="/campagnes">{{ icon('mail') }}<span><b>Campagnes mail</b>Newsletters rédigées par l'agent, envoyées après validation.</span></a>
+      <a href="/agents">{{ icon('bot') }}<span><b>Agents IA</b>Chaque agent, ce qu'il fait, et des boutons pour lui demander un travail.</span></a>
+    </div>
+  </div>
+  <div class="card">
+    <h3 class="guide-h">Maintenance et réglages</h3>
+    <div class="guide">
+      <a href="/maintenance">{{ icon('power') }}<span><b>Maintenance</b>Redémarrer un logiciel, lancer une sauvegarde : demande, confirmation, journal.</span></a>
       <a href="/connaissances">{{ icon('book') }}<span><b>Base de connaissances</b>Fiches, catalogues, FAQ et contacts : la seule source de l'agent.</span></a>
       <a href="/boites">{{ icon('inbox') }}<span><b>Boîtes mail</b>Les boîtes relevées toutes les 5 minutes, ajout en masse.</span></a>
-      <a href="/objectifs">{{ icon('target') }}<span><b>Objectifs</b>Vos consignes de la semaine : les agents en tiennent compte.</span></a>
-      <a href="/indicateurs">{{ icon('chart') }}<span><b>Indicateurs</b>Les objectifs du projet : délais, publications, heures économisées.</span></a>
       <a href="/services">{{ icon('globe') }}<span><b>Services</b>Brevo, recherche par le sens, photos par IA.</span></a>
+      <a href="/indicateurs">{{ icon('chart') }}<span><b>Indicateurs</b>Les objectifs du projet : délais, publications, heures économisées.</span></a>
+      <a href="/essai">{{ icon('sparkles') }}<span><b>Essayer l'agent</b>Collez un message et voyez la réponse proposée, sans rien envoyer.</span></a>
     </div>
   </div>
 </div>
