@@ -347,6 +347,12 @@ class Runtime:
         return self._analytics
 
     @property
+    def google(self):
+        from .google_search import GoogleSearchService
+
+        return GoogleSearchService(self.sessions, self.settings)
+
+    @property
     def maintenance(self):
         from .maintenance import MaintenanceService
 

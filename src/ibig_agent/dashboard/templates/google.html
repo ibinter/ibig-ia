@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Positions sur Google{% endblock %}
+{% block heading %}Positions sur Google{% endblock %}
+{% block lead %}<p class="lead">Ce que Google dit de vos sites sur les 28 derniers jours : combien de personnes ont cliqué depuis Google, combien l'ont vu, et à quelle place en moyenne. Plus la position est proche de 1, mieux c'est. Les chiffres de Google ont 2 jours de retard et se mettent à jour chaque nuit.</p>{% endblock %}
+{% block content %}
+{% if not configured %}
+<section class="card"><p class="muted">La connexion à Google Search Console n'est pas encore configurée.</p></section>
+{% else %}
+<section class="card" style="margin-bottom:16px;display:flex;gap:28px;flex-wrap:wrap;align-items:center">
+  <div><div class="muted small">Clics depuis Google</div><div style="font-size:30px;font-weight:800">{{ total_clicks }}</div></div>
+  <div><div class="muted small">Affichages</div><div style="font-size:30px;font-weight:800">{{ total_impressions }}</div></div>
+  <form method="post" action="/google/actualiser" style="margin-left:auto"><button class="btn primary" {{ 'disabled' if syncing }}>{{ 'Actualisation…' if syncing else 'Actualiser maintenant' }}</button></form>
+</section>
+<section class="card" style="margin-bottom:16px">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Site</th><th>Clics</th><th>Affichages</th><th>Position moy.</th><th>Taux de clic</th><th></th></tr></thead><tbody>
+    {% for r in rows %}{% set d = r.data %}
+    <tr {% if r.domain == selected %}style="background:var(--hover,#f4f7fb)"{% endif %}>
+      <td><b>{{ r.domain }}</b>{% if r.error %}<div class="small" style="color:#b42318">{{ r.error }}</div>{% endif %}</td>
+      {% if d %}
+      <td>{{ d.clicks }}{% set diff = d.clicks - d.prev_clicks %}<small class="muted"> {{ '+' if diff > 0 }}{{ diff }}</small></td>
+      <td>{{ d.impressions }}</td>
+      <td>{{ d.position }}{% if d.prev_position %}<small class="muted"> (avant : {{ d.prev_position }})</small>{% endif %}</td>
+      <td>{{ d.ctr }} %</td>
+      <td><a class="btn sm" href="/google?site={{ r.domain }}">Détails</a></td>
+      {% else %}<td colspan="5" class="muted small">Pas encore de données</td>{% endif %}
+    </tr>
+    {% endfor %}</tbody></table></div>
+</section>
+{% if detail %}
+<h2 style="margin:8px 0">{{ selected }} <small class="muted">du {{ detail['from'] }} au {{ detail['to'] }}</small></h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+  <section class="card"><h3>Ce que les gens tapent sur Google</h3>
+    {% for q in detail.queries %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small">{{ q.q }}</span><b>{{ q.clicks }} <small class="muted">· pos. {{ q.position }}</small></b></div>{% else %}<p class="muted small">—</p>{% endfor %}</section>
+  <section class="card"><h3>Pages qui amènent des visiteurs</h3>
+    {% for p in detail.pages %}<div style="display:flex;justify-content:space-between;gap:8px"><span class="small" style="word-break:break-all">{{ p.p | replace('https://', '') }}</span><b>{{ p.clicks }} <small class="muted">· pos. {{ p.position }}</small></b></div>{% else %}<p class="muted small">—</p>{% endfor %}</section>
+</div>
+<section class="card" style="margin-top:16px"><h3>Jour par jour</h3>
+  <div class="table-wrap"><table><thead><tr><th>Jour</th><th>Clics</th><th>Affichages</th></tr></thead><tbody>
+  {% for d in detail.daily | reverse %}<tr><td>{{ d.day }}</td><td>{{ d.clicks }}</td><td>{{ d.impressions }}</td></tr>{% endfor %}
+  </tbody></table></div></section>
+{% endif %}
+{% endif %}
+{% endblock %}

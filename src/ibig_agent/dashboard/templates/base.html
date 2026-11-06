@@ -88,6 +88,7 @@
         {{ nav('/sites', 'globe', 'Sites du groupe') if user.role != 'valideur' }}
         {{ nav('/seo', 'target', 'Référencement (SEO)') if user.role != 'valideur' }}
         {{ nav('/audience', 'chart', 'Audience des sites') if user.role != 'valideur' }}
+        {{ nav('/google', 'target', 'Positions sur Google') if user.role != 'valideur' }}
         {{ nav('/licences', 'shield-check', 'Licences et abonnements') if user.role != 'valideur' }}
         {{ nav('/articles', 'web', 'Publier un article') if user.role != 'valideur' }}
         {{ nav('/maintenance', 'shield-check', 'Maintenance') if user.role != 'valideur' }}

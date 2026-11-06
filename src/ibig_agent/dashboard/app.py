@@ -66,6 +66,7 @@ from . import (
     donnees_routes,
     ecosysteme_routes,
     finance_routes,
+    google_routes,
     journee,
     licences_routes,
     maintenance_routes,
@@ -597,6 +598,7 @@ def create_app(rt: Runtime) -> FastAPI:
     licences_routes.register(app, rt, user, page, back)
     articles_routes.register(app, rt, user, page, back)
     maintenance_routes.register(app, rt, user, page, back)
+    google_routes.register(app, rt, user, page, back)
     consigne_routes.register(app, rt, user, page, back)
 
     @app.get("/departements", response_class=HTMLResponse)
