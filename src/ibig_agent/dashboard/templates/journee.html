@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Ma journée{% endblock %}
+{% block heading %}Ma journée{% endblock %}
+{% block lead %}<p class="lead">Tout ce qui compte ce matin, au même endroit. Chaque carte mène à la page qui permet d'agir.</p>{% endblock %}
+{% block content %}
+{% set tone_color = {'ok': 'var(--ok)', 'warn': 'var(--warn)', 'bad': 'var(--bad)', 'info': 'var(--brand)'} %}
+{% set tone_bg = {'ok': 'var(--ok-soft)', 'warn': 'var(--warn-soft)', 'bad': 'var(--bad-soft)', 'info': 'var(--brand-soft)'} %}
+<section class="card" style="background:{{ tone_bg[j.ton] }};border-color:{{ tone_color[j.ton] }};margin-bottom:16px">
+  <a href="/ecosysteme" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;text-decoration:none;color:inherit">
+    <span style="width:16px;height:16px;border-radius:50%;background:{{ tone_color[j.ton] }};flex:none"></span>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:24px;font-weight:800;color:{{ tone_color[j.ton] }};line-height:1.2">{{ j.message }}</div>
+      <div class="muted small">{{ j.suivis }} sites et logiciels suivis · disponibilité {{ j.dispo if j.dispo is not none else '—' }}{{ ' %' if j.dispo is not none }} sur 24 h</div>
+    </div>
+  </a>
+</section>
+
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('target') }} Vos décisions du moment</h2>
+    <div class="sub">{% if j.decisions_total > j.decisions|length %}{{ j.decisions|length }} sur {{ j.decisions_total }} : les autres arrivent dès que vous avez répondu.{% else %}Un clic suffit : la réponse est déjà prête.{% endif %}</div></div></div>
+  {% for d in j.decisions %}
+  <div style="border-top:1px solid var(--line);padding:12px 0">
+    <b>{{ d.titre | lisible }}</b>{% if d.pole %} <span class="muted small">· {{ d.pole }}</span>{% endif %}
+    {% if d.resume %}<div class="muted small">{{ d.resume }}</div>{% endif %}
+    {% if d.texte %}<pre style="white-space:pre-wrap;margin:8px 0;font-family:inherit">{{ d.texte }}</pre>{% endif %}
+    {% if d.incomplet %}<div class="alert amber">{{ icon('alert') }}<span>Texte incomplet : ouvrez la validation pour le compléter.</span></div>
+    <a class="btn sm" href="/validations#p{{ d.id }}">Compléter</a>
+    {% else %}
+    <div class="inline" style="gap:8px">
+      <form method="post" action="/validations/{{ d.id }}/approuver"><input type="hidden" name="retour" value="/journee"><button class="btn ok">{{ icon('check') }} Oui, envoyer</button></form>
+      <form method="post" action="/validations/{{ d.id }}/rejeter"><input type="hidden" name="retour" value="/journee"><button class="btn ghost-bad">{{ icon('x') }} Non</button></form>
+      <a class="btn sm" href="/validations#p{{ d.id }}">Modifier</a>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if not j.decisions %}<p class="muted">Aucune décision pour vous. {% if j.priorites %}Il reste : <a href="{{ j.priorites[0].lien }}">{{ j.priorites[0].texte }}</a>.{% else %}Vous pouvez avancer sur vos projets.{% endif %}</p>{% endif %}
+  <p class="muted small" style="margin-bottom:0">{{ icon('sparkles') }} Les agents ont réglé seuls {{ j.handled_alone }} chose(s) depuis hier, sans vous déranger.</p>
+</section>
+
+<form class="card" method="post" action="/consigne" style="margin-bottom:16px">
+  <label class="field"><span>{{ icon('sparkles') }} Donner une consigne (même vague) à l'agent concerné</span>
+    <input type="text" name="texte" maxlength="1500" required placeholder="Exemple : relance les clients de Scolaby"></label>
+  <button class="btn primary" style="margin-top:8px">Envoyer</button>
+</form>
+
+<details class="card" style="margin-bottom:16px"><summary style="cursor:pointer;font-weight:700">Voir le détail (chiffres, alertes, consignes)</summary>
+<div style="margin-top:12px">
+<div class="grid g-3" style="margin-bottom:16px">
+  <a class="card" href="/validations" style="text-decoration:none;color:inherit"><div class="muted small">À valider</div><div style="font-size:28px;font-weight:800;color:{{ 'var(--warn)' if j.pending else 'inherit' }}">{{ j.pending }}</div><div class="muted small">{{ j.prepared }} préparée(s) par les agents</div></a>
+  <a class="card" href="/finance" style="text-decoration:none;color:inherit"><div class="muted small">Reste à encaisser</div><div style="font-size:28px;font-weight:800">{{ '{:,}'.format(j.outstanding).replace(',', ' ') }} <small>FCFA</small></div><div class="muted small">{{ j.payments_to_confirm }} paiement(s) à confirmer{% if j.tranches_retard %} · {{ j.tranches_retard }} tranche(s) EDUFORM en retard{% endif %}</div></a>
+  <a class="card" href="/devis" style="text-decoration:none;color:inherit"><div class="muted small">Devis en attente du client</div><div style="font-size:28px;font-weight:800">{{ j.quotes_waiting }}</div><div class="muted small">{{ j.quotes_draft }} brouillon(s)</div></a>
+  <a class="card" href="/prospects" style="text-decoration:none;color:inherit"><div class="muted small">Prospects chauds</div><div style="font-size:28px;font-weight:800">{{ j.hot_prospects }}</div><div class="muted small">sur {{ j.prospects }} prospects</div></a>
+  <a class="card" href="/tickets" style="text-decoration:none;color:inherit"><div class="muted small">Support ouvert</div><div style="font-size:28px;font-weight:800">{{ j.open_tickets }}</div><div class="muted small">{{ j.mails_24h }} mail(s) traité(s) en 24 h</div></a>
+  <a class="card" href="/ecosysteme" style="text-decoration:none;color:inherit"><div class="muted small">Sauvegardes</div>
+    <div style="font-size:28px;font-weight:800;color:{{ 'var(--ok)' if j.backups_ok else 'var(--bad)' }}">{{ 'À jour' if j.backups_ok else ('À vérifier' if j.backups_known else 'Inconnu') }}</div>
+    <div class="muted small">{% if j.backups_oldest_h is not none %}la plus ancienne : {{ j.backups_oldest_h }} h{% else %}aucun relevé{% endif %}</div></a>
+</div>
+
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('alert') }} À surveiller</h2><div class="sub">{{ j.nb_incidents }} point(s) ouvert(s) dans l'écosystème, dont {{ j.core_findings }} dans IBIG CORE</div></div><a class="btn sm" href="/ecosysteme">Tout voir</a></div>
+  {% if not j.incidents %}<p class="muted">Rien à signaler.</p>{% endif %}
+  {% for i in j.incidents %}
+    <div style="border-top:1px solid var(--line);padding:8px 0"><span class="pill {{ 'red' if i.severity == 'critical' else 'amber' }} dot">{{ 'Urgent' if i.severity == 'critical' else 'À corriger' }}</span> {{ i.title }}</div>
+  {% endfor %}
+</section>
+
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('list') }} Vos dernières consignes</h2></div><a class="btn sm" href="/consigne">Toutes</a></div>
+  {% if not j.consignes %}<p class="muted">Aucune consigne pour l'instant.</p>{% endif %}
+  {% for e in j.consignes %}
+    <div style="border-top:1px solid var(--line);padding:8px 0"><b>{{ e.text.splitlines()[0][:110] }}</b>
+      <div class="muted small">{{ {'en_cours': 'Prise en charge…', 'prise': 'Prise en charge', 'a_preciser': 'À préciser : ' ~ e.question, 'repondue': 'Réponse donnée', 'redirigee': 'Redirigée', 'echec': 'Impossible'}[e.status] }} · {{ e.at }}</div></div>
+  {% endfor %}
+</section>
+
+</div></details>
+
+<p class="muted small">Dépense IA ce mois : {{ j.ai_spend }} $ sur {{ j.ai_budget }} $ · <a href="/">Ancien accueil (statistiques détaillées)</a></p>
+{% endblock %}

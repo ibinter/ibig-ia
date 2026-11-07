@@ -1,0 +1,70 @@
+# Inventaire de l'écosystème IBIG SARL : sites, logiciels et API surveillés par le centre de contrôle.
+# Lu au démarrage et à la demande (bouton « Relire l'inventaire »). Aucun secret ici : des adresses
+# publiques. On peut aussi ajouter un actif depuis la page « Écosystème » du tableau de bord.
+#
+# genre        : site | logiciel | api | autre
+# hebergement  : vps (serveur Docker/pm2/Laravel) | ftp (hébergement mutualisé) | externe
+# criticite    : haute (alerte immédiate) | moyenne | basse (surveillé, jamais d'alerte urgente)
+# chemin       : page testée (par défaut « / ») ; pour une API, une adresse de santé si elle existe
+# codes_ok     : codes HTTP considérés normaux (par défaut 200-399)
+# attendu      : mot qui doit figurer sur la page (détecte une page vide ou remplacée)
+# actif        : false = connu mais pas encore suivi (ex. adresse à confirmer)
+actifs:
+  # --- Groupe et sites officiels -------------------------------------------------------------
+  - {nom: "IBIG SARL — site officiel", url: "https://intermark-business.com", genre: site, hebergement: externe, pole: GROUPE, criticite: haute, attendu: "IBIG"}
+  - {nom: "IBIG SARL — Conseil+", url: "https://intermark-business.com/conseil/", genre: site, hebergement: externe, pole: CONSEIL, criticite: moyenne}
+  - {nom: "IBIG SARL — Multiservices", url: "https://intermark-business.com/multiservices", genre: site, hebergement: externe, pole: MULTISERVICES, criticite: moyenne}
+  - {nom: "IBIG SARL — portail ibigroupsarl.com", url: "https://ibigroupsarl.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: moyenne, notes: "seo:non — portail d'administration privé, volontairement non indexé"}
+  - {nom: "IBIG CORE — administration", url: "https://ibigroupsarl.com/admin/login.php", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG CORE — CRM", url: "https://ibigroupsarl.com/admin/crm", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG CORE — RH", url: "https://ibigroupsarl.com/admin/rh", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG CORE — Finance", url: "https://ibigroupsarl.com/admin/finance", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG CORE — EDUFORM (gestion des formations)", url: "https://ibigroupsarl.com/admin/eduform", genre: logiciel, hebergement: ftp, pole: EDUFORM, criticite: haute}
+  - {nom: "IBIG CORE — Examens en ligne", url: "https://ibigroupsarl.com/admin/exam", genre: logiciel, hebergement: ftp, pole: EDUFORM, criticite: haute}
+  - {nom: "IBIG CORE — Gestion", url: "https://ibigroupsarl.com/admin/gestion", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG CORE — IBIG-IA (assistant du CORE)", url: "https://ibigroupsarl.com/admin/ibig-IA", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: basse}
+  - {nom: "IBIG CORE — Mailaby — emailing", url: "https://ibigroupsarl.com/admin/mailaby", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "Patrice Kouakou — site personnel", url: "https://patricekouakou.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: basse}
+  # --- Hébergement FTP d'intermark-business.com (193.37.145.70) -------------------------------
+  - {nom: "IBIG PAY — paiement", url: "https://pay.intermark-business.com", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: haute}
+  - {nom: "IBIG DIGITAL KITS — boutique", url: "https://kits.intermark-business.com", genre: logiciel, hebergement: ftp, pole: DIGITAL, criticite: moyenne}
+  - {nom: "Vérification de certificats", url: "https://verify.intermark-business.com", genre: logiciel, hebergement: ftp, pole: EDUFORM, criticite: moyenne}
+  - {nom: "UAJRP Connect", url: "https://uajrp.com", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: moyenne}
+  - {nom: "IBIG PAY (ibigpay, dossier sans DNS)", url: "https://ibigpay.intermark-business.com", genre: logiciel, hebergement: ftp, pole: GROUPE, criticite: basse, actif: false, notes: "Dossier présent sur le FTP d'intermark-business.com mais adresse absente du DNS : ancienne version de pay ? À confirmer."}
+  - {nom: "Site de test (dossier sans DNS)", url: "https://test.intermark-business.com", genre: site, hebergement: ftp, pole: GROUPE, criticite: basse, actif: false, notes: "Dossier présent sur le FTP mais adresse absente du DNS."}
+  # --- Pôles ---------------------------------------------------------------------------------
+  - {nom: "IBIG SOFT — site", url: "https://ibigsoft.com", genre: site, hebergement: ftp, pole: SOFT, criticite: haute, attendu: "IBIG"}
+  - {nom: "IBIG EDUFORM — site", url: "https://ibig-eduform.com", genre: site, hebergement: ftp, pole: EDUFORM, criticite: haute}
+  - {nom: "IBIG E-LEARNING", url: "https://ibig-elearning.com", genre: logiciel, hebergement: vps, pole: EDUFORM, criticite: moyenne}
+  - {nom: "IBIG MARKET — site", url: "https://ibig-market.com", genre: site, hebergement: ftp, pole: MARKET, criticite: haute}
+  - {nom: "IBIG IMMO TRUST — site", url: "https://ibigimmotrust.com", genre: site, hebergement: ftp, pole: IMMOTRUST, criticite: haute}
+  - {nom: "IBIG IMMO TRUST — API", url: "https://api.ibigimmotrust.com", genre: api, hebergement: vps, pole: IMMOTRUST, criticite: haute, codes_ok: "200-404"}
+  - {nom: "IBIG DIGITAL — site", url: "https://ibig-digital.com", genre: site, hebergement: vps, pole: DIGITAL, criticite: haute}
+  - {nom: "IBIG PARTNERS", url: "https://ibigpartners.com", genre: logiciel, hebergement: vps, pole: PARTNERS, criticite: haute}
+  # --- Logiciels IBIG SOFT -------------------------------------------------------------------
+  - {nom: "Scolaby", url: "https://scolaby.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Santarex", url: "https://santarex.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Santarex — démo", url: "https://demo.santarex.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: basse}
+  - {nom: "Secretis", url: "https://secretis.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Lokativo", url: "https://lokativo.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Lokativo — démo", url: "https://demo.lokativo.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: basse}
+  - {nom: "Construiro", url: "https://construiro.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Construiro — démo", url: "https://demo.construiro.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: basse}
+  - {nom: "Fleet 360", url: "https://ibigfleet360.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Fleet 360 — démo", url: "https://demo.ibigfleet360.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: basse}
+  - {nom: "Fleet 360 — API", url: "https://api.ibigfleet360.com", genre: api, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Anouanzê", url: "https://anouanze.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "Gestmoney", url: "https://gestmoney.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: haute}
+  - {nom: "FactPro", url: "https://factpro.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: moyenne}
+  - {nom: "DocPro", url: "https://docpro.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: moyenne}
+  - {nom: "Agrifrik", url: "https://agrifrik.ibigsoft.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: moyenne}
+  - {nom: "QR Code Express", url: "https://qrcode-express.com", genre: logiciel, hebergement: vps, pole: SOFT, criticite: moyenne}
+  - {nom: "Zelivry", url: "https://zelivry.com", genre: logiciel, hebergement: externe, pole: SOFT, criticite: haute}
+  - {nom: "StockFlow", url: "https://stockflow.ibigsoft.com", genre: logiciel, hebergement: ftp, pole: SOFT, criticite: haute}
+  - {nom: "Immocore", url: "https://immocore.ibigsoft.com", genre: logiciel, hebergement: ftp, pole: SOFT, criticite: moyenne}
+  - {nom: "CRM IBIG", url: "https://crm.ibigsoft.com", genre: logiciel, hebergement: ftp, pole: SOFT, criticite: moyenne}
+  - {nom: "IBIG Form", url: "https://forms.ibigsoft.com", genre: logiciel, hebergement: ftp, pole: SOFT, criticite: moyenne}
+  # --- Agent IA ------------------------------------------------------------------------------
+  - {nom: "Agent IA IBIG", url: "https://agents.ibigsoft.com", genre: logiciel, hebergement: vps, pole: GROUPE, criticite: haute, chemin: "/login"}
+  # --- À confirmer (connus mais pas encore suivis) -------------------------------------------
+  - {nom: "Secretaris (dossier FTP sans DNS)", url: "https://secretaris.ibigsoft.com", genre: site, hebergement: ftp, pole: SOFT, criticite: basse, actif: false, notes: "Dossier présent sur le FTP d'ibigsoft.com mais adresse absente du DNS : faute de frappe pour « secretis » ou ancien site ? À confirmer."}

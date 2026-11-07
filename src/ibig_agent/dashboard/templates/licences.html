@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Licences et abonnements{% endblock %}
+{% block heading %}Licences et abonnements{% endblock %}
+{% block lead %}<p class="lead">Qui a acheté quel logiciel ou quelle plateforme, jusqu'à quand, pour combien. Les licences qui expirent dans 30 jours ressortent en orange pour ne jamais rater un renouvellement.</p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px;display:flex;gap:28px;flex-wrap:wrap;align-items:center">
+  <div><div class="muted small">Licences payantes actives</div><div style="font-size:30px;font-weight:800">{{ summary.actives }}</div></div>
+  <div><div class="muted small">Essais en cours</div><div style="font-size:30px;font-weight:800">{{ summary.essais }}</div></div>
+  <div><div class="muted small">Comptes gratuits</div><div style="font-size:30px;font-weight:800">{{ summary.gratuites }}</div></div>
+  <div><div class="muted small">Expirent sous 30 jours</div><div style="font-size:30px;font-weight:800">{{ summary.bientot }}</div></div>
+  <div><div class="muted small">Expirées</div><div style="font-size:30px;font-weight:800">{{ summary.expirees }}</div></div>
+  <div><div class="muted small">Revenu mensuel estimé</div><div style="font-size:30px;font-weight:800">{{ '{:,}'.format(summary.mensuel_fcfa).replace(',', ' ') }} <small>FCFA</small></div></div>
+</section>
+<section class="card" style="margin-bottom:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+  <form method="post" action="/licences/synchroniser"><button class="btn primary">Synchroniser maintenant</button></form>
+  <span class="muted small">Les licences de SANTAREX, SCOLABY, SECRETIS, LOKATIVO, DOCPRO, ANOUANZÊ, GESTMONEY, CONSTRUIRO, FACTPRO et FLEET 360 arrivent toutes seules chaque nuit à 3 h 50 : rien à saisir.</span>
+</section>
+<details class="card" style="margin-bottom:16px">
+  <summary><b>Ajouter à la main</b> une licence d'un produit qui n'est pas relié</summary>
+  <form method="post" action="/licences" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;align-items:end">
+    <label class="small">Client<input name="client" required></label>
+    <label class="small">Produit<input name="product" list="produits" required placeholder="ex. IBIG SOFT, Scolaby…"></label>
+    <datalist id="produits">{% for p in products %}<option value="{{ p }}">{% endfor %}</datalist>
+    <label class="small">Formule<select name="plan">{% for p in plans %}<option value="{{ p }}" {{ 'selected' if p == 'annuel' }}>{{ p }}</option>{% endfor %}</select></label>
+    <label class="small">Prix de la période (FCFA)<input name="amount" type="number" min="0" value="0"></label>
+    <label class="small">Début<input name="starts_on" type="date" value="{{ today }}"></label>
+    <label class="small">Fin (vide = calculée)<input name="ends_on" type="date"></label>
+    <label class="small">Contact<input name="contact" placeholder="e-mail ou téléphone"></label>
+    <label class="small">Site ou plateforme<input name="site" placeholder="ex. client.ibigsoft.com"></label>
+    <label class="small" style="grid-column:1/-1">Notes<input name="notes"></label>
+    <button class="btn primary">Enregistrer</button>
+  </form>
+</details>
+<section class="card">
+  <div class="small" style="margin-bottom:8px">Afficher :
+    <a class="btn sm {{ 'primary' if not filtre }}" href="/licences">Toutes</a>
+    {% for k in ['bientot', 'expiree', 'active', 'suspendue'] %}<a class="btn sm {{ 'primary' if filtre == k }}" href="/licences?filtre={{ k }}">{{ labels[k] }}</a>{% endfor %}
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Client</th><th>Produit</th><th>Formule</th><th>Prix</th><th>Échéance</th><th>État</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set l = r.row %}
+    <tr>
+      <td><b>{{ l.client }}</b><div class="muted small">{{ l.contact }}</div></td>
+      <td>{{ l.product }}<div class="muted small">{{ l.site }}{{ ' · saisie manuelle' if l.source == 'manuel' }}</div></td>
+      <td>{{ l.plan }}</td>
+      <td>{{ '{:,}'.format(l.amount_fcfa).replace(',', ' ') }} FCFA</td>
+      <td>{% if l.ends_on %}{{ l.ends_on.strftime('%d/%m/%Y') }}<div class="muted small">{{ 'dans ' ~ r.days ~ ' j' if r.days >= 0 else 'il y a ' ~ (-r.days) ~ ' j' }}</div>{% else %}—{% endif %}</td>
+      <td><span class="pill {{ tones[r.state] }}">{{ labels[r.state] }}</span></td>
+      <td style="white-space:nowrap">
+        {% if l.plan in ('mensuel', 'annuel') %}<form method="post" action="/licences/{{ l.id }}/renouveler" style="display:inline"><button class="btn sm">Renouveler</button></form>{% endif %}
+        {% if l.status == 'active' %}<form method="post" action="/licences/{{ l.id }}/statut" style="display:inline"><input type="hidden" name="statut" value="suspendue"><button class="btn sm">Suspendre</button></form>
+        {% else %}<form method="post" action="/licences/{{ l.id }}/statut" style="display:inline"><input type="hidden" name="statut" value="active"><button class="btn sm">Réactiver</button></form>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% if not rows %}<p class="muted">Aucune licence pour l'instant. Ajoute la première avec le formulaire ci-dessus.</p>{% endif %}
+</section>
+{% endblock %}

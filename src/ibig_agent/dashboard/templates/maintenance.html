@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Maintenance{% endblock %}
+{% block heading %}Console de maintenance{% endblock %}
+{% block lead %}<p class="lead">Redémarrer un logiciel, lancer une sauvegarde, recharger le serveur web. L'agent ne peut faire que les actions de cette liste, et chacune doit être confirmée ici avant d'être exécutée sur le serveur. Tout est journalisé.</p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px">
+  <h3>Demander une action</h3>
+  <form method="post" action="/maintenance/demander" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:end">
+    <label class="small">Action
+      <select name="action" id="act" onchange="document.querySelectorAll('.tgt').forEach(function(s){s.disabled = s.dataset.a !== this.value; s.style.display = s.dataset.a === this.value ? '' : 'none'}.bind(this))">
+        {% for c in catalog %}<option value="{{ c.action }}">{{ c.label }}</option>{% endfor %}
+      </select></label>
+    {% for c in catalog %}
+    <label class="small">Sur quoi
+      <select name="target" class="tgt" data-a="{{ c.action }}" {% if not loop.first %}disabled style="display:none"{% endif %}>
+        {% for t in c.targets %}<option value="{{ t.key }}">{{ t.label }}{{ ' (sensible)' if t.sensible }}</option>{% endfor %}
+      </select></label>
+    {% endfor %}
+    <button class="btn primary">Demander</button>
+  </form>
+</section>
+<section class="card">
+  <h3>Journal des demandes</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Quand</th><th>Action</th><th>État</th><th>Par</th><th>Résultat</th><th></th></tr></thead><tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="small">{{ r.created_at.strftime('%d/%m %H:%M') }}</td>
+      <td><b>{{ action_label.get(r.action, r.action) }}</b><div class="muted small">{{ target_label.get((r.action, r.target), r.target) }}</div></td>
+      <td><span class="pill {{ tones[r.status] }}">{{ labels[r.status] }}</span></td>
+      <td class="small">{{ r.requested_by }}{% if r.confirmed_by %}<div class="muted">confirmé : {{ r.confirmed_by }}</div>{% endif %}</td>
+      <td class="small" style="max-width:340px;white-space:pre-wrap">{{ r.output[:400] }}</td>
+      <td style="white-space:nowrap">
+        {% if r.status == 'demandee' %}<form method="post" action="/maintenance/{{ r.id }}/confirmer" style="display:inline"><button class="btn sm primary">Confirmer</button></form>{% endif %}
+        {% if r.status in ('demandee', 'confirmee') %}<form method="post" action="/maintenance/{{ r.id }}/annuler" style="display:inline"><button class="btn sm">Annuler</button></form>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}</tbody></table></div>
+  {% if not rows %}<p class="muted">Aucune demande pour l'instant.</p>{% endif %}
+</section>
+{% endblock %}

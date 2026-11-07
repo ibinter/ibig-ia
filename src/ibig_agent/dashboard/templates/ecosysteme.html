@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Écosystème{% endblock %}
+{% block heading %}Écosystème IBIG{% endblock %}
+{% block lead %}<p class="lead">L'état de tous les sites et logiciels du groupe, mesuré toutes les 5 minutes. Si quelque chose ne va pas, la cause probable et la correction suggérée sont indiquées. Les corrections ne sont jamais appliquées sans vous.</p>{% endblock %}
+{% block content %}
+<div id="eco-live">{% include "_ecosysteme_live.html" %}</div>
+
+<div class="grid g-3" style="margin-top:16px;align-items:start">
+  <form class="card" method="post" action="/ecosysteme/sonder">
+    <div class="card-head"><div><h2>{{ icon('play') }} Mesurer maintenant</h2><div class="sub">Teste tous les sites tout de suite, sans attendre.</div></div></div>
+    <button class="btn primary" {{ 'disabled' if checking }}>{{ 'Mesure en cours…' if checking else 'Lancer la mesure' }}</button>
+  </form>
+
+  <form class="card" method="post" action="/ecosysteme/inventaire">
+    <div class="card-head"><div><h2>{{ icon('book') }} Relire l'inventaire</h2><div class="sub">Recharge la liste des actifs connus (fichier <code>config/ecosysteme.yaml</code>).</div></div></div>
+    <button class="btn">Relire</button>
+  </form>
+
+  <form class="card" method="post" action="/ecosysteme/import">
+    <div class="card-head"><div><h2>{{ icon('globe') }} Ajouter plusieurs adresses</h2><div class="sub">Une par ligne : <b>nom | adresse | hébergement | pôle | criticité</b>. Seule l'adresse est obligatoire.</div></div></div>
+    <textarea name="liste" rows="4" maxlength="6000" placeholder="https://monsite.com&#10;Mon logiciel | https://app.exemple.ci | vps | SOFT | haute" style="width:100%"></textarea>
+    <button class="btn" style="margin-top:8px">{{ icon('check') }} Ajouter</button>
+  </form>
+</div>
+
+<form class="card" method="post" action="/ecosysteme/battement" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('shield-check') }} Surveillance depuis l'extérieur</h2>
+    <div class="sub">Si le serveur lui-même tombe, l'agent ne peut plus vous prévenir. Un service gratuit placé ailleurs (healthchecks.io ou Better Stack) reçoit un signal à chaque mesure et vous écrit s'il n'en reçoit plus.</div></div></div>
+  {% if heartbeat.configured %}
+  <p class="small"><span class="pill {{ 'green' if heartbeat.ok else 'red' }} dot">{{ 'Signal reçu' if heartbeat.ok else 'Échec du dernier signal' }}</span>
+    {{ heartbeat.host }}{% if heartbeat.at %} · dernier envoi {{ heartbeat.at[11:16] }} (UTC){% endif %}{% if heartbeat.detail %} · {{ heartbeat.detail }}{% endif %}</p>
+  {% else %}
+  <p class="muted small">Non réglé. Créez une vérification gratuite (période 5 min, tolérance 10 min, alerte par courriel et SMS), copiez son adresse « ping » et collez-la ici.</p>
+  {% endif %}
+  <label class="field"><span>Adresse du signal (https://…)</span><input type="url" name="adresse" maxlength="500" placeholder="https://hc-ping.com/…" autocomplete="off"></label>
+  <button class="btn primary">{{ icon('check') }} {{ 'Remplacer' if heartbeat.configured else 'Enregistrer' }}</button>
+  <p class="muted small">Laisser vide puis enregistrer retire la surveillance externe. L'adresse est stockée chiffrée.</p>
+</form>
+
+<form class="card" method="post" action="/ecosysteme/ftp" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('server') }} Ajouter / mettre à jour un compte FTP</h2><div class="sub">Les identifiants sont chiffrés avant d'être enregistrés. Ressaisir le mot de passe pour mettre à jour un compte existant (même label).</div></div></div>
+  <div class="grid g-3" style="gap:12px">
+    <label class="field"><span>Label (nom du compte)</span><input type="text" name="label" required maxlength="100" placeholder="ibigsoft.com" autocomplete="off"></label>
+    <label class="field"><span>Hôte FTP</span><input type="text" name="host" required maxlength="200" placeholder="ftp.ibigsoft.com" autocomplete="off"></label>
+    <label class="field"><span>Port</span><input type="number" name="port" value="21" min="1" max="65535" style="width:100%"></label>
+    <label class="field"><span>Mode</span><select name="mode" style="width:100%"><option value="ftps" selected>FTPS (TLS explicite)</option><option value="ftp">FTP simple</option></select></label>
+    <label class="field"><span>Login</span><input type="text" name="login" required maxlength="200" autocomplete="off"></label>
+    <label class="field"><span>Mot de passe</span><input type="password" name="password" required maxlength="300" autocomplete="off"></label>
+    <label class="field"><span>Dossier racine</span><input type="text" name="root_path" value="/" maxlength="300" placeholder="/"></label>
+  </div>
+  <button class="btn primary" style="margin-top:8px">{{ icon('check') }} Enregistrer</button>
+</form>
+
+<form class="card" method="post" action="/ecosysteme/actif" style="margin-top:16px">
+  <div class="card-head"><div><h2>{{ icon('edit') }} Ajouter un site ou un logiciel</h2><div class="sub">Il sera mesuré dans les 5 minutes qui suivent.</div></div></div>
+  <div class="grid g-3" style="gap:12px">
+    <label class="field"><span>Nom</span><input type="text" name="nom" maxlength="200" placeholder="Mon logiciel"></label>
+    <label class="field"><span>Adresse</span><input type="url" name="url" required placeholder="https://…"></label>
+    <label class="field"><span>Genre</span><select name="genre" style="width:100%">{% for k in kinds %}<option>{{ k }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Hébergement</span><select name="hebergement" style="width:100%">{% for k in hostings %}<option>{{ k }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Pôle</span><select name="pole" style="width:100%"><option value="">—</option>{% for p in poles %}<option value="{{ p.code }}">{{ p.code }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Criticité</span><select name="criticite" style="width:100%">{% for k in criticalities %}<option {{ 'selected' if k == 'moyenne' }}>{{ k }}</option>{% endfor %}</select></label>
+    <label class="field"><span>Page testée</span><input type="text" name="chemin" value="/" maxlength="200"></label>
+    <label class="field"><span>Mot qui doit figurer sur la page (facultatif)</span><input type="text" name="attendu" maxlength="300"></label>
+  </div>
+  <p class="muted small">« Haute » = alerte immédiate à la direction en cas de panne. « Basse » = suivi sans alerte urgente (démos, tests).</p>
+  <button class="btn primary">{{ icon('check') }} Ajouter</button>
+</form>
+
+<script>
+(function () {
+  var box = document.getElementById('eco-live');
+  function refresh() {
+    if (document.hidden) return;
+    fetch('/ecosysteme/live', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) { if (html) box.innerHTML = html; })
+      .catch(function () {});
+  }
+  setInterval(refresh, 30000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+})();
+</script>
+{% endblock %}

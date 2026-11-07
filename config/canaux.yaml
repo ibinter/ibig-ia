@@ -1,0 +1,29 @@
+# Cartographie des comptes et canaux (section 4) et faisabilité (section 8).
+# publication_auto : true = l'agent peut programmer (après validation niveau 2),
+#                    false = l'agent prépare, un humain publie.
+comptes_sociaux:
+  - {reseau: facebook_page, compte: "IBIG SARL (IBInterOfficiel)", pole: GROUPE, publication_auto: true}
+  - {reseau: facebook_page, compte: "IBIG ImmoTrust", pole: IMMOTRUST, publication_auto: true}
+  - {reseau: facebook_page, compte: "IBIG EduForm", pole: EDUFORM, publication_auto: true}
+  - {reseau: facebook_page, compte: "IBIG Soft", pole: SOFT, publication_auto: true}
+  - {reseau: facebook_page, compte: "IBIG Market", pole: MARKET, publication_auto: true}
+  - {reseau: facebook_groupe, compte: "IBInterOfficiel", pole: GROUPE, publication_auto: false}
+  - {reseau: facebook_groupe, compte: "Groupe 367494932590382", pole: A_PRECISER, publication_auto: false}
+  - {reseau: facebook_groupe, compte: "IBIG ImmoTrust", pole: IMMOTRUST, publication_auto: false}
+  - {reseau: linkedin, compte: "Intermark Business International", pole: GROUPE, publication_auto: true}
+  - {reseau: tiktok, compte: "@ibigroupsarl", pole: GROUPE, publication_auto: false}
+  - {reseau: tiktok, compte: "@ibig.immo.trust", pole: IMMOTRUST, publication_auto: false}
+  - {reseau: instagram, compte: "@ib_inter_officiel", pole: GROUPE, publication_auto: true}
+  - {reseau: threads, compte: "@ib_inter_officiel", pole: GROUPE, publication_auto: true}
+  - {reseau: x, compte: "@InterMarkB", pole: GROUPE, publication_auto: true}
+
+# Règles de déclinaison par réseau (section 8)
+declinaison:
+  facebook_page: "Long et pédagogique, 150 à 300 mots, appel à l'action clair."
+  facebook_groupe: "Long et pédagogique, ton communautaire, invite à commenter."
+  linkedin: "Long, expert et professionnel, 150 à 300 mots, 3 hashtags maximum."
+  instagram: "Visuel d'abord : légende courte (80 mots max), brief visuel détaillé, 5 à 10 hashtags."
+  threads: "Court et conversationnel, 500 caractères maximum."
+  x: "Très court, 280 caractères maximum, un lien."
+  tiktok: "Script vidéo de 30 à 60 secondes : accroche en 3 s, 3 plans, appel à l'action."
+  whatsapp_chaine: "Message court et direct, 1 emoji maximum, un lien."

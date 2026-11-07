@@ -1,0 +1,149 @@
+"""Audit de référencement : règles, note, exploration, mission (aucun accès réseau réel)."""
+
+import httpx
+import pytest
+
+from ibig_agent.db import EcoAsset
+from ibig_agent.seo import Issue, SeoService, analyze_page, grade, score
+
+GOOD = ("<html lang='fr'><head><title>IBIG SOFT, logiciels de gestion pour entreprises à Abidjan</title>"
+        "<meta name='description' content='IBIG SOFT conçoit des logiciels de gestion simples et fiables pour les "
+        "entreprises et les écoles de Côte d Ivoire.'><meta name='viewport' content='width=device-width'>"
+        "<link rel='canonical' href='https://x.ci/'><meta property='og:title' content='a'>"
+        "<meta property='og:image' content='b'><script type='application/ld+json'>{}</script></head>"
+        "<body><h1>Logiciels</h1><img src='a.png' alt='logo'><p>" + "mot " * 300 + "</p>"
+        "<a href='/produits'>Produits</a></body></html>")
+
+
+def codes(issues):
+    return {i.code for i in issues}
+
+
+def test_good_page_has_no_issue_and_bad_page_is_flagged():
+    assert analyze_page(GOOD, "https://x.ci/")[0] == []
+    bad, _ = analyze_page("<html><head><meta name='robots' content='noindex'></head>"
+                          "<body><img src='a'></body></html>", "https://x.ci/")
+    assert {"noindex", "title_absent", "desc_absente", "h1_absent", "viewport", "images_alt",
+            "contenu_court"} <= codes(bad)
+
+
+def test_score_is_capped_per_code_and_graded():
+    many = [Issue("title_absent", "critical", f"/{n}", "", "") for n in range(5)]
+    assert score(many) == 60          # 5 x 25 plafonné à 40
+    assert score([]) == 100 and grade(100) == "excellent" and grade(40) == "faible"
+
+
+def make_site(routes):
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = routes.get(request.url.path)
+        return httpx.Response(200, text=body) if body is not None else httpx.Response(404)
+    return httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+
+def one_asset(rt, name, url):
+    with rt.sessions() as s:
+        a = EcoAsset(name=name, url=url, kind="site")
+        s.add(a)
+        s.commit()
+        s.refresh(a)
+    return a
+
+
+def test_audit_detects_blocking_robots_missing_sitemap_and_broken_page(rt):
+    a = one_asset(rt, "Site test", "https://x.ci")
+    service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site({
+        "/": GOOD, "/robots.txt": "User-agent: *\nDisallow: /\n", "/produits": "<html><body>vide</body></html>"}))
+    r = service.audit(a)
+    found = codes([Issue(**i) for i in r["issues"]])
+    assert {"robots_bloque", "sitemap", "title_absent"} <= found
+    assert r["score"] < 100 and service.result(a.id)["score"] == r["score"]
+    again = service.audit(a)
+    assert again["previous"] == r["score"] and len(again["history"]) == 2
+    title, _goal, steps = service.fix_plan(a.id)
+    assert "référencement" in title and steps
+
+
+def test_unreachable_home_is_critical(rt):
+    a = one_asset(rt, "Mort", "https://mort.ci")
+    r = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site({})).audit(a)
+    assert r["issues"][0]["code"] == "inaccessible" and r["score"] == 75
+
+
+def test_pages_sites_seo_and_mission(rt):
+    from fastapi.testclient import TestClient
+
+    from ibig_agent.auth import UserStore
+    from ibig_agent.dashboard.app import create_app
+    a = one_asset(rt, "Site pages", "https://pages.ci")
+    SeoService(rt.sessions, rt.settings, lambda: [a],
+               client=make_site({"/": GOOD})).audit(a)
+    UserStore(rt.sessions, rt.org).create("dg@ibig.test", "Direction", "direction", "mot-de-passe-solide")
+    c = TestClient(create_app(rt), base_url="https://testserver")
+    c.post("/login", data={"email": "dg@ibig.test", "password": "mot-de-passe-solide"})
+    assert "Site pages" in c.get("/sites").text
+    assert "Site pages" in c.get("/seo").text
+    assert "Correction" in c.get(f"/seo/{a.id}").text
+    r = c.post(f"/seo/{a.id}/mission", follow_redirects=False)
+    assert r.status_code == 303 and "/missions/" in r.headers["location"]
+
+
+def test_private_portal_is_never_audited_nor_counted(rt):
+    a = one_asset(rt, "Portail privé", "https://prive.ci")
+    a.notes = "seo:non — administration"
+    service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site({"/": GOOD}))
+    assert service.run() == {"sites": 0, "moyenne": None}
+    assert service.overview() == [] and service.result(a.id) is None
+
+
+class FakeLlm:
+    def __init__(self, answers):
+        self.answers = list(answers)
+
+    def write(self, purpose, system, user, max_tokens=4000):
+        assert "IBI GROUP SARL" in system and "jamais" in system.lower()
+        return self.answers.pop(0)
+
+
+def test_meta_proposals_are_validated_refused_when_wrong_and_feed_the_mission(rt):
+    a = one_asset(rt, "Site meta", "https://meta.ci")
+    pages = {"/": "<html><body><h1>x</h1><a href='/p'>p</a>" + "mot " * 300 + "</body></html>",
+             "/p": "<html><body>court</body></html>"}
+    service = SeoService(rt.sessions, rt.settings, lambda: [a], client=make_site(pages),
+                         llm=FakeLlm([('{"title": "Logiciels de gestion à Abidjan | IBIG SARL", '
+                                       '"description": "IBIG SARL, ou INTERMARK BUSINESS INTERNATIONAL GROUP, '
+                                       'conçoit des logiciels de gestion pour entreprises et écoles en Côte d Ivoire."}'),
+                                      '{"title": "IBIG Group, la meilleure agence digitale", "description": "x"}']))
+    service.audit(a)
+    out = service.propose_meta(a.id, "dg")
+    assert len(out) == 1 and "IBIG SARL" in out[0]["title"] and out[0]["status"] == "propose"
+    service.decide_meta(a.id, 0, True, "dg")
+    assert service.meta_proposals(a.id)[0]["status"] == "valide"
+    _title, _goal, steps = service.fix_plan(a.id)
+    assert steps[0][0].startswith("Appliquer les 1 titre") and "<title>" in steps[0][1]
+    with pytest.raises(ValueError):
+        service.decide_meta(a.id, 5, True, "dg")
+
+
+@pytest.fixture(autouse=True)
+def no_pause(monkeypatch):
+    monkeypatch.setattr("ibig_agent.seo.PAUSE_S", 0)
+
+
+def test_a_429_is_retried_once_and_the_audit_never_reads_one_host_in_parallel(rt):
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/":
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(429)
+            return httpx.Response(200, text=GOOD)
+        return httpx.Response(404)
+
+    a = one_asset(rt, "Site 429", "https://limite.ci")
+    b = one_asset(rt, "Meme hote", "https://limite.ci/conseil")
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    service = SeoService(rt.sessions, rt.settings, lambda: [a, b], client=client)
+    r = service.audit(a)
+    assert r["issues"][0]["code"] != "inaccessible" and calls["n"] == 2
+    assert service.run()["sites"] == 2

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Référencement{% endblock %}
+{% block heading %}Référencement (SEO){% endblock %}
+{% block lead %}<p class="lead">L'agent lit chaque site comme Google, note son référencement sur 100 et dit quoi corriger, en commençant par les sites les moins bien notés. Personne ne peut promettre la première place : ici on règle tout ce qui dépend de nous (technique, contenu, structure).</p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+  <div><div class="muted small">Note moyenne du groupe</div><div style="font-size:34px;font-weight:800">{{ average if average is not none else '—' }}<small>{{ '/100' if average is not none }}</small></div><div class="muted small">{{ audited }} site(s) audité(s) sur {{ total }}</div></div>
+  <form method="post" action="/seo/auditer" style="margin-left:auto"><button class="btn primary" {{ 'disabled' if checking }}>{{ 'Audit en cours…' if checking else 'Auditer tous les sites' }}</button>
+    <div class="muted small">Automatique chaque nuit à 4 h.</div></form>
+</section>
+<section class="card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Site</th><th>Note</th><th>Urgent</th><th>À corriger</th><th>Détails</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><b>{{ r.asset.name }}</b><div class="muted small">{{ r.asset.pole or '—' }} · {{ r.asset.url | replace('https://', '') }}</div></td>
+      {% if r.result %}
+      <td><span class="pill {{ grade_tone[r.result.grade] }}">{{ r.result.score }}/100</span>{% if r.result.previous is not none and r.result.previous != r.result.score %} <small class="muted">{{ '+' if r.result.score > r.result.previous }}{{ r.result.score - r.result.previous }}</small>{% endif %}</td>
+      <td>{{ r.sev.critical }}</td><td>{{ r.sev.warning }}</td><td class="muted small">{{ r.sev.info }} amélioration(s)</td>
+      {% else %}<td colspan="4" class="muted small">Pas encore audité</td>{% endif %}
+      <td><a class="btn sm" href="/seo/{{ r.asset.id }}">Ouvrir</a></td>
+    </tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% if not rows %}<p class="muted">Aucun site dans l'inventaire.</p>{% endif %}
+</section>
+{% endblock %}

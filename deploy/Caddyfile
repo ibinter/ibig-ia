@@ -1,0 +1,12 @@
+# HTTPS automatique (Let's Encrypt) devant le tableau de bord et l'API SARA.
+{$IBIG_DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+	reverse_proxy agent:8000
+}

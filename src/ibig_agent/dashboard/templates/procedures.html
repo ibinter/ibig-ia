@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Procédures{% endblock %}
+{% block heading %}Procédures{% endblock %}
+{% block lead %}<p class="lead">Des plans prêts à l'emploi pour les tâches qui reviennent. Lancer une procédure crée une mission avec ses tâches, ses dépendances et la preuve attendue à chaque étape. Cela ne coûte rien : aucun appel d'IA.</p>{% endblock %}
+{% block content %}
+<div class="grid g-2" style="gap:16px;align-items:start">
+  {% for p in procs %}
+  <section class="card">
+    <div class="card-head"><div><h2>{{ p.title }}</h2><div class="sub">{{ p.owner }} · version {{ p.version }}</div></div></div>
+    <p class="muted"><b>Déclencheur :</b> {{ p.trigger }}<br><b>Résultat :</b> {{ p.result }}</p>
+    <details><summary>{{ p.steps | length }} étapes, contrôle qualité et exceptions</summary>
+      <ol class="prio-list" style="margin-top:8px">
+      {% for st in p.steps %}<li><span class="todo-txt"><b>{{ loop.index }}. {{ st.title }}</b><br><small class="muted">{{ agent_labels.get(st.agent, 'Une personne') if st.agent else 'Une personne' }}{% if st.after %} · après {{ st.after | join(', ') }}{% endif %}{% if st.proof %} · preuve : {{ st.proof }}{% endif %}</small></span></li>{% endfor %}
+      </ol>
+      <p class="muted"><b>Qualité :</b> {{ p.quality }}<br><b>Exceptions :</b> {{ p.exceptions }}</p>
+    </details>
+    <form method="post" action="/procedures/{{ p.code }}/lancer" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <input type="text" name="sujet" placeholder="Sujet (prospect, session, client…)" required maxlength="200" style="flex:1;min-width:180px">
+      <select name="pole" aria-label="Pôle">{% for pl in poles %}<option value="{{ pl.code }}">{{ pl.code }}</option>{% endfor %}</select>
+      <button class="btn primary">{{ icon('play') }} Lancer</button>
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{# Champs d'une mission, partagés par la création et la modification. m = mission ou None #}
+{% macro fields(m, poles, kinds, autonomies, channels, agents, agent_labels) %}
+<label class="field"><span>Nom de la mission</span>
+  <input type="text" name="name" required maxlength="200" value="{{ m.name if m else '' }}" placeholder="Prospection écoles privées — SCOLABY"></label>
+<div class="grid g-2" style="gap:12px">
+  <label class="field"><span>Type</span><select name="kind" style="width:100%">{% for k, v in kinds.items() %}<option value="{{ k }}" {{ 'selected' if m and m.kind == k }}>{{ v }}</option>{% endfor %}</select></label>
+  <label class="field"><span>Branche (pôle)</span><select name="pole" style="width:100%" required>{% for p in poles %}<option value="{{ p.code }}" {{ 'selected' if m and m.pole == p.code }}>{{ p.code }}</option>{% endfor %}</select></label>
+  <label class="field"><span>Produit</span><input type="text" name="product" maxlength="200" value="{{ m.product if m else '' }}" placeholder="SCOLABY ERP"></label>
+  <label class="field"><span>Zone géographique</span><input type="text" name="zone" maxlength="200" value="{{ m.zone if m else '' }}" placeholder="Côte d'Ivoire / Abidjan"></label>
+</div>
+<label class="field"><span>Cible</span><input type="text" name="target" maxlength="300" value="{{ m.target if m else '' }}" placeholder="Établissements scolaires privés"></label>
+<label class="field"><span>Objectif de recherche</span><textarea name="objective" rows="2" maxlength="2000" placeholder="Jusqu'à 100 prospects pertinents">{{ m.objective if m else '' }}</textarea></label>
+<label class="field"><span>Critères de qualification</span><textarea name="criteria" rows="2" maxlength="2000" placeholder="Site officiel, activité, besoin pertinent, contact professionnel publié">{{ m.criteria if m else '' }}</textarea></label>
+<div class="grid g-2" style="gap:12px">
+  <label class="field"><span>Agent responsable</span><select name="agent" style="width:100%">{% for a in agents %}<option value="{{ a }}" {{ 'selected' if (m and m.agent == a) or (not m and a == 'prospecteur') }}>{{ agent_labels[a] }}</option>{% endfor %}</select></label>
+  <label class="field"><span>Canal envisagé</span><select name="channel" style="width:100%"><option value="">Aucun pour l'instant</option>{% for c in channels %}<option value="{{ c }}" {{ 'selected' if m and m.channel == c }}>{{ c }}</option>{% endfor %}</select></label>
+</div>
+<label class="field"><span>Autonomie</span><select name="autonomy" style="width:100%">{% for k, v in autonomies.items() %}<option value="{{ k }}" {{ 'selected' if m and m.autonomy == k }}>{{ v }}</option>{% endfor %}</select></label>
+<div class="grid g-2" style="gap:12px">
+  <label class="field"><span>Budget d'IA (USD)</span><input type="number" step="0.01" min="0.01" name="budget_usd" value="{{ m.budget_usd if m and m.budget_usd is not none else '' }}" placeholder="10"></label>
+  <label class="field"><span>Volume total (actions)</span><input type="number" min="1" name="max_total" value="{{ m.max_total if m and m.max_total is not none else '' }}" placeholder="100"></label>
+  <label class="field"><span>Volume par jour</span><input type="number" min="1" name="max_per_day" value="{{ m.max_per_day if m and m.max_per_day is not none else '' }}" placeholder="20"></label>
+  <label class="field"><span>Pause après N échecs de suite</span><input type="number" min="1" max="20" name="error_threshold" value="{{ m.error_threshold if m else 3 }}"></label>
+</div>
+<p class="muted small">Au moins un plafond (budget ou volume total) est obligatoire. « 100 prospects » est un plafond, jamais une obligation de remplir la liste.</p>
+{% endmacro %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Référencement · {{ asset.name }}{% endblock %}
+{% block heading %}{{ asset.name }}{% endblock %}
+{% block lead %}<p class="lead"><a href="{{ asset.url }}" target="_blank" rel="noopener">{{ asset.url }}</a> · <a href="/seo">Tous les sites</a></p>{% endblock %}
+{% block content %}
+<section class="card" style="margin-bottom:16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+  {% if r %}
+  <div><div class="muted small">Note de référencement</div><div style="font-size:34px;font-weight:800">{{ r.score }}<small>/100</small></div>
+    <span class="pill {{ grade_tone[r.grade] }}">{{ r.grade }}</span> <span class="muted small">mesuré le {{ r.at[:10] }} à {{ r.at[11:16] }} (UTC) · accueil en {{ r.ms }} ms · {{ r.pages | length }} page(s) lue(s)</span></div>
+  {% else %}<div class="muted">Pas encore audité.</div>{% endif %}
+  <div style="margin-left:auto" class="inline">
+    <form method="post" action="/seo/{{ asset.id }}/auditer"><button class="btn">Réauditer</button></form>
+    {% if r and issues %}<form method="post" action="/seo/{{ asset.id }}/mission"><button class="btn primary">Créer la mission de correction</button></form>{% endif %}
+  </div>
+</section>
+{% if r and not issues %}<section class="card"><b>Aucun point à corriger.</b> Le site est techniquement bien référencé.</section>{% endif %}
+{% if r %}
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon('sparkles') }} Titres et descriptions proposés</h2><div class="sub">L'agent les rédige avec les noms IBIG SARL, INTERMARK BUSINESS INTERNATIONAL GROUP ou IBI GROUP SARL. Rien n'est publié sans votre validation.</div></div>
+    <form method="post" action="/seo/{{ asset.id }}/redaction"><button class="btn">{{ 'Réécrire' if metas else 'Rédiger les propositions' }}</button></form></div>
+  {% for m in metas %}
+  <div style="border-top:1px solid var(--line);padding:10px 0">
+    <div class="muted small">{{ m.page }} · <b>{{ {'propose': 'à valider', 'valide': 'validé', 'rejete': 'rejeté'}[m.status] }}</b></div>
+    <div><b>{{ m.title }}</b> <span class="muted small">({{ m.title | length }} car.)</span></div>
+    <div>{{ m.description }} <span class="muted small">({{ m.description | length }} car.)</span></div>
+    {% if m.status == 'propose' %}<div class="inline" style="gap:8px;margin-top:6px">
+      <form method="post" action="/seo/{{ asset.id }}/meta/{{ loop.index0 }}/valider"><button class="btn ok">{{ icon('check') }} Valider</button></form>
+      <form method="post" action="/seo/{{ asset.id }}/meta/{{ loop.index0 }}/rejeter"><button class="btn ghost-bad">{{ icon('x') }} Rejeter</button></form></div>{% endif %}
+  </div>
+  {% endfor %}
+  {% if not metas %}<p class="muted small">Aucune proposition pour l'instant.</p>{% endif %}
+</section>
+{% endif %}
+{% for i in issues %}
+<section class="card" style="margin-bottom:10px">
+  <span class="pill {{ 'red' if i.severity == 'critical' else 'amber' if i.severity == 'warning' else 'blue' }} dot">{{ 'Urgent' if i.severity == 'critical' else 'À corriger' if i.severity == 'warning' else 'Amélioration' }}</span>
+  <b>{{ i.problem }}</b>
+  <div class="muted small">{{ i.page }}</div>
+  <p style="margin:8px 0 0"><b>Correction :</b> {{ i.fix }}</p>
+</section>
+{% endfor %}
+{% endblock %}

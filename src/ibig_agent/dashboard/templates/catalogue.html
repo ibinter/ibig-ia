@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Catalogue{% endblock %}
+{% block heading %}Catalogue des offres{% endblock %}
+{% block lead %}<p class="lead">Le registre des offres que l'agent peut présenter : chaque offre a un statut, une version et un responsable de validation. Une offre <b>suspendue, indisponible ou archivée</b> n'est jamais proposée à l'agent ; une offre <b>à confirmer</b> (tarif ambigu ou modifié) n'est pas annoncée sans vérification.</p>{% endblock %}
+{% block content %}
+{% set tone = {'actif': 'green', 'a_confirmer': 'amber', 'sur_devis': 'blue', 'suspendu': 'red', 'indisponible': 'red', 'archive': ''} %}
+
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <div class="cal-stat s-green"><b>{{ counts.get('actif', 0) }}</b><span>actives</span></div>
+  <div class="cal-stat s-amber"><b>{{ counts.get('a_confirmer', 0) }}</b><span>à confirmer</span></div>
+  <div class="cal-stat s-blue"><b>{{ counts.get('sur_devis', 0) }}</b><span>sur devis</span></div>
+  <div class="cal-stat s-red"><b>{{ counts.get('suspendu', 0) + counts.get('indisponible', 0) + counts.get('archive', 0) }}</b><span>masquées</span></div>
+</div>
+
+<form class="filter-bar" method="get" action="/catalogue">
+  <input type="search" name="q" value="{{ q }}" placeholder="Rechercher une offre…" aria-label="Rechercher une offre">
+  <select name="pole" aria-label="Pôle"><option value="">Tous les pôles</option>{% for p in poles %}<option value="{{ p.code }}" {{ 'selected' if p.code == pole }}>{{ p.code }}</option>{% endfor %}</select>
+  <select name="statut" aria-label="Statut"><option value="">Tous les statuts</option>{% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == statut }}>{{ labels[s] }}</option>{% endfor %}</select>
+  <button class="btn sm">{{ icon('search') }} Filtrer</button>
+</form>
+
+{% if total > rows | length %}<p class="muted small">{{ rows | length }} offres affichées sur {{ total }} : affinez la recherche.</p>{% endif %}
+{% if not rows %}
+<div class="card"><div class="empty"><div class="bubble">{{ icon('book') }}</div><b>Aucune offre</b>Le registre se remplit à la première importation du catalogue (commande <code>ibig-agent importer-catalogue</code>, ou le dimanche à 3 h 30).</div></div>
+{% else %}
+<div class="card" style="overflow-x:auto">
+  <table class="tbl">
+    <thead><tr><th>Offre</th><th>Pôle</th><th>Tarif</th><th>Statut</th><th>Version</th><th>Validée par</th>{% if can_edit %}<th>Décision</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for o in rows %}
+      <tr>
+        <td><b>{{ o.name }}</b><br><small class="muted">{{ o.brand }}{% if o.category %} · {{ o.category }}{% endif %}</small></td>
+        <td>{{ o.pole }}</td>
+        <td>{% if o.prices | length == 1 %}{{ '{:,}'.format(o.prices[0]).replace(',', ' ') }} FCFA{% elif o.prices %}<span class="muted">{% for p in o.prices %}{{ '{:,}'.format(p).replace(',', ' ') }}{{ ' / ' if not loop.last }}{% endfor %} FCFA</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td><span class="pill {{ tone[o.status] }}">{{ labels[o.status] }}</span></td>
+        <td>v{{ o.version }}<br><small class="muted">{{ o.updated_at | quand }}</small></td>
+        <td><small>{{ o.validated_by or '—' }}</small></td>
+        {% if can_edit %}
+        <td>
+          <form method="post" action="/catalogue/{{ o.id }}/statut" style="display:flex;gap:4px;margin-bottom:4px">
+            <select name="statut" aria-label="Nouveau statut">{% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == o.status }}>{{ labels[s] }}</option>{% endfor %}</select>
+            <button class="btn sm">{{ icon('check') }}</button>
+          </form>
+          {% if o.prices | length != 1 %}
+          <form method="post" action="/catalogue/{{ o.id }}/tarif" style="display:flex;gap:4px">
+            <input type="number" name="prix" min="1" step="1" placeholder="Tarif FCFA" aria-label="Tarif officiel en FCFA" style="width:110px" required>
+            <button class="btn sm primary" title="Fixer le tarif et valider l'offre">{{ icon('check') }}</button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

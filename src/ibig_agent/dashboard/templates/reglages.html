@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Réglages{% endblock %}
+{% block heading %}Réglages{% endblock %}
+{% block lead %}<p class="lead">Tout ce qui se règle est ici, rangé par question : « qui fait quoi », « quoi dire », « avec quoi se connecter ».</p>{% endblock %}
+{% block content %}
+{% set manager = user.role != 'valideur' %}
+{% set SECTIONS = [
+  ('Qui fait quoi ?', 'bot', [
+    ('/workflows', 'Les workflows', 'Écrire des étapes, les faire approuver par une autre personne, puis les lancer.', manager),
+    ('/departements', 'Les départements', 'Pour chaque département : qui y travaille, ce qui est automatisé, ce qui reste humain.', true),
+    ('/agents', 'Les agents', 'Voir chaque agent, son rôle et ce qu\'il a le droit de faire.', true),
+    ('/supervision', 'Responsables et plafonds', 'Désigner qui répond de chaque agent et limiter ce qu\'il peut faire par jour.', manager),
+    ('/utilisateurs', 'Les personnes et leurs droits', 'Créer un compte, choisir le pôle suivi par chaque valideur.', user.role == 'admin'),
+    ('/arret', 'Bouton d\'arrêt', 'Couper en une minute un canal, un département ou tout l\'agent.', true)]),
+  ('Quoi dire ?', 'book', [
+    ('/catalogue', 'Catalogue et prix', 'Les offres et les tarifs. L\'agent n\'utilise que ces prix.', manager),
+    ('/connaissances', 'Base de connaissances', 'Les réponses et documents que l\'agent a le droit de citer.', true),
+    ('/essai', 'Essayer l\'agent', 'Poser une question pour voir ce qu\'il répondrait, sans rien envoyer.', true)]),
+  ('Avec quoi se connecter ?', 'globe', [
+    ('/donnees', 'Bases de données des plateformes', 'Brancher une plateforme en lecture seule pour détecter des anomalies dans ses données.', manager),
+    ('/boites', 'Boîtes mail', 'Les adresses que l\'agent lit, et le pôle de chacune.', manager),
+    ('/services', 'Services extérieurs et IA', 'Modèle d\'IA, plafond de dépense, Brevo, photos, recherche par le sens.', manager),
+    ('/reseaux', 'Réseaux sociaux', 'Les comptes où l\'agent prépare des publications.', true)]),
+  ('Suivre et vérifier', 'chart', [
+    ('/journal', 'Journal', 'Tout ce que les agents ont fait, avec la décision et la personne.', true),
+    ('/sante', 'Santé des tâches', 'Les tâches planifiées qui échouent.', manager),
+    ('/demarrage', 'Guide de mise en route', 'Les étapes pour bien démarrer, cochées automatiquement.', true),
+    ('/compte', 'Mon compte', 'Changer mon mot de passe, voir mes sessions.', true)])] %}
+{% for title, ic, items in SECTIONS %}
+{% set shown = items | selectattr('3') | list %}
+{% if shown %}
+<section class="card" style="margin-bottom:16px">
+  <div class="card-head"><div><h2>{{ icon(ic) }} {{ title }}</h2></div></div>
+  <ul class="prio-list">
+    {% for href, name, why, ok in shown %}
+    <li><a class="todo-txt" href="{{ href }}"><b>{{ name }}</b><br><small class="muted">{{ why }}</small></a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endfor %}
+{% endblock %}

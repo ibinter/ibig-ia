@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Centre de commande{% endblock %}
+{% block heading %}Centre de commande{% endblock %}
+{% block lead %}<p class="lead">La vue du dirigeant : ce qui demande une décision, ce que font les agents, l'état de chaque département, le commercial, les incidents et le coût de l'IA. Lecture seule : les actions se font dans les pages concernées.</p>{% endblock %}
+{% block content %}
+{% macro money(v) %}{{ '{:,}'.format(v | int).replace(',', ' ') }}{% endmacro %}
+{% set sm = c.summary %}
+<div class="cal-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+  <a class="cal-stat {{ 's-red' if sm.decisions else 's-green' }}" href="/validations"><b>{{ sm.decisions }}</b><span>décision{{ 's' if sm.decisions > 1 }} à prendre</span></a>
+  <a class="cal-stat s-blue" href="/missions"><b>{{ sm.missions_running }}</b><span>mission{{ 's' if sm.missions_running > 1 }} en cours · {{ sm.missions_done_today }} terminée{{ 's' if sm.missions_done_today > 1 }} aujourd'hui</span></a>
+  <a class="cal-stat {{ 's-amber' if sm.tasks_blocked else 's-green' }}" href="/missions"><b>{{ sm.tasks_blocked }}</b><span>tâche{{ 's' if sm.tasks_blocked > 1 }} bloquée{{ 's' if sm.tasks_blocked > 1 }} ou en échec · {{ sm.tasks_ready }} à faire</span></a>
+  <a class="cal-stat {{ 's-red' if sm.incidents else 's-green' }}" href="/journal"><b>{{ sm.incidents }}</b><span>incident{{ 's' if sm.incidents > 1 }} aujourd'hui · {{ sm.tickets }} ticket{{ 's' if sm.tickets > 1 }} ouvert{{ 's' if sm.tickets > 1 }}</span></a>
+</div>
+
+<section class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Départements</h2><div class="sub">Charge et résultats par pôle</div></div></div>
+  <table class="tbl"><thead><tr><th>Pôle</th><th>Décisions</th><th>Prospects ouverts</th><th>Devis en attente</th><th>Missions</th><th>Tickets</th><th>Encaissé ce mois (FCFA)</th></tr></thead><tbody>
+  {% for d in c.departments %}<tr><td><b>{{ d.pole }}</b></td><td>{{ d.decisions }}</td><td>{{ d.prospects }}</td><td>{{ d.quotes }}</td><td>{{ d.missions }}</td><td>{{ d.tickets }}</td><td>{{ money(d.revenue) }}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<div class="grid g-2" style="gap:16px;align-items:start;margin-top:16px">
+  <section class="card">
+    <div class="card-head"><div><h2>Entonnoir commercial</h2><div class="sub">Du prospect trouvé à l'argent encaissé (ce mois)</div></div></div>
+    {% set cm = c.commercial %}
+    <ul class="todo">
+      <li><span class="todo-txt"><b>{{ cm.found }}</b> prospect{{ 's' if cm.found > 1 }} enregistré{{ 's' if cm.found > 1 }}</span></li>
+      <li><span class="todo-txt"><b>{{ cm.qualified }}</b> en cours de qualification ou de discussion</span></li>
+      <li><span class="todo-txt"><b>{{ cm.quotes_sent }}</b> devis envoyé{{ 's' if cm.quotes_sent > 1 }}</span></li>
+      <li><span class="todo-txt"><b>{{ cm.won }}</b> vente{{ 's' if cm.won > 1 }} gagnée{{ 's' if cm.won > 1 }}</span></li>
+      <li><span class="todo-txt"><b>{{ money(cm.collected) }} FCFA</b> encaissés (paiements confirmés){% if cm.to_confirm %} · <a href="/finance">{{ cm.to_confirm }} à confirmer</a>{% endif %}</span></li>
+    </ul>
+  </section>
+  <section class="card">
+    <div class="card-head"><div><h2>Coût de l'IA ce mois</h2><div class="sub">Par modèle et par agent</div></div><span class="pill dot">{{ '%.2f' | format(c.costs.total) }} $</span></div>
+    {% if c.costs.by_model %}<p class="muted">{% for m, v in c.costs.by_model %}{{ m }} : {{ '%.2f' | format(v) }} $ · {% endfor %}</p>
+    <ul class="todo">{% for a, v in c.costs.by_agent %}<li><span class="todo-txt"><b>{{ a }}</b> · {{ '%.2f' | format(v) }} $</span></li>{% endfor %}</ul>
+    {% else %}<p class="muted">Aucune dépense ce mois-ci.</p>{% endif %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Activité des agents</h2><div class="sub">État, actions du jour, dernière action</div></div><a class="btn sm" href="/supervision">Superviser</a></div>
+  <table class="tbl"><thead><tr><th>Agent</th><th>État</th><th>Actions aujourd'hui</th><th>Coût aujourd'hui</th><th>Dernière action</th></tr></thead><tbody>
+  {% for a in c.agents %}<tr><td><b>{{ a.label }}</b></td><td>{% if a.suspended %}<span class="pill red dot">suspendu</span>{% else %}<span class="pill green dot">actif</span>{% endif %}</td><td>{{ a.runs }}</td><td>{{ '%.2f' | format(a.cost) }} $</td><td>{% if a.last %}{{ a.last.created_at | quand }} · {{ a.last.summary[:70] }}{% else %}—{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="card" style="margin-top:16px">
+  <div class="card-head"><div><h2>Incidents récents</h2><div class="sub">Échecs, blocages et alertes des 3 derniers jours</div></div><a class="btn sm" href="/sante">Santé des tâches</a></div>
+  {% if c.incidents or c.failing_jobs %}
+  <ul class="prio-list">
+    {% for j in c.failing_jobs %}<li><span class="todo-txt"><b>Tâche planifiée en échec : {{ j.name or j.job_id }}</b> · {{ j.failures }} échec{{ 's' if j.failures > 1 }} de suite<br><small class="muted">{{ j.last_error[:160] }}</small></span></li>{% endfor %}
+    {% for e in c.incidents %}<li><span class="todo-txt"><b>{{ e.summary[:120] }}</b><br><small class="muted">{{ e.created_at | quand }} · {{ e.agent }}{% if e.pole %} · {{ e.pole }}{% endif %} · {{ e.status }}</small></span></li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted">Aucun incident récent.</p>{% endif %}
+</section>
+{% endblock %}

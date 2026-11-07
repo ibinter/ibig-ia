@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Devis {{ d.number }}</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;color:#111;background:#fff;max-width:760px;margin:24px auto;padding:0 16px}
+  h1{font-size:22px;margin:0 0 4px} table{width:100%;border-collapse:collapse;margin:18px 0}
+  th,td{border-bottom:1px solid #ccc;padding:8px;text-align:left} td.n,th.n{text-align:right}
+  .tot{font-size:18px;text-align:right} .muted{color:#555} button{margin-bottom:16px}
+  @media print{button{display:none}}
+</style>
+</head>
+<body>
+<button onclick="window.print()">Imprimer / enregistrer en PDF</button>
+<h1>Devis {{ d.number }}</h1>
+<p class="muted">Établi le {{ d.validated_at | quand if d.validated_at else '—' }}{% if d.valid_until %} · valable jusqu'au {{ d.valid_until | quand }}{% endif %}</p>
+<p><b>Client :</b> {{ prospect.name if prospect and prospect.name else (prospect.email if prospect else '—') }}<br>{% if prospect %}{{ prospect.email }}{% endif %}</p>
+<table><thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">Prix unitaire</th><th class="n">Total</th></tr></thead><tbody>
+{% for l in lines %}<tr><td>{{ l.label }}</td><td class="n">{{ l.qty }}</td><td class="n">{{ '{:,}'.format(l.unit_price).replace(',', ' ') }}</td><td class="n">{{ '{:,}'.format(l.total).replace(',', ' ') }}</td></tr>{% endfor %}
+</tbody></table>
+<p class="tot"><b>Total : {{ '{:,}'.format(d.total).replace(',', ' ') }} {{ d.currency }}</b></p>
+{% if d.notes %}<p class="muted">{{ d.notes }}</p>{% endif %}
+</body>
+</html>
