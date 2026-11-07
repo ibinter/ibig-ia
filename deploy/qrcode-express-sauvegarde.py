@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Sauvegarde de QR CODE EXPRESS hors de Supabase (lecture seule chez Supabase).
+"""Rapatrie les fichiers de QR CODE EXPRESS depuis l'ANCIEN projet Supabase (lecture seule).
 
-Tant que Supabase bloque la lecture (quota dépassé), le script réessaie sans rien faire d'autre.
-Dès que la lecture revient :
-  1. copie tous les fichiers des buckets qr-images et qr-pdfs dans /var/www/qrcode-express-uploads/<bucket>/<chemin>
-     (même chemin qu'avant : nginx les sert sur /files/<bucket>/<chemin>) ;
-  2. exporte chaque table de la base en JSON dans /opt/backups/qrcode-express-<date>/ ;
+La base et la connexion des utilisateurs sont déjà sur le serveur (/opt/qrcode-supabase). Restent les fichiers
+envoyés avant la migration (images et PDF), qui ne sont lisibles chez Supabase qu'une fois le quota remis à zéro.
+Tant que Supabase répond 402, le script réessaie sans rien faire d'autre. Dès que la lecture revient :
+  1. copie les fichiers des buckets qr-images et qr-pdfs dans /var/www/qrcode-express-uploads/<bucket>/<chemin>
+     (nginx les sert sur https://qrcode-express.com/files/<bucket>/<chemin>) ;
+  2. remplace, dans la base du serveur, les anciennes adresses Supabase Storage par les adresses /files/ ;
   3. écrit le fichier-témoin /root/.qrcode-express-sauvegarde-ok.
-Les adresses enregistrées dans la base ne sont PAS modifiées ici : on le fait ensuite, à la main, une fois
-la copie vérifiée.
 """
 
 import json
 import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 
-ENV = "/var/www/qrcode-express/.env"
+ENV = "/root/qr-env.avant-selfhost"      # identifiants de l'ANCIEN projet, sauvegardés avant la migration
 DEST = "/var/www/qrcode-express-uploads"
 DONE = "/root/.qrcode-express-sauvegarde-ok"
 BUCKETS = ("qr-images", "qr-pdfs")
@@ -69,6 +69,27 @@ def list_objects(base: str, key: str, bucket: str, prefix: str = "") -> list[str
         offset += 100
 
 
+def rewrite_urls(old: str, new: str) -> int:
+    """Remplace l'ancienne adresse du stockage par la nouvelle dans toutes les colonnes texte/json de la base."""
+    sql_cols = ("select table_name, column_name, data_type from information_schema.columns where table_schema = 'public' "
+                "and data_type in ('text', 'character varying', 'jsonb', 'json')")
+    def psql(sql: str) -> str:
+        return subprocess.run(["docker", "exec", "-i", "qrcode-supabase-db-1", "psql", "-U", "postgres", "-d", "postgres",
+                               "-v", "ON_ERROR_STOP=1", "-tA", "-F", "|"], input=sql.encode(), capture_output=True,
+                              check=True).stdout.decode()
+    total = 0
+    for line in psql(sql_cols).splitlines():
+        table, col, kind = line.split("|")
+        if not (re.match(r"^[a-z_0-9]+$", table) and re.match(r"^[a-z_0-9]+$", col)):
+            continue
+        cast = "::jsonb" if kind == "jsonb" else ("::json" if kind == "json" else "")
+        like = old.replace("'", "''")
+        out = psql(f"WITH u AS (UPDATE public.{table} SET {col} = replace({col}::text, '{like}', '{new}'){cast} "
+                   f"WHERE {col}::text LIKE '%{like}%' RETURNING 1) SELECT count(*) FROM u;")
+        total += int(out.strip() or 0)
+    return total
+
+
 def main() -> int:
     if os.path.exists(DONE):
         return 0
@@ -87,24 +108,12 @@ def main() -> int:
                 with open(target, "wb") as fh:
                     fh.write(call(base, key, f"/storage/v1/object/{bucket}/{path}", raw=True))
                 copied += 1
+        old = base + "/storage/v1/object/public/"
+        rewritten = rewrite_urls(old, "https://qrcode-express.com/files/")
         stamp = datetime.now(UTC).strftime("%Y-%m-%d_%H%M")
-        out_dir = f"/opt/backups/qrcode-express-{stamp}"
-        os.makedirs(out_dir, exist_ok=True)
-        spec = call(base, key, "/rest/v1/")
-        tables = [t for t in spec.get("definitions", {}) if re.match(r"^[a-z0-9_]+$", t)]
-        for table in tables:
-            rows, start = [], 0
-            while True:
-                chunk = call(base, key, f"/rest/v1/{table}?select=*&offset={start}&limit=1000")
-                rows += chunk
-                if len(chunk) < 1000:
-                    break
-                start += 1000
-            with open(os.path.join(out_dir, table + ".json"), "w", encoding="utf-8") as fh:
-                json.dump(rows, fh, ensure_ascii=False)
-            os.chmod(os.path.join(out_dir, table + ".json"), 0o600)
-        open(DONE, "w", encoding="utf-8").write(stamp)
-        print(f"{copied} fichiers copiés, {len(tables)} tables exportées dans {out_dir}")
+        with open(DONE, "w", encoding="utf-8") as fh:
+            fh.write(stamp)
+        print(f"{copied} fichiers copiés, {rewritten} champ(s) de la base mis à jour")
         return 0
     except Blocked as exc:
         print(f"Supabase répond encore {exc}: nouvel essai demain")
